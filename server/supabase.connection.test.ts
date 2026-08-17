@@ -22,4 +22,18 @@ describe("Supabase configuration", () => {
 
     expect(response.ok).toBe(true);
   });
+
+  it("exposes the migrated tables through REST while RLS returns no unauthorised rows", async () => {
+    for (const table of ["profiles", "merchants", "couriers", "merchant_courier_approvals", "orders"]) {
+      const response = await fetch(`${projectUrl}/rest/v1/${table}?select=*&limit=1`, {
+        headers: {
+          apikey: publishableKey!,
+          Authorization: `Bearer ${publishableKey!}`,
+        },
+      });
+
+      expect(response.ok, `${table} should exist and accept the RLS-protected request`).toBe(true);
+      expect(await response.json()).toEqual([]);
+    }
+  });
 });
