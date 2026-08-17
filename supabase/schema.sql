@@ -180,3 +180,317 @@ create policy orders_customer_create_self on public.orders
   with check (auth.uid() = customer_id and public.current_app_role() = 'customer');
 
 -- No direct UPDATE policy is granted. Status changes should go through reviewed RPC functions.
+
+-- ============================================================================
+-- Commerce and administration extension
+-- Run this section again after the account listportail@gmail.com has signed up
+-- once in the application. Only the database owner can grant the admin role.
+-- ============================================================================
+
+alter table public.profiles drop constraint if exists profiles_role_check;
+alter table public.profiles add constraint profiles_role_check
+  check (role in ('merchant', 'courier', 'customer', 'admin'));
+
+-- Never trust raw sign-up metadata for an administrator role.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  requested_role text := coalesce(nullif(new.raw_user_meta_data ->> 'role', ''), 'customer');
+begin
+  insert into public.profiles (id, role, name, phone, email)
+  values (
+    new.id,
+    case when requested_role in ('merchant', 'courier', 'customer') then requested_role else 'customer' end,
+    nullif(new.raw_user_meta_data ->> 'name', ''),
+    nullif(new.raw_user_meta_data ->> 'phone', ''),
+    new.email
+  );
+  return new;
+end;
+$$;
+
+create or replace function public.is_app_admin()
+returns boolean
+language sql
+stable
+security definer set search_path = public
+as $$
+  select public.current_app_role() = 'admin';
+$$;
+
+grant execute on function public.is_app_admin() to anon, authenticated;
+
+-- This command promotes only an existing, verified application profile. Re-run
+-- after the email above has registered if the statement initially updates zero rows.
+update public.profiles
+set role = 'admin', updated_at = now()
+where lower(email) = 'listportail@gmail.com';
+
+create table if not exists public.products (
+  id uuid primary key default gen_random_uuid(),
+  merchant_id uuid not null references public.merchants(id) on delete cascade,
+  name text not null check (char_length(trim(name)) >= 2),
+  price integer not null check (price >= 0),
+  unit text not null default 'الوحدة',
+  department text not null default 'pantry',
+  available boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.order_items (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders(id) on delete cascade,
+  product_id uuid references public.products(id) on delete set null,
+  product_name text not null,
+  unit text not null,
+  unit_price integer not null check (unit_price >= 0),
+  quantity integer not null check (quantity > 0),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists products_merchant_available_idx on public.products (merchant_id, available, created_at desc);
+create index if not exists order_items_order_idx on public.order_items (order_id);
+
+alter table public.products enable row level security;
+alter table public.order_items enable row level security;
+
+-- An administrator can read every registration; regular users retain their
+-- previous least-privilege access rules.
+drop policy if exists profiles_admin_read on public.profiles;
+create policy profiles_admin_read on public.profiles
+  for select to authenticated using (public.is_app_admin());
+
+drop policy if exists merchants_read_approved_or_self on public.merchants;
+create policy merchants_read_approved_or_self on public.merchants
+  for select using (status = 'approved' or auth.uid() = id or public.is_app_admin());
+
+drop policy if exists couriers_read_self_or_merchant on public.couriers;
+create policy couriers_read_self_or_merchant on public.couriers
+  for select using (
+    auth.uid() = id
+    or public.is_app_admin()
+    or (status = 'approved' and public.current_app_role() = 'merchant')
+  );
+
+drop policy if exists orders_read_participants on public.orders;
+create policy orders_read_participants on public.orders
+  for select using (
+    public.is_app_admin()
+    or auth.uid() = customer_id
+    or auth.uid() = merchant_id
+    or auth.uid() = courier_id
+    or (courier_id is null and status = 'ready' and public.current_app_role() = 'courier')
+  );
+
+drop policy if exists products_read_available_or_owner on public.products;
+create policy products_read_available_or_owner on public.products
+  for select using (
+    public.is_app_admin()
+    or merchant_id = auth.uid()
+    or (
+      available = true and exists (
+        select 1 from public.merchants m
+        where m.id = products.merchant_id and m.status = 'approved'
+      )
+    )
+  );
+
+drop policy if exists products_manage_owner_or_admin on public.products;
+create policy products_manage_owner_or_admin on public.products
+  for all to authenticated
+  using (merchant_id = auth.uid() or public.is_app_admin())
+  with check (merchant_id = auth.uid() or public.is_app_admin());
+
+drop policy if exists order_items_read_participants on public.order_items;
+create policy order_items_read_participants on public.order_items
+  for select to authenticated using (
+    exists (
+      select 1 from public.orders o
+      where o.id = order_items.order_id
+        and (
+          public.is_app_admin()
+          or o.customer_id = auth.uid()
+          or o.merchant_id = auth.uid()
+          or o.courier_id = auth.uid()
+        )
+    )
+  );
+
+-- Product prices and order totals are calculated inside this function; clients
+-- submit product IDs and quantities only.
+create or replace function public.create_customer_order(
+  p_merchant_id uuid,
+  p_items jsonb,
+  p_delivery_choice text default 'pickup',
+  p_delivery_address jsonb default null,
+  p_delivery_fee integer default 0
+)
+returns public.orders
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_items jsonb;
+  v_subtotal integer;
+  v_order public.orders;
+begin
+  if public.current_app_role() <> 'customer' then
+    raise exception 'Only customer accounts can create orders';
+  end if;
+  if jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception 'An order needs at least one product';
+  end if;
+  if p_delivery_choice not in ('pickup', 'store', 'courier') or p_delivery_fee < 0 then
+    raise exception 'Invalid delivery options';
+  end if;
+  if not exists (select 1 from public.merchants where id = p_merchant_id and status = 'approved') then
+    raise exception 'The merchant is not available';
+  end if;
+
+  select
+    coalesce(jsonb_agg(jsonb_build_object(
+      'id', p.id,
+      'name', p.name,
+      'price', p.price,
+      'unit', p.unit,
+      'department', p.department,
+      'qty', line.qty
+    ) order by p.name), '[]'::jsonb),
+    coalesce(sum(p.price * line.qty), 0)
+  into v_items, v_subtotal
+  from jsonb_to_recordset(p_items) as line(product_id uuid, qty integer)
+  join public.products p on p.id = line.product_id
+  where p.merchant_id = p_merchant_id
+    and p.available = true
+    and line.qty between 1 and 100;
+
+  if jsonb_array_length(v_items) <> jsonb_array_length(p_items) then
+    raise exception 'One or more selected products are unavailable';
+  end if;
+
+  insert into public.orders (
+    customer_id, merchant_id, status, items, delivery_address,
+    delivery_choice, subtotal, delivery_fee, total
+  ) values (
+    auth.uid(), p_merchant_id, 'pending', v_items, p_delivery_address,
+    p_delivery_choice, v_subtotal, p_delivery_fee, v_subtotal + p_delivery_fee
+  ) returning * into v_order;
+
+  insert into public.order_items (order_id, product_id, product_name, unit, unit_price, quantity)
+  select v_order.id, p.id, p.name, p.unit, p.price, line.qty
+  from jsonb_to_recordset(p_items) as line(product_id uuid, qty integer)
+  join public.products p on p.id = line.product_id;
+
+  return v_order;
+end;
+$$;
+
+create or replace function public.set_merchant_order_status(
+  p_order_id uuid,
+  p_status text
+)
+returns public.orders
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_order public.orders;
+begin
+  select * into v_order from public.orders where id = p_order_id for update;
+  if not found or v_order.merchant_id <> auth.uid() then
+    raise exception 'Only the owning merchant can update this order';
+  end if;
+  if not (
+    (v_order.status = 'pending' and p_status in ('accepted', 'declined'))
+    or (v_order.status = 'accepted' and p_status = 'preparing')
+    or (v_order.status = 'preparing' and p_status = 'ready')
+  ) then
+    raise exception 'Invalid merchant order transition';
+  end if;
+  update public.orders set status = p_status, updated_at = now() where id = p_order_id returning * into v_order;
+  return v_order;
+end;
+$$;
+
+create or replace function public.claim_ready_order(p_order_id uuid)
+returns public.orders
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_order public.orders;
+  v_courier public.couriers;
+  v_merchant public.merchants;
+begin
+  if public.current_app_role() <> 'courier' then
+    raise exception 'Only couriers can claim orders';
+  end if;
+  select * into v_courier from public.couriers where id = auth.uid() and status = 'approved';
+  if not found then raise exception 'Approved courier profile required'; end if;
+  select * into v_order from public.orders where id = p_order_id for update;
+  if not found or v_order.status <> 'ready' or v_order.courier_id is not null or v_order.delivery_choice <> 'courier' then
+    raise exception 'This order is no longer available';
+  end if;
+  select * into v_merchant from public.merchants where id = v_order.merchant_id;
+  if v_merchant.wilaya <> v_courier.wilaya
+     or (cardinality(v_courier.communes) > 0 and not v_merchant.commune = any(v_courier.communes)) then
+    raise exception 'The order is outside your coverage';
+  end if;
+  update public.orders set courier_id = auth.uid(), status = 'assigned', updated_at = now()
+  where id = p_order_id returning * into v_order;
+  return v_order;
+end;
+$$;
+
+create or replace function public.complete_delivery(p_order_id uuid)
+returns public.orders
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_order public.orders;
+begin
+  select * into v_order from public.orders where id = p_order_id for update;
+  if not found or v_order.courier_id <> auth.uid() or v_order.status <> 'assigned' then
+    raise exception 'Only the assigned courier can complete this delivery';
+  end if;
+  update public.orders set status = 'delivered', updated_at = now() where id = p_order_id returning * into v_order;
+  return v_order;
+end;
+$$;
+
+create or replace function public.admin_set_provider_status(
+  p_provider_type text,
+  p_provider_id uuid,
+  p_status text
+)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if not public.is_app_admin() then
+    raise exception 'Administrator role required';
+  end if;
+  if p_provider_type = 'merchant' and p_status in ('pending_review', 'approved', 'suspended') then
+    update public.merchants set status = p_status, updated_at = now() where id = p_provider_id;
+  elsif p_provider_type = 'courier' and p_status in ('pending', 'approved', 'suspended') then
+    update public.couriers set status = p_status, updated_at = now() where id = p_provider_id;
+  else
+    raise exception 'Invalid provider type or status';
+  end if;
+end;
+$$;
+
+grant execute on function public.create_customer_order(uuid, jsonb, text, jsonb, integer) to authenticated;
+grant execute on function public.set_merchant_order_status(uuid, text) to authenticated;
+grant execute on function public.claim_ready_order(uuid) to authenticated;
+grant execute on function public.complete_delivery(uuid) to authenticated;
+grant execute on function public.admin_set_provider_status(text, uuid, text) to authenticated;
+
+-- Direct order creation is intentionally removed: totals must use the RPC above.
+drop policy if exists orders_customer_create_self on public.orders;

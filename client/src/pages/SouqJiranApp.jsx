@@ -22,7 +22,6 @@ const C = {
   sage: "#7C9A81", line: "#DED2AE", purple: "#6B4A8A",
 };
 const LOGO_COLORS = [C.teal, C.rust, C.ochre, C.sage, C.purple];
-const ADMIN_PASSWORD = "1234";
 const PLATFORM_COURIER_FEE = 120;
 
 const DEPARTMENTS = [
@@ -603,39 +602,22 @@ function AuthModal({ authenticate, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(35,32,27,0.55)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl p-5 space-y-3" style={{ background: C.paper }}>
-        <div className="flex items-center justify-between"><h3 className="font-black text-lg flex items-center gap-1.5" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>{mode === "login" ? <LogIn size={18} color={C.teal} /> : <UserPlus size={18} color={C.teal} />} {type === "merchant" ? "منصة التاجر" : "لوحة الموصل"}</h3><button onClick={onClose}><X size={18} color={C.inkSoft} /></button></div>
+        <div className="flex items-center justify-between"><h3 className="font-black text-lg flex items-center gap-1.5" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>{mode === "login" ? <LogIn size={18} color={C.teal} /> : <UserPlus size={18} color={C.teal} />} {type === "merchant" ? "منصة التاجر" : type === "courier" ? "لوحة الموصل" : type === "customer" ? "حساب العميل" : "لوحة الإدارة"}</h3><button onClick={onClose}><X size={18} color={C.inkSoft} /></button></div>
         <div className="flex gap-2 p-1 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
           <button onClick={() => setType("merchant")} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: type === "merchant" ? C.teal : "transparent", color: type === "merchant" ? "#fff" : C.inkSoft }}><Store size={15} /> تاجر</button>
           <button onClick={() => setType("courier")} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: type === "courier" ? C.teal : "transparent", color: type === "courier" ? "#fff" : C.inkSoft }}><Bike size={15} /> موصّل</button>
+          <button onClick={() => setType("customer")} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: type === "customer" ? C.teal : "transparent", color: type === "customer" ? "#fff" : C.inkSoft }}><User size={15} /> عميل</button>
+          {mode === "login" && <button onClick={() => setType("admin")} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: type === "admin" ? C.ink : "transparent", color: type === "admin" ? "#fff" : C.inkSoft }}><ShieldCheck size={15} /> إدارة</button>}
         </div>
         <div className="flex gap-2 p-1 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
           <button onClick={() => { setMode("login"); setError(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "login" ? C.ink : "transparent", color: mode === "login" ? "#fff" : C.inkSoft }}>دخول</button>
-          <button onClick={() => { setMode("register"); setError(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "register" ? C.ink : "transparent", color: mode === "register" ? "#fff" : C.inkSoft }}>حساب جديد</button>
+          <button onClick={() => { setMode("register"); if (type === "admin") setType("merchant"); setError(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "register" ? C.ink : "transparent", color: mode === "register" ? "#fff" : C.inkSoft }}>حساب جديد</button>
         </div>
         <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Mail size={15} color={C.inkSoft} /><input placeholder="البريد الإلكتروني" value={email} onChange={(e) => setEmail(e.target.value)} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>
         <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Lock size={15} color={C.inkSoft} /><input type="password" placeholder="كلمة المرور" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>
         {error && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{error}</p>}
         <button disabled={isSubmitting} onClick={submit} className="w-full py-3 rounded-xl font-black flex items-center justify-center gap-1.5 disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ المعالجة..." : mode === "login" ? <><LogIn size={16} /> تسجيل الدخول</> : <><UserPlus size={16} /> إنشاء حساب</>}</button>
-        {mode === "register" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>{type === "merchant" ? "سيُنشأ حساب محلك فورًا، ثم تكمل بيانات محلك" : "بعد الموافقة على انضمامك من المشرف، تدخل لوحتك مباشرةً"}</p>}
-      </div>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------
-   بوابة دخول المشرف الخفية
---------------------------------------------------------- */
-function AdminGateModal({ onSuccess, onClose, notify }) {
-  const [pwd, setPwd] = useState("");
-  function submit() { if (pwd === ADMIN_PASSWORD) onSuccess(); else { notify("كلمة السر غير صحيحة"); setPwd(""); } }
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(35,32,27,0.55)" }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-xs rounded-2xl p-5 text-center" style={{ background: C.paper }}>
-        <Lock size={26} color={C.ink} style={{ margin: "0 auto 10px" }} />
-        <h3 className="font-black mb-1" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>لوحة الإدارة</h3>
-        <p className="text-xs mb-4" style={{ color: C.inkSoft }}>هذه المنطقة مخصصة لفريق المنصة فقط.</p>
-        <input type="password" value={pwd} onChange={(e) => setPwd(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} placeholder="كلمة السر" autoFocus className="w-full px-3 py-2.5 rounded-xl text-sm outline-none text-center mb-3" style={{ border: `1px solid ${C.line}` }} />
-        <button onClick={submit} className="w-full py-2.5 rounded-xl font-black" style={{ background: C.ink, color: "#fff" }}>دخول</button>
+        {mode === "register" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>{type === "merchant" ? "سيُنشأ حساب محلك فورًا، ثم تكمل بيانات محلك" : type === "courier" ? "بعد الموافقة على انضمامك من المشرف، تدخل لوحتك مباشرةً" : "يُستخدم حسابك لإرسال الطلبات ومتابعتها بأمان."}</p>}
       </div>
     </div>
   );
@@ -857,7 +839,7 @@ function OrderTracker({ status }) {
 /* ===========================================================
    MERCHANT VIEW
 =========================================================== */
-function MerchantView({ stores, setStores, orders, setOrders, couriers, myStoreId, setMyStoreId, notify, registerMerchant }) {
+function MerchantView({ stores, setStores, orders, couriers, myStoreId, setMyStoreId, notify, registerMerchant, createProduct, createBulkProducts, removeProductRemote, setProductAvailability, setMerchantOrderStatus }) {
   const myStore = stores.find((s) => s.id === myStoreId);
   const [merchantMode, setMerchantMode] = useState("select");
   const [form, setForm] = useState({ name: "", phone: "", email: "", password: "", wilaya: "", commune: "", lat: 50, lng: 50 });
@@ -896,13 +878,13 @@ function MerchantView({ stores, setStores, orders, setOrders, couriers, myStoreI
   function toggleStoreDeliveryCommune(c) { const cur = myStore.deliveryCommunes || []; updateStore({ deliveryCommunes: cur.includes(c) ? cur.filter((x) => x !== c) : [...cur, c] }); }
   function toggleApprovedCourier(id) { const cur = myStore.approvedCourierIds || []; updateStore({ approvedCourierIds: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] }); }
 
-  function addProduct() { if (!newProduct.name || !newProduct.price) { notify("أدخل اسم المنتج وسعره"); return; } const p = { id: "p" + Math.random().toString(36).slice(2, 7), name: newProduct.name, price: Number(newProduct.price), unit: newProduct.unit, department: newProduct.department, available: true }; updateStore({ products: [...myStore.products, p] }); setNewProduct({ name: "", price: "", unit: "الوحدة", department: "pantry" }); notify("تمت إضافة المنتج"); }
-  function addBulkProducts(rows) { const newProducts = rows.map((r) => ({ id: "p" + Math.random().toString(36).slice(2, 7), name: r.name, price: r.price, unit: r.unit, department: r.department, available: true })); updateStore({ products: [...myStore.products, ...newProducts] }); setShowBulkImport(false); notify(`تمت إضافة ${newProducts.length} منتج من الملف`); }
-  function removeProduct(id) { updateStore({ products: myStore.products.filter((p) => p.id !== id) }); }
-  function toggleAvailable(id) { updateStore({ products: myStore.products.map((p) => (p.id === id ? { ...p, available: !p.available } : p)) }); }
+  async function addProduct() { if (!newProduct.name || !newProduct.price) { notify("أدخل اسم المنتج وسعره"); return; } const result = await createProduct(myStoreId, { ...newProduct, price: Number(newProduct.price) }); if (!result) return; setNewProduct({ name: "", price: "", unit: "الوحدة", department: "pantry" }); notify("تمت إضافة المنتج"); }
+  async function addBulkProducts(rows) { const result = await createBulkProducts(myStoreId, rows); if (!result) return; setShowBulkImport(false); notify(`تمت إضافة ${rows.length} منتج من الملف`); }
+  async function removeProduct(id) { if (await removeProductRemote(id)) notify("تم حذف المنتج"); }
+  async function toggleAvailable(id) { const product = myStore.products.find((item) => item.id === id); if (product) await setProductAvailability(id, !product.available); }
 
   const myOrders = orders.filter((o) => o.storeId === myStoreId);
-  function setOrderStatus(id, status) { setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o))); }
+  async function setOrderStatus(id, status) { await setMerchantOrderStatus(id, status); }
   const nextStatus = { accepted: "preparing", preparing: "ready", ready: "delivered" };
 
   const matchingCouriers = myStore ? couriers.filter((c) => c.status === "approved" && c.wilaya === myStore.wilaya && (c.communes.length === 0 || c.communes.includes(myStore.commune)) && (c.storeMode === "all" || (c.selectedStoreIds || []).includes(myStore.id))) : [];
@@ -1074,7 +1056,7 @@ function MerchantView({ stores, setStores, orders, setOrders, couriers, myStoreI
 /* ---------------------------------------------------------
    لوحة الموصل — الطلبات المتاحة حوله وساعات عمله
 --------------------------------------------------------- */
-function CourierDashboard({ courierId, stores, orders, setOrders, couriers, setCouriers, accounts, notify, onLogout }) {
+function CourierDashboard({ courierId, stores, orders, couriers, setCouriers, notify, onLogout, claimReadyOrder, completeDelivery }) {
   const [tab, setTab] = useState("available");
   const courier = (couriers || []).find((c) => c.id === courierId);
   const [editingHours, setEditingHours] = useState(false);
@@ -1094,7 +1076,7 @@ function CourierDashboard({ courierId, stores, orders, setOrders, couriers, setC
 
   // الطلبات المتاحة: ضمن نطاق الموصل، توصيل بالموصلي، لم يُعيّن لها موصل
   const availableOrders = (orders || []).filter((o) => {
-    if (o.deliveryType !== "courier" || o.status === "declined" || o.status === "delivered" || o.courier) return false;
+    if (o.deliveryType !== "courier" || o.status !== "ready" || o.courier) return false;
     const store = storeById[o.storeId];
     if (!store) return false;
     if (store.wilaya !== courier.wilaya) return false;
@@ -1106,9 +1088,8 @@ function CourierDashboard({ courierId, stores, orders, setOrders, couriers, setC
   const myActiveOrders = (orders || []).filter((o) => o.courier?.id === courierId && !["delivered", "declined"].includes(o.status));
   const completedOrders = (orders || []).filter((o) => o.courier?.id === courierId && o.status === "delivered");
 
-  function acceptOrder(orderId) { setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, courier: { id: courier.id, name: courier.name, phone: courier.phone }, status: "accepted" } : o))); notify("تم قبول الطلب — توجه إلى المحل لاستلامه"); }
-  function advanceOrder(orderId, status) { setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status } : o))); }
-  function declineOrder(orderId) { setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, courier: null, status: o.status === "pending" ? "pending" : "preparing" } : o))); notify("تم التخلي عن الطلب"); }
+  async function acceptOrder(orderId) { await claimReadyOrder(orderId); }
+  async function advanceOrder(orderId) { await completeDelivery(orderId); }
 
   function updateCourier(patch) { setCouriers((prev) => prev.map((c) => (c.id === courierId ? { ...c, ...patch } : c))); }
 
@@ -1170,10 +1151,7 @@ function CourierDashboard({ courierId, stores, orders, setOrders, couriers, setC
                 {store && <div className="text-xs mb-3 flex items-center gap-1" style={{ color: C.teal }}><MapPin size={12} /> {store.wilaya} · {store.commune}{store.phone ? ` · هاتف المحل: ${store.phone}` : ""}</div>}
                 <OrderTracker status={o.status} />
                 <div className="flex gap-2 mt-3 pt-3 flex-wrap" style={{ borderTop: `1px solid ${C.line}` }}>
-                  {o.status === "accepted" && <button onClick={() => advanceOrder(o.id, "preparing")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.teal, color: "#fff" }}><Package size={12} /> استلمت من المحل — قيد التوصيل</button>}
-                  {o.status === "preparing" && <button onClick={() => advanceOrder(o.id, "ready")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.ochre, color: "#fff" }}><Truck2 size={12} /> في الطريق للعميل</button>}
-                  {o.status === "ready" && <button onClick={() => advanceOrder(o.id, "delivered")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.sage, color: "#fff" }}><Check size={12} /> تسليم للعميل (تحصيل نقدًا)</button>}
-                  <button onClick={() => declineOrder(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A20", color: "#8B3A2A" }}><X size={13} /> تخلي</button>
+                  {o.status === "assigned" && <button onClick={() => advanceOrder(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.sage, color: "#fff" }}><Check size={12} /> تسليم للعميل (تحصيل نقدًا)</button>}
                 </div>
               </div>
             );
@@ -1247,22 +1225,21 @@ function CourierHoursEditor({ courier, onSave }) {
 /* ===========================================================
    ADMIN VIEW
 =========================================================== */
-function AdminView({ stores, setStores, orders, setOrders, couriers, setCouriers, notify }) {
+function AdminView({ stores, orders, couriers, notify, setProviderStatus }) {
   const pendingReview = stores.filter((s) => s.status === "pending_review");
   const awaitingProfile = stores.filter((s) => s.status === "awaiting_profile");
   const approved = stores.filter((s) => s.status === "approved");
   const revenue = orders.filter((o) => o.status === "delivered").reduce((a, o) => a + o.total, 0);
   const pendingCouriers = couriers.filter((c) => c.status === "pending");
 
-  function approveInitial(id) { setStores((prev) => prev.map((s) => (s.id === id ? { ...s, status: "awaiting_profile" } : s))); notify("تمت الموافقة المبدئية"); }
-  function reject(id) { setStores((prev) => prev.filter((s) => s.id !== id)); notify("تم رفض طلب التسجيل"); }
-  function confirmOrder(id) { setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, confirmed: true } : o))); notify("تم تأكيد الطلب"); }
-  function approveCourier(id) { setCouriers((prev) => prev.map((c) => (c.id === id ? { ...c, status: "approved" } : c))); notify("تمت الموافقة على الموصل"); }
-  function rejectCourier(id) { setCouriers((prev) => prev.filter((c) => c.id !== id)); notify("تم رفض طلب الموصل"); }
+  async function approveInitial(id) { if (await setProviderStatus("merchant", id, "approved")) notify("تم اعتماد التاجر."); }
+  async function reject(id) { if (await setProviderStatus("merchant", id, "suspended")) notify("تم تعليق طلب التاجر."); }
+  async function approveCourier(id) { if (await setProviderStatus("courier", id, "approved")) notify("تم اعتماد الموصل."); }
+  async function rejectCourier(id) { if (await setProviderStatus("courier", id, "suspended")) notify("تم تعليق طلب الموصل."); }
 
   function storeCommissionDue(store) { if (store.commissionType !== "percentage") return 0; const earned = orders.filter((o) => o.storeId === store.id && o.status === "delivered").reduce((a, o) => a + (o.subtotal || 0) * (store.commissionRate / 100), 0); return Math.max(0, Math.round(earned - (store.duesPaid || 0))); }
-  function settleDues(store) { const earned = orders.filter((o) => o.storeId === store.id && o.status === "delivered").reduce((a, o) => a + (o.subtotal || 0) * (store.commissionRate / 100), 0); setStores((prev) => prev.map((s) => (s.id === store.id ? { ...s, duesPaid: Math.round(earned) } : s))); notify(`تم تسجيل تحصيل مستحقات ${store.name}`); }
-  function updateCommission(storeId, patch) { setStores((prev) => prev.map((s) => (s.id === storeId ? { ...s, ...patch } : s))); }
+  function settleDues(store) { notify(`إدارة العمولات ستُحفظ في مرحلة مالية مستقلة؛ لم يُسجّل تحصيل ${store.name}.`); }
+  function updateCommission() { notify("إعدادات العمولة ليست ضمن ترحيل المنتجات والطلبات الحالي."); }
 
   const totalDues = approved.filter((s) => s.commissionType === "percentage").reduce((a, s) => a + storeCommissionDue(s), 0);
   const stats = [
@@ -1368,7 +1345,6 @@ export default function App() {
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [showAdminGate, setShowAdminGate] = useState(false);
   const [showCourierForm, setShowCourierForm] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
   const prevOrdersRef = useRef(null);
@@ -1380,20 +1356,13 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [loadedStores, loadedOrders, loadedCouriers, loadedCart, loadedMyStoreId, loadedNotifications] = await Promise.all([
-        loadKey(STORAGE.stores, null), loadKey(STORAGE.orders, null), loadKey(STORAGE.couriers, null),
+      const [loadedCart, loadedMyStoreId, loadedNotifications] = await Promise.all([
         loadKey(STORAGE.cart, { storeId: null, items: [], address: null }), loadKey(STORAGE.myStoreId, null), loadKey(STORAGE.notifications, []),
       ]);
       if (cancelled) return;
-      const finalStores = loadedStores ?? [...initialStores, pendingStoreSeed];
-      const finalOrders = loadedOrders ?? initialOrders;
-      const finalCouriers = loadedCouriers ?? initialCouriers;
-      setStores(finalStores); setOrders(finalOrders); setCouriers(finalCouriers);
+      setStores([]); setOrders([]); setCouriers([]);
       setAccounts([]); setAuth(null);
       setCart(loadedCart); setMyStoreId(loadedMyStoreId); setNotifications(loadedNotifications);
-      if (!loadedStores) saveKey(STORAGE.stores, finalStores);
-      if (!loadedOrders) saveKey(STORAGE.orders, finalOrders);
-      if (!loadedCouriers) saveKey(STORAGE.couriers, finalCouriers);
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -1422,12 +1391,53 @@ export default function App() {
       setAuth(null);
       setMyStoreId(null);
       setRole("customer");
+      setStores([]); setOrders([]); setCouriers([]);
       return;
     }
     const nextAuth = await resolveSupabaseUser(session.user);
     setAuth(nextAuth);
     setRole(nextAuth.type);
     if (nextAuth.type === "merchant") setMyStoreId(nextAuth.id);
+    await refreshSupabaseData();
+  }
+
+  async function refreshSupabaseData() {
+    const [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult] = await Promise.all([
+      supabase.from("merchants").select("*").order("created_at", { ascending: false }),
+      supabase.from("products").select("*").order("created_at", { ascending: false }),
+      supabase.from("couriers").select("*").order("created_at", { ascending: false }),
+      supabase.from("orders").select("*").order("created_at", { ascending: false }),
+      supabase.from("order_items").select("*").order("created_at", { ascending: true }),
+    ]);
+    const migrationMissing = [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult].some((result) => result.error?.code === "42P01");
+    if (migrationMissing) {
+      notify("طبّق امتداد التجارة في supabase/schema.sql لتفعيل المنتجات والطلبات السحابية.");
+      return;
+    }
+    const productRows = productsResult.data || [];
+    const merchantRows = merchantsResult.data || [];
+    const courierRows = couriersResult.data || [];
+    const productsByMerchant = Object.groupBy(productRows, ({ merchant_id }) => merchant_id);
+    const storesById = Object.fromEntries(merchantRows.map((merchant) => [merchant.id, merchant]));
+    const itemsByOrder = Object.groupBy(itemsResult.data || [], ({ order_id }) => order_id);
+    setStores(merchantRows.map((merchant) => ({
+      id: merchant.id, name: merchant.store_name, phone: merchant.phone || "", wilaya: merchant.wilaya || "", commune: merchant.commune || "",
+      status: merchant.status, deliveryCommunes: merchant.delivery_communes || [], approvedCourierIds: merchant.approved_courier_ids || [],
+      hasOwnDelivery: merchant.has_own_delivery ?? true, deliveryFee: merchant.delivery_fee || 0, minOrder: merchant.min_order || 0,
+      products: (productsByMerchant[merchant.id] || []).map((product) => ({ id: product.id, name: product.name, price: product.price, unit: product.unit, department: product.department, available: product.available })),
+      logo: { text: merchant.store_name.slice(0, 2), color: C.teal }, reviews: [], commissionType: "percentage", commissionRate: 0, subscriptionFee: 0, duesPaid: 0,
+    })));
+    setCouriers(courierRows.map((courier) => ({
+      id: courier.id, name: "موصل", phone: "", vehicle: courier.vehicle || "", wilaya: courier.wilaya || "", communes: courier.communes || [],
+      availability: courier.availability || [], storeMode: courier.store_mode || "all", selectedStoreIds: courier.selected_store_ids || [], status: courier.status,
+    })));
+    setOrders((ordersResult.data || []).map((order) => ({
+      id: order.id, storeId: order.merchant_id, storeName: storesById[order.merchant_id]?.store_name || "محل الحي", customer: "عميل",
+      items: (itemsByOrder[order.id] || []).map((item) => ({ id: item.product_id || item.id, name: item.product_name, price: item.unit_price, unit: item.unit, qty: item.quantity })),
+      subtotal: order.subtotal, deliveryFee: order.delivery_fee, total: order.total, status: order.status, deliveryLocation: order.delivery_address,
+      deliveryType: order.delivery_choice, courier: order.courier_id ? { id: order.courier_id, name: "موصل" } : null, rated: false, confirmed: false,
+      createdAt: new Date(order.created_at).toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" }),
+    })));
   }
 
   useEffect(() => {
@@ -1455,14 +1465,83 @@ export default function App() {
   function persistentSetCart(updater) { setCart((prev) => { const next = typeof updater === "function" ? updater(prev) : updater; saveKey(STORAGE.cart, next); return next; }); }
   function persistentSetMyStoreId(id) { setMyStoreId(id); saveKey(STORAGE.myStoreId, id); }
 
-  function placeOrder(store, promo, discountAmount = 0, address = null, deliveryType = "pickup", deliveryFee = 0, courier = null) {
-    if (!store || cart.items.length === 0) return;
-    const subtotal = cart.items.reduce((a, i) => a + i.qty * i.price, 0);
-    const total = Math.max(0, subtotal - discountAmount + deliveryFee);
-    const order = { id: "o" + Math.random().toString(36).slice(2, 7), storeId: store.id, storeName: store.name, customer: "أنت", items: cart.items, subtotal, deliveryFee, total, status: "pending", discountCode: promo?.code || null, discountAmount: discountAmount || 0, deliveryLocation: address, deliveryType, courier: courier ? { id: courier.id, name: courier.name, phone: courier.phone } : null, rated: false, confirmed: false, createdAt: new Date().toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" }) };
-    persistentSetOrders((prev) => [order, ...prev]);
+  async function placeOrder(store, _promo, _discountAmount = 0, address = null, deliveryType = "pickup", deliveryFee = 0) {
+    if (!auth || auth.type !== "customer") { notify("سجّل الدخول كعميل لإرسال طلبك."); return false; }
+    if (!store || cart.items.length === 0) return false;
+    const { error } = await supabase.rpc("create_customer_order", {
+      p_merchant_id: store.id,
+      p_items: cart.items.map((item) => ({ product_id: item.id, qty: item.qty })),
+      p_delivery_choice: deliveryType,
+      p_delivery_address: address,
+      p_delivery_fee: deliveryFee,
+    });
+    if (error) { notify("تعذر إرسال الطلب: " + error.message); return false; }
     persistentSetCart({ storeId: null, items: [], address: null });
+    await refreshSupabaseData();
     notify("تم إرسال طلبك — الدفع نقداً عند الاستلام");
+    return true;
+  }
+
+  async function createProduct(merchantId, product) {
+    if (auth?.id !== merchantId) { notify("لا تملك صلاحية تعديل منتجات هذا المحل."); return false; }
+    const { error } = await supabase.from("products").insert({ merchant_id: merchantId, ...product, available: true });
+    if (error) { notify("تعذر حفظ المنتج: " + error.message); return false; }
+    await refreshSupabaseData();
+    return true;
+  }
+
+  async function createBulkProducts(merchantId, rows) {
+    if (auth?.id !== merchantId) { notify("لا تملك صلاحية تعديل منتجات هذا المحل."); return false; }
+    const payload = rows.map((row) => ({ merchant_id: merchantId, name: row.name, price: Number(row.price), unit: row.unit || "الوحدة", department: row.department || "pantry", available: true }));
+    const { error } = await supabase.from("products").insert(payload);
+    if (error) { notify("تعذر استيراد المنتجات: " + error.message); return false; }
+    await refreshSupabaseData();
+    return true;
+  }
+
+  async function removeProductRemote(productId) {
+    const { error } = await supabase.from("products").delete().eq("id", productId);
+    if (error) { notify("تعذر حذف المنتج: " + error.message); return false; }
+    await refreshSupabaseData();
+    return true;
+  }
+
+  async function setProductAvailability(productId, available) {
+    const { error } = await supabase.from("products").update({ available }).eq("id", productId);
+    if (error) { notify("تعذر تحديث توفر المنتج: " + error.message); return false; }
+    await refreshSupabaseData();
+    return true;
+  }
+
+  async function setMerchantOrderStatus(orderId, status) {
+    const { error } = await supabase.rpc("set_merchant_order_status", { p_order_id: orderId, p_status: status });
+    if (error) { notify("تعذر تحديث الطلب: " + error.message); return false; }
+    await refreshSupabaseData();
+    return true;
+  }
+
+  async function claimReadyOrder(orderId) {
+    const { error } = await supabase.rpc("claim_ready_order", { p_order_id: orderId });
+    if (error) { notify("تعذر قبول الطلب: " + error.message); return false; }
+    await refreshSupabaseData();
+    notify("تم قبول الطلب — توجه إلى المحل لاستلامه");
+    return true;
+  }
+
+  async function completeDelivery(orderId) {
+    const { error } = await supabase.rpc("complete_delivery", { p_order_id: orderId });
+    if (error) { notify("تعذر إتمام التسليم: " + error.message); return false; }
+    await refreshSupabaseData();
+    notify("تم تسجيل التسليم بنجاح.");
+    return true;
+  }
+
+  async function setProviderStatus(providerType, providerId, status) {
+    if (auth?.type !== "admin") { notify("لا تملك صلاحية الإدارة."); return false; }
+    const { error } = await supabase.rpc("admin_set_provider_status", { p_provider_type: providerType, p_provider_id: providerId, p_status: status });
+    if (error) { notify("تعذر تحديث حالة الحساب: " + error.message); return false; }
+    await refreshSupabaseData();
+    return true;
   }
 
   async function createSupabaseAccount({ email, password, role: authRole, name, phone }) {
@@ -1622,7 +1701,7 @@ export default function App() {
             <div><div className="font-black text-xl leading-none" style={{ fontFamily: "'Reem Kufi', sans-serif" }}>سوق الجيران</div><div className="text-xs mt-0.5" style={{ color: C.inkSoft }}>{role === "admin" ? "لوحة الإدارة" : "توصيل سوبر ماركت — الدفع نقداً عند الاستلام"}</div></div>
           </div>
           {role === "admin" ? (
-            <button onClick={() => setRole("customer")} className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm" style={{ background: C.ink, color: "#fff" }}><LogOut size={15} /> خروج من لوحة الإدارة</button>
+            <button onClick={signOut} className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm" style={{ background: C.ink, color: "#fff" }}><LogOut size={15} /> خروج من لوحة الإدارة</button>
           ) : (
             <div className="flex items-center gap-2">
               <div className="flex gap-2 p-1 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
@@ -1646,15 +1725,14 @@ export default function App() {
 
         <div className="mt-4">
           {role === "customer" && <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} />}
-          {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} setOrders={persistentSetOrders} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} registerMerchant={registerMerchant} />}
-          {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} setOrders={persistentSetOrders} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} />}
-          {role === "admin" && <AdminView stores={stores} setStores={persistentSetStores} orders={orders} setOrders={persistentSetOrders} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} />}
+          {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} registerMerchant={registerMerchant} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} />}
+          {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} completeDelivery={completeDelivery} />}
+          {role === "admin" && <AdminView stores={stores} orders={orders} couriers={couriers} notify={notify} setProviderStatus={setProviderStatus} />}
         </div>
 
         {role !== "admin" && (
           <div className="mt-10 pt-4 flex items-center justify-between" style={{ borderTop: `1px solid ${C.line}` }}>
             <button onClick={() => setShowCourierForm(true)} className="text-xs font-bold flex items-center gap-1.5" style={{ color: C.teal }}><Bike size={14} /> انضم كموصل</button>
-            <button onClick={() => setShowAdminGate(true)} className="opacity-25 hover:opacity-60 transition" style={{ color: C.inkSoft, fontSize: 10 }}>•</button>
           </div>
         )}
       </div>
@@ -1662,7 +1740,6 @@ export default function App() {
       <Toast message={toast} />
 
       {showResetConfirm && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(35,32,27,0.5)" }} onClick={() => setShowResetConfirm(false)}><div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-2xl p-5" style={{ background: C.paper }}><div className="flex items-center gap-2 mb-2"><AlertCircle size={20} color={C.rust} /><h3 className="font-black" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>تأكيد إعادة الضبط</h3></div><p className="text-sm mb-5" style={{ color: C.inkSoft }}>سيتم إرجاع كل البيانات إلى حالتها الافتراضية.</p><div className="flex gap-2"><button onClick={() => setShowResetConfirm(false)} className="flex-1 py-2.5 rounded-xl font-bold text-sm" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}>إلغاء</button><button onClick={resetDemoData} className="flex-1 py-2.5 rounded-xl font-black text-sm" style={{ background: C.rust, color: "#fff" }}>نعم، إعادة الضبط</button></div></div></div>)}
-      {showAdminGate && <AdminGateModal notify={notify} onClose={() => setShowAdminGate(false)} onSuccess={() => { setRole("admin"); setShowAdminGate(false); }} />}
       {showCourierForm && <CourierRegisterModal stores={stores} onSubmit={registerCourier} onClose={() => setShowCourierForm(false)} />}
       {showAuth && <AuthModal authenticate={authenticate} onClose={() => setShowAuth(false)} />}
     </div>
