@@ -24,7 +24,7 @@ describe("Supabase configuration", () => {
   });
 
   it("exposes the migrated tables through REST while RLS returns no unauthorised rows", async () => {
-    for (const table of ["profiles", "merchants", "couriers", "merchant_courier_approvals", "orders"]) {
+    for (const table of ["profiles", "merchants", "couriers", "merchant_courier_approvals", "products", "orders", "order_items"]) {
       const response = await fetch(`${projectUrl}/rest/v1/${table}?select=*&limit=1`, {
         headers: {
           apikey: publishableKey!,
