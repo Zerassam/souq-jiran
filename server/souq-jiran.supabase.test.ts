@@ -42,4 +42,49 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain("متابعة الطلبات المباشرة");
     expect(appSource).not.toContain("confirmOrder(");
   });
+
+  it("defines per-user archives while reserving permanent deletion for the Supabase admin role", () => {
+    const schema = readFileSync(resolve(projectRoot, "supabase/schema.sql"), "utf8").toLowerCase();
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(schema).toContain("create table if not exists public.order_user_archives");
+    expect(schema).toContain("create table if not exists public.order_messages");
+    expect(schema).toContain("create or replace function public.archive_order_for_user");
+    expect(schema).toContain("create or replace function public.archive_message_for_user");
+    expect(schema).toContain("create or replace function public.admin_delete_order_permanently");
+    expect(schema).toContain("create or replace function public.admin_delete_message_permanently");
+    expect(schema).toContain("is_app_admin()");
+    expect(appSource).toContain("archiveOrderForCurrentUser");
+    expect(appSource).toContain("deleteOrderPermanently");
+    expect(appSource).toContain("أرشيف الطلبات الكامل");
+  });
+
+  it("keeps the public header free of a customer switch and gates admin sign-in behind its discreet entry", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(appSource).toContain('adminOnly={adminLoginRequested}');
+    expect(appSource).toContain('aria-label="دخول الإدارة"');
+    expect(appSource).toContain('setAdminLoginRequested(true)');
+    expect(appSource).not.toContain('><User size={16} /> عميل</button>');
+  });
+
+  it("requires explicit confirmation before an admin permanently removes archived data", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(appSource).toContain('window.confirm("سيُحذف الطلب نهائياً مع عناصره ورسائله ولا يمكن استعادته. هل تريد المتابعة؟")');
+    expect(appSource).toContain('window.confirm("سيُحذف محتوى الرسالة نهائياً ولا يمكن استعادته. هل تريد المتابعة؟")');
+    expect(appSource).toContain('supabase.rpc("admin_delete_order_permanently"');
+    expect(appSource).toContain('supabase.rpc("admin_delete_message_permanently"');
+  });
+
+  it("places merchant and courier actions together in the header role-switch group", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const providerSwitchIndex = appSource.indexOf('data-testid="provider-role-switches"');
+    const providerSwitchSource = appSource.slice(providerSwitchIndex, providerSwitchIndex + 1800);
+
+    expect(providerSwitchIndex).toBeGreaterThan(-1);
+    expect(providerSwitchSource).toContain('data-testid="courier-role-button"');
+    expect(providerSwitchSource).toContain('data-testid="merchant-role-button"');
+    expect(providerSwitchSource).not.toContain('> عميل</button>');
+  });
 });

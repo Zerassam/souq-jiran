@@ -36,7 +36,16 @@ describe("Supabase configuration", () => {
       expect(Array.isArray(await response.json()), `${table} should expose an array to anonymous browsing`).toBe(true);
     }
 
-    for (const table of ["profiles", "couriers", "merchant_courier_approvals", "orders", "order_items"]) {
+    for (const table of [
+      "profiles",
+      "couriers",
+      "merchant_courier_approvals",
+      "orders",
+      "order_items",
+      "order_user_archives",
+      "order_messages",
+      "message_user_archives",
+    ]) {
       const response = await fetch(`${projectUrl}/rest/v1/${table}?select=*&limit=1`, {
         headers: {
           apikey: publishableKey!,

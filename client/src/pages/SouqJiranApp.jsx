@@ -10,7 +10,7 @@ import {
   Package, Droplet, Sparkles, Map as MapIcon, List, Upload, Download,
   FileText, Phone, Palette, CreditCard, Bike, Lock, LogOut, Wallet,
   Percent, CalendarClock, Home, Sun, Sunset, Moon,
-  Mail, LogIn, UserPlus, ShieldCheck
+  Mail, LogIn, UserPlus, ShieldCheck, Archive, MessageCircle
 } from "lucide-react";
 
 /* ---------------------------------------------------------
@@ -578,9 +578,9 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
 /* ---------------------------------------------------------
    شاشة تسجيل الدخول / إنشاء حساب (إيميل + كلمة مرور)
 --------------------------------------------------------- */
-function AuthModal({ authenticate, onClose }) {
+function AuthModal({ authenticate, onClose, adminOnly = false }) {
   const [mode, setMode] = useState("login");
-  const [type, setType] = useState("merchant");
+  const [type, setType] = useState(adminOnly ? "admin" : "merchant");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -603,22 +603,45 @@ function AuthModal({ authenticate, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(35,32,27,0.55)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl p-5 space-y-3" style={{ background: C.paper }}>
         <div className="flex items-center justify-between"><h3 className="font-black text-lg flex items-center gap-1.5" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>{mode === "login" ? <LogIn size={18} color={C.teal} /> : <UserPlus size={18} color={C.teal} />} {type === "merchant" ? "منصة التاجر" : type === "courier" ? "لوحة الموصل" : type === "customer" ? "حساب العميل" : "لوحة الإدارة"}</h3><button onClick={onClose}><X size={18} color={C.inkSoft} /></button></div>
-        <div className="flex gap-2 p-1 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
+        {!adminOnly && <><div className="flex gap-2 p-1 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
           <button onClick={() => setType("merchant")} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: type === "merchant" ? C.teal : "transparent", color: type === "merchant" ? "#fff" : C.inkSoft }}><Store size={15} /> تاجر</button>
           <button onClick={() => setType("courier")} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: type === "courier" ? C.teal : "transparent", color: type === "courier" ? "#fff" : C.inkSoft }}><Bike size={15} /> موصّل</button>
           <button onClick={() => setType("customer")} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: type === "customer" ? C.teal : "transparent", color: type === "customer" ? "#fff" : C.inkSoft }}><User size={15} /> عميل</button>
-          {mode === "login" && <button onClick={() => setType("admin")} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: type === "admin" ? C.ink : "transparent", color: type === "admin" ? "#fff" : C.inkSoft }}><ShieldCheck size={15} /> إدارة</button>}
         </div>
         <div className="flex gap-2 p-1 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
           <button onClick={() => { setMode("login"); setError(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "login" ? C.ink : "transparent", color: mode === "login" ? "#fff" : C.inkSoft }}>دخول</button>
-          <button onClick={() => { setMode("register"); if (type === "admin") setType("merchant"); setError(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "register" ? C.ink : "transparent", color: mode === "register" ? "#fff" : C.inkSoft }}>حساب جديد</button>
-        </div>
+          <button onClick={() => { setMode("register"); setError(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "register" ? C.ink : "transparent", color: mode === "register" ? "#fff" : C.inkSoft }}>حساب جديد</button>
+        </div></>}
         <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Mail size={15} color={C.inkSoft} /><input placeholder="البريد الإلكتروني" value={email} onChange={(e) => setEmail(e.target.value)} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>
         <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Lock size={15} color={C.inkSoft} /><input type="password" placeholder="كلمة المرور" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>
         {error && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{error}</p>}
         <button disabled={isSubmitting} onClick={submit} className="w-full py-3 rounded-xl font-black flex items-center justify-center gap-1.5 disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ المعالجة..." : mode === "login" ? <><LogIn size={16} /> تسجيل الدخول</> : <><UserPlus size={16} /> إنشاء حساب</>}</button>
-        {mode === "register" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>{type === "merchant" ? "سيُنشأ حساب محلك فورًا، ثم تكمل بيانات محلك" : type === "courier" ? "بعد الموافقة على انضمامك من المشرف، تدخل لوحتك مباشرةً" : "يُستخدم حسابك لإرسال الطلبات ومتابعتها بأمان."}</p>}
+        {adminOnly && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>لا تتاح لوحة الإدارة إلا للحسابات المصرح لها في قاعدة البيانات.</p>}
+        {!adminOnly && mode === "register" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>{type === "merchant" ? "سيُنشأ حساب محلك فورًا، ثم تكمل بيانات محلك" : type === "courier" ? "بعد الموافقة على انضمامك من المشرف، تدخل لوحتك مباشرةً" : "يُستخدم حسابك لإرسال الطلبات ومتابعتها بأمان."}</p>}
       </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------
+   صندوق الرسائل — الإخفاء شخصي للتاجر/الموصل، والحذف نهائي للإدارة
+--------------------------------------------------------- */
+function MessagesInbox({ messages, orders, userId, admin = false, onArchiveMessage, onDeleteMessage }) {
+  const orderById = Object.fromEntries((orders || []).map((order) => [order.id, order]));
+  return (
+    <div className="space-y-3">
+      {messages.length === 0 && <p className="text-center text-sm py-10" style={{ color: C.inkSoft }}>لا توجد رسائل محفوظة في هذه القائمة.</p>}
+      {messages.map((message) => {
+        const order = orderById[message.orderId];
+        const outgoing = message.senderId === userId;
+        return (
+          <div key={message.id} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+            <div className="flex items-center justify-between gap-3 mb-2"><span className="text-xs font-bold" style={{ color: C.teal }}>{order ? `طلب ${order.storeName}` : "رسالة مرتبطة بطلب"}</span><span className="text-[10px]" style={{ color: C.inkSoft }}>{message.createdAt}</span></div>
+            <p className="text-sm" style={{ color: C.ink }}>{message.body}</p>
+            <div className="mt-3 flex items-center justify-between gap-2"><span className="text-[11px]" style={{ color: C.inkSoft }}>{admin ? "الأرشيف الإداري" : outgoing ? "رسالة صادرة" : "رسالة واردة"}</span><button onClick={() => (admin ? onDeleteMessage(message.id) : onArchiveMessage(message.id))} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A" }}><Trash2 size={12} /> {admin ? "حذف نهائي" : "حذف من قائمتي"}</button></div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -839,7 +862,7 @@ function OrderTracker({ status }) {
 /* ===========================================================
    MERCHANT VIEW
 =========================================================== */
-function MerchantView({ stores, setStores, orders, couriers, myStoreId, setMyStoreId, notify, registerMerchant, createProduct, createBulkProducts, removeProductRemote, setProductAvailability, setMerchantOrderStatus }) {
+function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId, setMyStoreId, notify, registerMerchant, createProduct, createBulkProducts, removeProductRemote, setProductAvailability, setMerchantOrderStatus, archiveOrder, archiveMessage, userId }) {
   const myStore = stores.find((s) => s.id === myStoreId);
   const [merchantMode, setMerchantMode] = useState("select");
   const [form, setForm] = useState({ name: "", phone: "", email: "", password: "", wilaya: "", commune: "", lat: 50, lng: 50 });
@@ -968,6 +991,7 @@ function MerchantView({ stores, setStores, orders, couriers, myStoreId, setMySto
         <button onClick={() => setTab("products")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "products" ? C.teal : "transparent", color: tab === "products" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "products" ? C.teal : C.line}` }}>المنتجات</button>
         <button onClick={() => setTab("orders")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "orders" ? C.teal : "transparent", color: tab === "orders" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "orders" ? C.teal : C.line}` }}>الطلبات الواردة {myOrders.filter((o) => o.status === "pending").length > 0 && `(${myOrders.filter((o) => o.status === "pending").length})`}</button>
         <button onClick={() => setTab("delivery")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "delivery" ? C.teal : "transparent", color: tab === "delivery" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "delivery" ? C.teal : C.line}` }}>إعدادات التوصيل</button>
+        <button onClick={() => setTab("messages")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "messages" ? C.teal : "transparent", color: tab === "messages" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "messages" ? C.teal : C.line}` }}>الرسائل</button>
       </div>
 
       {tab === "products" && (
@@ -990,7 +1014,7 @@ function MerchantView({ stores, setStores, orders, couriers, myStoreId, setMySto
       {tab === "orders" && (
         <div className="space-y-3">
           {myOrders.length === 0 && <p className="text-center text-sm py-10" style={{ color: C.inkSoft }}>لا توجد طلبات واردة حالياً.</p>}
-          {myOrders.map((o) => (<div key={o.id} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="flex items-center justify-between mb-2"><span className="font-bold text-sm" style={{ color: C.ink }}>{o.customer} · {o.createdAt}</span><StatusPill status={o.status} /></div><div className="text-xs mb-1" style={{ color: C.inkSoft }}>{o.items.map((i) => `${i.name} ×${i.qty}`).join(" · ")}</div><div className="text-xs mb-3 flex items-center gap-1" style={{ color: C.teal }}>{React.createElement(DELIVERY_LABELS[o.deliveryType]?.icon || Home, { size: 12 })} {DELIVERY_LABELS[o.deliveryType]?.label}{o.courier ? ` — ${o.courier.name}` : ""}</div><div className="flex items-center justify-between flex-wrap gap-2"><PriceTag amount={o.total} /><div className="flex gap-2 flex-wrap"><button onClick={() => setInvoiceOrder(o)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}><Printer size={12} /> الفاتورة</button>{o.status === "pending" && (<><button onClick={() => setOrderStatus(o.id, "declined")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A20", color: "#8B3A2A" }}><X size={13} /> رفض</button><button onClick={() => setOrderStatus(o.id, "accepted")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.teal, color: "#fff" }}><Check size={13} /> قبول</button></>)}{nextStatus[o.status] && <button onClick={() => setOrderStatus(o.id, nextStatus[o.status])} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.rust, color: "#fff" }}>تحديث إلى «{STATUS_MAP[nextStatus[o.status]].label}»</button>}</div></div></div>))}
+          {myOrders.map((o) => (<div key={o.id} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="flex items-center justify-between mb-2"><span className="font-bold text-sm" style={{ color: C.ink }}>{o.customer} · {o.createdAt}</span><StatusPill status={o.status} /></div><div className="text-xs mb-1" style={{ color: C.inkSoft }}>{o.items.map((i) => `${i.name} ×${i.qty}`).join(" · ")}</div><div className="text-xs mb-3 flex items-center gap-1" style={{ color: C.teal }}>{React.createElement(DELIVERY_LABELS[o.deliveryType]?.icon || Home, { size: 12 })} {DELIVERY_LABELS[o.deliveryType]?.label}{o.courier ? ` — ${o.courier.name}` : ""}</div><div className="flex items-center justify-between flex-wrap gap-2"><PriceTag amount={o.total} /><div className="flex gap-2 flex-wrap"><button onClick={() => setInvoiceOrder(o)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}><Printer size={12} /> الفاتورة</button><button onClick={() => archiveOrder(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A" }}><Trash2 size={12} /> حذف من قائمتي</button>{o.status === "pending" && (<><button onClick={() => setOrderStatus(o.id, "declined")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A20", color: "#8B3A2A" }}><X size={13} /> رفض</button><button onClick={() => setOrderStatus(o.id, "accepted")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.teal, color: "#fff" }}><Check size={13} /> قبول</button></>)}{nextStatus[o.status] && <button onClick={() => setOrderStatus(o.id, nextStatus[o.status])} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.rust, color: "#fff" }}>تحديث إلى «{STATUS_MAP[nextStatus[o.status]].label}»</button>}</div></div></div>))}
         </div>
       )}
 
@@ -1045,6 +1069,7 @@ function MerchantView({ stores, setStores, orders, couriers, myStoreId, setMySto
         </div>
       )}
 
+      {tab === "messages" && <MessagesInbox messages={messages} orders={myOrders} userId={userId} onArchiveMessage={archiveMessage} />}
       {invoiceOrder && <InvoiceModal order={invoiceOrder} store={myStore} onClose={() => setInvoiceOrder(null)} />}
       {showBulkImport && <BulkImportModal onConfirm={addBulkProducts} onClose={() => setShowBulkImport(false)} />}
     </div>
@@ -1056,7 +1081,7 @@ function MerchantView({ stores, setStores, orders, couriers, myStoreId, setMySto
 /* ---------------------------------------------------------
    لوحة الموصل — الطلبات المتاحة حوله وساعات عمله
 --------------------------------------------------------- */
-function CourierDashboard({ courierId, stores, orders, couriers, setCouriers, notify, onLogout, claimReadyOrder, completeDelivery }) {
+function CourierDashboard({ courierId, stores, orders, messages, couriers, setCouriers, notify, onLogout, claimReadyOrder, completeDelivery, archiveOrder, archiveMessage, userId }) {
   const [tab, setTab] = useState("available");
   const courier = (couriers || []).find((c) => c.id === courierId);
   const [editingHours, setEditingHours] = useState(false);
@@ -1116,6 +1141,7 @@ function CourierDashboard({ courierId, stores, orders, couriers, setCouriers, no
           <button onClick={() => setTab("my")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "my" ? C.teal : "transparent", color: tab === "my" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "my" ? C.teal : C.line}` }}>طلباتي النشطة {myActiveOrders.length > 0 && `(${myActiveOrders.length})`}</button>
           <button onClick={() => setTab("history")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "history" ? C.teal : "transparent", color: tab === "history" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "history" ? C.teal : C.line}` }}>سجل التسليمات ({completedOrders.length})</button>
           <button onClick={() => setTab("hours")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "hours" ? C.teal : "transparent", color: tab === "hours" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "hours" ? C.teal : C.line}` }}>ساعات العمل</button>
+          <button onClick={() => setTab("messages")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "messages" ? C.teal : "transparent", color: tab === "messages" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "messages" ? C.teal : C.line}` }}>الرسائل</button>
         </div>
       </div>
 
@@ -1152,6 +1178,7 @@ function CourierDashboard({ courierId, stores, orders, couriers, setCouriers, no
                 <OrderTracker status={o.status} />
                 <div className="flex gap-2 mt-3 pt-3 flex-wrap" style={{ borderTop: `1px solid ${C.line}` }}>
                   {o.status === "assigned" && <button onClick={() => advanceOrder(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.sage, color: "#fff" }}><Check size={12} /> تسليم للعميل (تحصيل نقدًا)</button>}
+                  <button onClick={() => archiveOrder(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A" }}><Trash2 size={12} /> حذف من قائمتي</button>
                 </div>
               </div>
             );
@@ -1170,6 +1197,8 @@ function CourierDashboard({ courierId, stores, orders, couriers, setCouriers, no
           ))}
         </div>
       )}
+
+      {tab === "messages" && <MessagesInbox messages={messages} orders={[...myActiveOrders, ...completedOrders]} userId={userId} onArchiveMessage={archiveMessage} />}
 
       {tab === "hours" && (
         <div className="p-5 rounded-2xl space-y-4" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
@@ -1225,7 +1254,7 @@ function CourierHoursEditor({ courier, onSave }) {
 /* ===========================================================
    ADMIN VIEW
 =========================================================== */
-function AdminView({ stores, orders, couriers, notify, setProviderStatus }) {
+function AdminView({ stores, orders, messages, couriers, notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently }) {
   const pendingReview = stores.filter((s) => s.status === "pending_review");
   const awaitingProfile = stores.filter((s) => s.status === "awaiting_profile");
   const approved = stores.filter((s) => s.status === "approved");
@@ -1297,6 +1326,16 @@ function AdminView({ stores, orders, couriers, notify, setProviderStatus }) {
           <table className="w-full text-sm"><thead><tr style={{ background: C.paperDark }}><th className="text-right p-3 font-bold" style={{ color: C.inkSoft }}>المحل</th><th className="text-right p-3 font-bold" style={{ color: C.inkSoft }}>العميل</th><th className="text-right p-3 font-bold" style={{ color: C.inkSoft }}>المبلغ</th><th className="text-right p-3 font-bold" style={{ color: C.inkSoft }}>الحالة</th></tr></thead><tbody>{orders.map((o) => (<tr key={o.id} style={{ borderTop: `1px solid ${C.line}`, background: "#fff" }}><td className="p-3 font-bold" style={{ color: C.ink }}>{o.storeName}</td><td className="p-3" style={{ color: C.inkSoft }}>{o.customer}</td><td className="p-3" style={{ color: C.inkSoft }}>{money(o.total)}</td><td className="p-3"><StatusPill status={o.status} /></td></tr>))}</tbody></table>
         </div>
       </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2"><h3 className="font-black flex items-center gap-2" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}><Archive size={17} color={C.rust} /> أرشيف الطلبات الكامل</h3><span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: C.rust + "16", color: C.rust }}>لا يتأثر بحذف التاجر أو الموصل</span></div>
+        <div className="space-y-2">{orders.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>لا توجد طلبات في الأرشيف.</p>}{orders.map((o) => (<div key={o.id} className="p-3 rounded-2xl flex items-center justify-between gap-3 flex-wrap" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div><div className="font-bold text-sm" style={{ color: C.ink }}>{o.storeName} · {o.customer}</div><div className="text-xs mt-1" style={{ color: C.inkSoft }}>{o.items.map((item) => `${item.name} ×${item.qty}`).join(" · ")} · {money(o.total)} · {o.createdAt}</div></div><div className="flex items-center gap-2"><StatusPill status={o.status} /><button onClick={() => deleteOrderPermanently(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A" }}><Trash2 size={12} /> حذف نهائي</button></div></div>))}</div>
+      </div>
+
+      <div>
+        <h3 className="font-black mb-3 flex items-center gap-2" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}><MessageCircle size={17} color={C.teal} /> أرشيف الرسائل</h3>
+        <div className="space-y-2">{messages.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>لا توجد رسائل محفوظة بعد.</p>}{messages.map((message) => (<div key={message.id} className="p-3 rounded-2xl flex items-center justify-between gap-3 flex-wrap" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="flex-1"><div className="text-sm" style={{ color: C.ink }}>{message.body}</div><div className="text-xs mt-1" style={{ color: C.inkSoft }}>الطلب: {String(message.orderId).slice(0, 8)} · {message.createdAt}</div></div><button onClick={() => deleteMessagePermanently(message.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A" }}><Trash2 size={12} /> حذف نهائي</button></div>))}</div>
+      </div>
     </div>
   );
 }
@@ -1336,6 +1375,7 @@ export default function App() {
   const [role, setRole] = useState("customer");
   const [stores, setStores] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [messages, setMessages] = useState([]);
   const [couriers, setCouriers] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [auth, setAuth] = useState(null);
@@ -1347,6 +1387,7 @@ export default function App() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showCourierForm, setShowCourierForm] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
+  const [adminLoginRequested, setAdminLoginRequested] = useState(false);
   const prevOrdersRef = useRef(null);
 
   function notify(msg) { setToast(msg); setTimeout(() => setToast(""), 2400); }
@@ -1360,7 +1401,7 @@ export default function App() {
         loadKey(STORAGE.cart, { storeId: null, items: [], address: null }), loadKey(STORAGE.myStoreId, null), loadKey(STORAGE.notifications, []),
       ]);
       if (cancelled) return;
-      setStores([]); setOrders([]); setCouriers([]);
+      setStores([]); setOrders([]); setMessages([]); setCouriers([]);
       setAccounts([]); setAuth(null);
       setCart(loadedCart); setMyStoreId(loadedMyStoreId); setNotifications(loadedNotifications);
       setLoading(false);
@@ -1391,7 +1432,7 @@ export default function App() {
       setAuth(null);
       setMyStoreId(null);
       setRole("customer");
-      setStores([]); setOrders([]); setCouriers([]);
+      setStores([]); setOrders([]); setMessages([]); setCouriers([]);
       return;
     }
     const nextAuth = await resolveSupabaseUser(session.user);
@@ -1402,12 +1443,13 @@ export default function App() {
   }
 
   async function refreshSupabaseData() {
-    const [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult] = await Promise.all([
+    const [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult, messagesResult] = await Promise.all([
       supabase.from("merchants").select("*").order("created_at", { ascending: false }),
       supabase.from("products").select("*").order("created_at", { ascending: false }),
       supabase.from("couriers").select("*").order("created_at", { ascending: false }),
       supabase.from("orders").select("*").order("created_at", { ascending: false }),
       supabase.from("order_items").select("*").order("created_at", { ascending: true }),
+      supabase.from("order_messages").select("*").order("created_at", { ascending: false }),
     ]);
     const migrationMissing = [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult].some((result) => result.error?.code === "42P01");
     if (migrationMissing) {
@@ -1437,6 +1479,10 @@ export default function App() {
       subtotal: order.subtotal, deliveryFee: order.delivery_fee, total: order.total, status: order.status, deliveryLocation: order.delivery_address,
       deliveryType: order.delivery_choice, courier: order.courier_id ? { id: order.courier_id, name: "موصل" } : null, rated: false, confirmed: false,
       createdAt: new Date(order.created_at).toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" }),
+    })));
+    setMessages((messagesResult.data || []).map((message) => ({
+      id: message.id, orderId: message.order_id, senderId: message.sender_id, recipientId: message.recipient_id, body: message.body,
+      createdAt: new Date(message.created_at).toLocaleString("ar-DZ", { dateStyle: "short", timeStyle: "short" }),
     })));
   }
 
@@ -1536,6 +1582,44 @@ export default function App() {
     return true;
   }
 
+  async function archiveOrderForCurrentUser(orderId) {
+    if (!auth || !["merchant", "courier"].includes(auth.type)) { notify("ميزة الحذف متاحة للتاجر والموصل فقط."); return false; }
+    const { error } = await supabase.rpc("archive_order_for_user", { p_order_id: orderId });
+    if (error) { notify("تعذر حذف الطلب من قائمتك: " + error.message); return false; }
+    await refreshSupabaseData();
+    notify("أُخفي الطلب من قائمتك فقط؛ يبقى محفوظاً في أرشيف الإدارة.");
+    return true;
+  }
+
+  async function archiveMessageForCurrentUser(messageId) {
+    if (!auth || !["merchant", "courier"].includes(auth.type)) { notify("ميزة الحذف متاحة للتاجر والموصل فقط."); return false; }
+    const { error } = await supabase.rpc("archive_message_for_user", { p_message_id: messageId });
+    if (error) { notify("تعذر حذف الرسالة من قائمتك: " + error.message); return false; }
+    await refreshSupabaseData();
+    notify("أُخفيت الرسالة من قائمتك فقط؛ تبقى محفوظة في أرشيف الإدارة.");
+    return true;
+  }
+
+  async function deleteOrderPermanently(orderId) {
+    if (auth?.type !== "admin") { notify("لا تملك صلاحية الحذف النهائي."); return false; }
+    if (!window.confirm("سيُحذف الطلب نهائياً مع عناصره ورسائله ولا يمكن استعادته. هل تريد المتابعة؟")) return false;
+    const { error } = await supabase.rpc("admin_delete_order_permanently", { p_order_id: orderId });
+    if (error) { notify("تعذر الحذف النهائي للطلب: " + error.message); return false; }
+    await refreshSupabaseData();
+    notify("تم حذف الطلب نهائياً من الأرشيف الإداري.");
+    return true;
+  }
+
+  async function deleteMessagePermanently(messageId) {
+    if (auth?.type !== "admin") { notify("لا تملك صلاحية الحذف النهائي."); return false; }
+    if (!window.confirm("سيُحذف محتوى الرسالة نهائياً ولا يمكن استعادته. هل تريد المتابعة؟")) return false;
+    const { error } = await supabase.rpc("admin_delete_message_permanently", { p_message_id: messageId });
+    if (error) { notify("تعذر الحذف النهائي للرسالة: " + error.message); return false; }
+    await refreshSupabaseData();
+    notify("تم حذف الرسالة نهائياً من الأرشيف الإداري.");
+    return true;
+  }
+
   async function setProviderStatus(providerType, providerId, status) {
     if (auth?.type !== "admin") { notify("لا تملك صلاحية الإدارة."); return false; }
     const { error } = await supabase.rpc("admin_set_provider_status", { p_provider_type: providerType, p_provider_id: providerId, p_status: status });
@@ -1586,6 +1670,7 @@ export default function App() {
   }
 
   async function authenticate({ mode, type, email, password }) {
+    if (mode === "register" && type === "admin") return { error: "إنشاء حسابات المشرفين متاح فقط عبر قاعدة البيانات." };
     if (mode === "register") {
       const created = await createSupabaseAccount({ email, password, role: type, name: email.split("@")[0], phone: "" });
       if (created.error || created.notice) return created;
@@ -1704,10 +1789,9 @@ export default function App() {
             <button onClick={signOut} className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm" style={{ background: C.ink, color: "#fff" }}><LogOut size={15} /> خروج من لوحة الإدارة</button>
           ) : (
             <div className="flex items-center gap-2">
-              <div className="flex gap-2 p-1 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
-                <button onClick={() => { signOut(); setRole("customer"); }} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: role === "customer" ? C.teal : "transparent", color: role === "customer" ? "#fff" : C.inkSoft }}><User size={16} /> عميل</button>
-                <button onClick={() => (auth?.type === "merchant" ? (setRole("merchant"), setMyStoreId(auth.id)) : setShowAuth(true))} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: role === "merchant" ? C.teal : "transparent", color: role === "merchant" ? "#fff" : C.inkSoft }}><Store size={16} /> تاجر</button>
-                <button onClick={() => (auth?.type === "courier" ? setRole("courier") : setShowAuth(true))} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: role === "courier" ? C.teal : "transparent", color: role === "courier" ? "#fff" : C.inkSoft }}><Bike size={16} /> موصّل</button>
+              <div data-testid="provider-role-switches" className="flex gap-2 p-1 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
+                <button data-testid="courier-role-button" onClick={() => (auth?.type === "courier" ? setRole("courier") : setShowAuth(true))} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: role === "courier" ? C.teal : "transparent", color: role === "courier" ? "#fff" : C.inkSoft }}><Bike size={16} /> موصّل</button>
+                <button data-testid="merchant-role-button" onClick={() => (auth?.type === "merchant" ? (setRole("merchant"), setMyStoreId(auth.id)) : setShowAuth(true))} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: role === "merchant" ? C.teal : "transparent", color: role === "merchant" ? "#fff" : C.inkSoft }}><Store size={16} /> تاجر</button>
               </div>
               {auth ? (
                 <div className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-2 rounded-xl" style={{ background: C.sage + "18", color: C.tealDark }}><span style={{ width: 7, height: 7, borderRadius: 999, background: C.sage }} />{auth.name}<button onClick={signOut} className="flex items-center gap-1 mr-1" style={{ color: C.inkSoft, fontSize: 10 }}><LogOut size={12} /> خروج</button></div>
@@ -1725,9 +1809,9 @@ export default function App() {
 
         <div className="mt-4">
           {role === "customer" && <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} />}
-          {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} registerMerchant={registerMerchant} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} />}
-          {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} completeDelivery={completeDelivery} />}
-          {role === "admin" && <AdminView stores={stores} orders={orders} couriers={couriers} notify={notify} setProviderStatus={setProviderStatus} />}
+          {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} registerMerchant={registerMerchant} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
+          {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} messages={messages} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} completeDelivery={completeDelivery} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
+          {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} />}
         </div>
 
         {role !== "admin" && (
@@ -1741,7 +1825,8 @@ export default function App() {
 
       {showResetConfirm && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(35,32,27,0.5)" }} onClick={() => setShowResetConfirm(false)}><div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-2xl p-5" style={{ background: C.paper }}><div className="flex items-center gap-2 mb-2"><AlertCircle size={20} color={C.rust} /><h3 className="font-black" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>تأكيد إعادة الضبط</h3></div><p className="text-sm mb-5" style={{ color: C.inkSoft }}>سيتم إرجاع كل البيانات إلى حالتها الافتراضية.</p><div className="flex gap-2"><button onClick={() => setShowResetConfirm(false)} className="flex-1 py-2.5 rounded-xl font-bold text-sm" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}>إلغاء</button><button onClick={resetDemoData} className="flex-1 py-2.5 rounded-xl font-black text-sm" style={{ background: C.rust, color: "#fff" }}>نعم، إعادة الضبط</button></div></div></div>)}
       {showCourierForm && <CourierRegisterModal stores={stores} onSubmit={registerCourier} onClose={() => setShowCourierForm(false)} />}
-      {showAuth && <AuthModal authenticate={authenticate} onClose={() => setShowAuth(false)} />}
+      {showAuth && <AuthModal authenticate={authenticate} adminOnly={adminLoginRequested} onClose={() => { setShowAuth(false); setAdminLoginRequested(false); }} />}
+      {role !== "admin" && <button aria-label="دخول الإدارة" onClick={() => { setAdminLoginRequested(true); setShowAuth(true); }} className="fixed top-1 right-1 h-2 w-2 rounded-full opacity-15 transition-opacity hover:opacity-70 focus:opacity-100" style={{ background: C.ink }} />}
     </div>
   );
 }
