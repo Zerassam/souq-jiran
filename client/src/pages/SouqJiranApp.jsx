@@ -10,7 +10,7 @@ import {
   Package, Droplet, Sparkles, Map as MapIcon, List, Upload, Download,
   FileText, Phone, Palette, CreditCard, Bike, Lock, LogOut, Wallet,
   Percent, CalendarClock, Home, Sun, Sunset, Moon,
-  Mail, LogIn, UserPlus
+  Mail, LogIn, UserPlus, ShieldCheck
 } from "lucide-react";
 
 /* ---------------------------------------------------------
