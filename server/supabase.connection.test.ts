@@ -23,8 +23,20 @@ describe("Supabase configuration", () => {
     expect(response.ok).toBe(true);
   });
 
-  it("exposes the migrated tables through REST while RLS returns no unauthorised rows", async () => {
-    for (const table of ["profiles", "merchants", "couriers", "merchant_courier_approvals", "products", "orders", "order_items"]) {
+  it("exposes the public catalogue while RLS hides account and order data", async () => {
+    for (const table of ["merchants", "products"]) {
+      const response = await fetch(`${projectUrl}/rest/v1/${table}?select=*&limit=1`, {
+        headers: {
+          apikey: publishableKey!,
+          Authorization: `Bearer ${publishableKey!}`,
+        },
+      });
+
+      expect(response.ok, `${table} should exist and accept the RLS-protected request`).toBe(true);
+      expect(Array.isArray(await response.json()), `${table} should expose an array to anonymous browsing`).toBe(true);
+    }
+
+    for (const table of ["profiles", "couriers", "merchant_courier_approvals", "orders", "order_items"]) {
       const response = await fetch(`${projectUrl}/rest/v1/${table}?select=*&limit=1`, {
         headers: {
           apikey: publishableKey!,

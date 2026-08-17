@@ -34,4 +34,12 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).not.toContain("ADMIN_PASSWORD");
     expect(appSource).not.toContain("AdminGateModal");
   });
+
+  it("keeps the admin order monitor read-only when no persisted confirmation action exists", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(appSource).toContain("function AdminView");
+    expect(appSource).toContain("متابعة الطلبات المباشرة");
+    expect(appSource).not.toContain("confirmOrder(");
+  });
 });

@@ -223,8 +223,9 @@ $$;
 
 grant execute on function public.is_app_admin() to anon, authenticated;
 
--- This command promotes only an existing, verified application profile. Re-run
--- after the email above has registered if the statement initially updates zero rows.
+-- This command promotes only an application profile that exists at the time this
+-- script is run. If listportail@gmail.com signs up later, run only this UPDATE
+-- again in SQL Editor, then sign out and back in so the client refreshes its role.
 update public.profiles
 set role = 'admin', updated_at = now()
 where lower(email) = 'listportail@gmail.com';
