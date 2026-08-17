@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@400;500;600;700;800&family=Noto+Sans+Arabic:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -43,34 +44,34 @@
 }
 
 :root {
-  --primary: var(--color-blue-700);
-  --primary-foreground: var(--color-blue-50);
-  --sidebar-primary: var(--color-blue-600);
-  --sidebar-primary-foreground: var(--color-blue-50);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
+  --primary: oklch(0.42 0.09 164);
+  --primary-foreground: oklch(0.99 0.01 90);
+  --sidebar-primary: oklch(0.42 0.09 164);
+  --sidebar-primary-foreground: oklch(0.99 0.01 90);
+  --chart-1: oklch(0.42 0.09 164);
+  --chart-2: oklch(0.62 0.11 44);
+  --chart-3: oklch(0.72 0.12 85);
+  --chart-4: oklch(0.56 0.08 144);
+  --chart-5: oklch(0.44 0.09 307);
   --radius: 0.65rem;
-  --background: oklch(1 0 0);
+  --background: oklch(0.96 0.026 88);
   --foreground: oklch(0.235 0.015 65);
-  --card: oklch(1 0 0);
+  --card: oklch(0.995 0.013 88);
   --card-foreground: oklch(0.235 0.015 65);
-  --popover: oklch(1 0 0);
+  --popover: oklch(0.995 0.013 88);
   --popover-foreground: oklch(0.235 0.015 65);
-  --secondary: oklch(0.98 0.001 286.375);
+  --secondary: oklch(0.91 0.04 83);
   --secondary-foreground: oklch(0.4 0.015 65);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.141 0.005 285.823);
+  --muted: oklch(0.91 0.04 83);
+  --muted-foreground: oklch(0.43 0.018 78);
+  --accent: oklch(0.62 0.11 44);
+  --accent-foreground: oklch(0.99 0.01 90);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.623 0.214 259.815);
-  --sidebar: oklch(0.985 0 0);
+  --border: oklch(0.83 0.06 82);
+  --input: oklch(0.83 0.06 82);
+  --ring: oklch(0.42 0.09 164);
+  --sidebar: oklch(0.96 0.026 88);
   --sidebar-foreground: oklch(0.235 0.015 65);
   --sidebar-accent: oklch(0.967 0.001 286.375);
   --sidebar-accent-foreground: oklch(0.141 0.005 285.823);
@@ -119,6 +120,10 @@
   }
   body {
     @apply bg-background text-foreground;
+    min-height: 100vh;
+    font-family: "Noto Sans Arabic", Arial, sans-serif;
+    background-image: radial-gradient(circle at 1px 1px, oklch(0.42 0.09 164 / 0.06) 1px, transparent 0);
+    background-size: 22px 22px;
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
@@ -131,6 +136,15 @@
   input[type="radio"]:not(:disabled) {
     @apply cursor-pointer;
   }
+}
+
+button { transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), opacity 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+button:active { transform: scale(0.97); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid oklch(0.42 0.09 164 / 0.3); outline-offset: 2px; }
+#root { min-height: 100vh; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }
 
 @layer components {
