@@ -911,6 +911,11 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
   async function setOrderStatus(id, status) { await setMerchantOrderStatus(id, status); }
   const nextStatus = { accepted: "preparing", preparing: "ready", ready: "delivered" };
 
+  function openNewMerchantOrders() {
+    setTab("orders");
+    window.requestAnimationFrame(() => document.getElementById("merchant-new-orders")?.scrollIntoView({ block: "start" }));
+  }
+
   const matchingCouriers = myStore ? couriers.filter((c) => c.status === "approved" && c.wilaya === myStore.wilaya && (c.communes.length === 0 || c.communes.includes(myStore.commune)) && (c.storeMode === "all" || (c.selectedStoreIds || []).includes(myStore.id))) : [];
 
   if (!myStore) {
@@ -976,7 +981,7 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
       <div className="p-4 rounded-2xl" style={{ background: C.paperDark }}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3"><StoreAvatar logo={myStore.logo} size={44} /><div><div className="font-black" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>{myStore.name}</div><div className="text-xs" style={{ color: C.inkSoft }}>{myStore.wilaya} · {myStore.commune} · {myStore.open}:00 - {myStore.close}:00</div><div className="flex items-center gap-1 mt-1"><StarRating value={Math.round(myStore.rating || 0)} size={11} /><span className="text-xs font-bold" style={{ color: C.inkSoft }}>{myStore.rating || "لا تقييمات بعد"}</span></div></div></div>
-          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end"><button data-testid="merchant-new-orders-counter" onClick={() => setTab("orders")} className="flex items-center gap-1 text-xs font-black px-3 py-1.5 rounded-full" aria-label={`${newMerchantOrders.length} طلبات جديدة`} style={{ background: newMerchantOrders.length ? C.rust + "18" : C.sage + "22", color: newMerchantOrders.length ? C.rust : C.tealDark }}><Bell size={13} />{newMerchantOrders.length} طلبات جديدة</button><span className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: C.sage + "30", color: C.tealDark }}>محل مفعّل</span></div>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end"><button data-testid="merchant-new-orders-counter" onClick={openNewMerchantOrders} className="flex items-center gap-1 text-xs font-black px-3 py-1.5 rounded-full" aria-label={`${newMerchantOrders.length} طلبات جديدة`} style={{ background: newMerchantOrders.length ? C.rust + "18" : C.sage + "22", color: newMerchantOrders.length ? C.rust : C.tealDark }}><Bell size={13} />{newMerchantOrders.length} طلبات جديدة</button><button data-testid="merchant-new-orders-link" onClick={openNewMerchantOrders} className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-full" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}><ArrowLeft size={12} /> عرض الطلبات الجديدة</button><span className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: C.sage + "30", color: C.tealDark }}>محل مفعّل</span></div>
         </div>
         <div className="flex items-center gap-3 text-xs mb-2 flex-wrap" style={{ color: C.inkSoft }}>
           <span className="flex items-center gap-1"><Truck2 size={12} /> {myStore.hasOwnDelivery ? `توصيل خاص (${money(myStore.deliveryFee)})` : "يعتمد موصلي المنصة"}</span>
@@ -1013,7 +1018,7 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
       )}
 
       {tab === "orders" && (
-        <div className="space-y-3">
+        <div id="merchant-new-orders" tabIndex={-1} className="space-y-3 outline-none">
           {myOrders.length === 0 && <p className="text-center text-sm py-10" style={{ color: C.inkSoft }}>لا توجد طلبات واردة حالياً.</p>}
           {myOrders.map((o) => (<div key={o.id} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="flex items-center justify-between mb-2"><span className="font-bold text-sm" style={{ color: C.ink }}>{o.customer} · {o.createdAt}</span><StatusPill status={o.status} /></div><div className="text-xs mb-1" style={{ color: C.inkSoft }}>{o.items.map((i) => `${i.name} ×${i.qty}`).join(" · ")}</div><div className="text-xs mb-3 flex items-center gap-1" style={{ color: C.teal }}>{React.createElement(DELIVERY_LABELS[o.deliveryType]?.icon || Home, { size: 12 })} {DELIVERY_LABELS[o.deliveryType]?.label}{o.courier ? ` — ${o.courier.name}` : ""}</div><div className="flex items-center justify-between flex-wrap gap-2"><PriceTag amount={o.total} /><div className="flex gap-2 flex-wrap"><button onClick={() => setInvoiceOrder(o)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}><Printer size={12} /> الفاتورة</button><button onClick={() => archiveOrder(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A" }}><Trash2 size={12} /> حذف من قائمتي</button>{o.status === "pending" && (<><button onClick={() => setOrderStatus(o.id, "declined")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A20", color: "#8B3A2A" }}><X size={13} /> رفض</button><button onClick={() => setOrderStatus(o.id, "accepted")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.teal, color: "#fff" }}><Check size={13} /> قبول</button></>)}{nextStatus[o.status] && <button onClick={() => setOrderStatus(o.id, nextStatus[o.status])} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.rust, color: "#fff" }}>تحديث إلى «{STATUS_MAP[nextStatus[o.status]].label}»</button>}</div></div></div>))}
         </div>
@@ -1084,6 +1089,9 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
 --------------------------------------------------------- */
 function CourierDashboard({ courierId, stores, orders, messages, couriers, setCouriers, notify, onLogout, claimReadyOrder, completeDelivery, archiveOrder, archiveMessage, userId }) {
   const [tab, setTab] = useState("available");
+  const [orderStatusFilter, setOrderStatusFilter] = useState(() => {
+    try { return window.sessionStorage.getItem("souq-jiran:courier-order-filter") || "all"; } catch { return "all"; }
+  });
   const courier = (couriers || []).find((c) => c.id === courierId);
   const [editingHours, setEditingHours] = useState(false);
 
@@ -1114,9 +1122,20 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
   const myActiveOrders = (orders || []).filter((o) => o.courier?.id === courierId && !["delivered", "declined"].includes(o.status));
   const completedOrders = (orders || []).filter((o) => o.courier?.id === courierId && o.status === "delivered");
   const newAvailableOrdersCount = availableOrders.length;
+  const visibleAvailableOrders = ["all", "ready"].includes(orderStatusFilter) ? availableOrders : [];
+  const visibleMyActiveOrders = orderStatusFilter === "all" ? myActiveOrders : myActiveOrders.filter((order) => order.status === orderStatusFilter);
+  const visibleCompletedOrders = ["all", "delivered"].includes(orderStatusFilter) ? completedOrders : [];
 
   async function acceptOrder(orderId) { await claimReadyOrder(orderId); }
   async function advanceOrder(orderId) { await completeDelivery(orderId); }
+
+  function selectCourierOrderFilter(filter) {
+    setOrderStatusFilter(filter);
+    try { window.sessionStorage.setItem("souq-jiran:courier-order-filter", filter); } catch { /* التخزين غير متاح في بعض أوضاع الخصوصية */ }
+    const targetTab = { ready: "available", assigned: "my", delivered: "history", all: "available" }[filter] || "available";
+    setTab(targetTab);
+    window.requestAnimationFrame(() => document.getElementById("courier-new-orders")?.scrollIntoView({ block: "start" }));
+  }
 
   function updateCourier(patch) { setCouriers((prev) => prev.map((c) => (c.id === courierId ? { ...c, ...patch } : c))); }
 
@@ -1138,7 +1157,8 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
           </div>
           <button onClick={onLogout} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A20", color: "#8B3A2A" }}><LogOut size={12} /> خروج</button>
         </div>
-        <button data-testid="courier-new-orders-counter" onClick={() => setTab("available")} className="w-full mb-3 p-3 rounded-xl flex items-center justify-between gap-3 text-right" aria-label={`${newAvailableOrdersCount} طلبات جديدة متاحة`} style={{ background: newAvailableOrdersCount ? C.teal + "10" : "rgba(255,255,255,.42)", border: `1px solid ${newAvailableOrdersCount ? C.teal + "38" : C.line}`, color: C.ink }}><span className="flex items-center gap-2 text-xs font-black"><span className="flex items-center justify-center rounded-lg" style={{ width: 28, height: 28, background: newAvailableOrdersCount ? C.teal : C.sage, color: "#fff" }}><Bell size={14} /></span>طلبات جديدة ضمن نطاقك</span><span className="text-sm font-black px-2.5 py-1 rounded-full" style={{ background: newAvailableOrdersCount ? C.teal : C.sage, color: "#fff" }}>{newAvailableOrdersCount}</span></button>
+        <button data-testid="courier-new-orders-counter" onClick={() => selectCourierOrderFilter("ready")} className="w-full mb-2 p-3 rounded-xl flex items-center justify-between gap-3 text-right" aria-label={`${newAvailableOrdersCount} طلبات جديدة متاحة`} style={{ background: newAvailableOrdersCount ? C.teal + "10" : "rgba(255,255,255,.42)", border: `1px solid ${newAvailableOrdersCount ? C.teal + "38" : C.line}`, color: C.ink }}><span className="flex items-center gap-2 text-xs font-black"><span className="flex items-center justify-center rounded-lg" style={{ width: 28, height: 28, background: newAvailableOrdersCount ? C.teal : C.sage, color: "#fff" }}><Bell size={14} /></span>طلبات جديدة ضمن نطاقك</span><span className="text-sm font-black px-2.5 py-1 rounded-full" style={{ background: newAvailableOrdersCount ? C.teal : C.sage, color: "#fff" }}>{newAvailableOrdersCount}</span></button>
+        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap"><button data-testid="courier-new-orders-link" onClick={() => selectCourierOrderFilter("ready")} className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}><ArrowLeft size={12} /> عرض الطلبات الجديدة</button><label className="flex items-center gap-2 text-xs font-bold" style={{ color: C.inkSoft }}>فلتر الحالة<select data-testid="courier-order-status-filter" value={orderStatusFilter} onChange={(event) => selectCourierOrderFilter(event.target.value)} className="px-2 py-1 rounded-lg bg-white outline-none" style={{ border: `1px solid ${C.line}`, color: C.ink }}><option value="all">كل الحالات</option><option value="ready">طلبات جديدة متاحة</option><option value="assigned">قيد التوصيل</option><option value="delivered">تم التسليم</option></select></label></div>
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => setTab("available")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "available" ? C.teal : "transparent", color: tab === "available" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "available" ? C.teal : C.line}` }}>الطلبات المتاحة {newAvailableOrdersCount > 0 && `(${newAvailableOrdersCount})`}</button>
           <button onClick={() => setTab("my")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "my" ? C.teal : "transparent", color: tab === "my" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "my" ? C.teal : C.line}` }}>طلباتي النشطة {myActiveOrders.length > 0 && `(${myActiveOrders.length})`}</button>
@@ -1149,10 +1169,10 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
       </div>
 
       {tab === "available" && (
-        <div className="space-y-3">
+        <div id="courier-new-orders" tabIndex={-1} className="space-y-3 outline-none">
           {courier.status !== "approved" && <p className="text-xs font-bold p-3 rounded-xl" style={{ background: C.ochre + "18", color: C.ochre }}>حسابك قيد مراجعة المشرف — ستظهر الطلبات بعد الموافقة على انضمامك.</p>}
-          {availableOrders.length === 0 && <div className="text-center py-14 rounded-2xl" style={{ background: "#fff", border: `1px dashed ${C.line}` }}><Bike size={28} style={{ margin: "0 auto 8px", color: C.inkSoft }} /><p className="text-sm" style={{ color: C.inkSoft }}>لا توجد طلبات متاحة في نطاقك حاليًا.</p></div>}
-          {availableOrders.map((o) => (
+          {visibleAvailableOrders.length === 0 && <div className="text-center py-14 rounded-2xl" style={{ background: "#fff", border: `1px dashed ${C.line}` }}><Bike size={28} style={{ margin: "0 auto 8px", color: C.inkSoft }} /><p className="text-sm" style={{ color: C.inkSoft }}>{orderStatusFilter === "all" || orderStatusFilter === "ready" ? "لا توجد طلبات متاحة في نطاقك حاليًا." : "لا توجد طلبات مطابقة للفلتر الحالي."}</p></div>}
+          {visibleAvailableOrders.map((o) => (
             <div key={o.id} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
               <div className="flex items-center justify-between mb-2"><span className="font-bold text-sm" style={{ color: C.ink }}>{o.storeName}</span><StatusPill status={o.status} /></div>
               <div className="text-xs mb-1" style={{ color: C.inkSoft }}>{o.items.map((i) => `${i.name} ×${i.qty}`).join(" · ")}</div>
@@ -1170,8 +1190,8 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
 
       {tab === "my" && (
         <div className="space-y-3">
-          {myActiveOrders.length === 0 && <div className="text-center py-14 rounded-2xl" style={{ background: "#fff", border: `1px dashed ${C.line}` }}><ClipboardList size={28} style={{ margin: "0 auto 8px", color: C.inkSoft }} /><p className="text-sm" style={{ color: C.inkSoft }}>لا توجد طلبات نشطة لديك.</p></div>}
-          {myActiveOrders.map((o) => {
+          {visibleMyActiveOrders.length === 0 && <div className="text-center py-14 rounded-2xl" style={{ background: "#fff", border: `1px dashed ${C.line}` }}><ClipboardList size={28} style={{ margin: "0 auto 8px", color: C.inkSoft }} /><p className="text-sm" style={{ color: C.inkSoft }}>{orderStatusFilter === "all" || orderStatusFilter === "assigned" ? "لا توجد طلبات نشطة لديك." : "لا توجد طلبات مطابقة للفلتر الحالي."}</p></div>}
+          {visibleMyActiveOrders.map((o) => {
             const store = storeById[o.storeId];
             return (
               <div key={o.id} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
@@ -1191,8 +1211,8 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
 
       {tab === "history" && (
         <div className="space-y-3">
-          {completedOrders.length === 0 && <div className="text-center py-14 rounded-2xl" style={{ background: "#fff", border: `1px dashed ${C.line}` }}><CheckCircle2 size={28} style={{ margin: "0 auto 8px", color: C.inkSoft }} /><p className="text-sm" style={{ color: C.inkSoft }}>لم تُسلّم أي طلبات بعد.</p></div>}
-          {completedOrders.map((o) => (
+          {visibleCompletedOrders.length === 0 && <div className="text-center py-14 rounded-2xl" style={{ background: "#fff", border: `1px dashed ${C.line}` }}><CheckCircle2 size={28} style={{ margin: "0 auto 8px", color: C.inkSoft }} /><p className="text-sm" style={{ color: C.inkSoft }}>{orderStatusFilter === "all" || orderStatusFilter === "delivered" ? "لم تُسلّم أي طلبات بعد." : "لا توجد طلبات مطابقة للفلتر الحالي."}</p></div>}
+          {visibleCompletedOrders.map((o) => (
             <div key={o.id} className="p-4 rounded-2xl flex items-center justify-between" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
               <div><div className="text-sm font-bold" style={{ color: C.ink }}>{o.storeName} → {o.customer}</div><div className="text-xs mt-0.5" style={{ color: C.inkSoft }}>{o.items.map((i) => `${i.name} ×${i.qty}`).join(" · ")} · {o.createdAt}</div></div>
               <span className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.sage + "25", color: C.tealDark }}>تم التسليم ✓</span>
@@ -1257,7 +1277,7 @@ function CourierHoursEditor({ courier, onSave }) {
 /* ===========================================================
    ADMIN VIEW
 =========================================================== */
-function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], archiveNotifications = [], archiveAlertSettings, notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently, markArchiveNotificationRead, saveArchiveAlertSettings }) {
+function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], archiveNotifications = [], archiveAlertSettings, testAccountCandidates = [], notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently, deleteTestAccount, markArchiveNotificationRead, saveArchiveAlertSettings }) {
   const pendingReview = stores.filter((s) => s.status === "pending_review");
   const awaitingProfile = stores.filter((s) => s.status === "awaiting_profile");
   const approved = stores.filter((s) => s.status === "approved");
@@ -1343,6 +1363,11 @@ function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], 
         <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
           <table className="w-full text-sm"><thead><tr style={{ background: C.paperDark }}><th className="text-right p-3 font-bold" style={{ color: C.inkSoft }}>المحل</th><th className="text-right p-3 font-bold" style={{ color: C.inkSoft }}>العميل</th><th className="text-right p-3 font-bold" style={{ color: C.inkSoft }}>المبلغ</th><th className="text-right p-3 font-bold" style={{ color: C.inkSoft }}>الحالة</th></tr></thead><tbody>{orders.map((o) => (<tr key={o.id} style={{ borderTop: `1px solid ${C.line}`, background: "#fff" }}><td className="p-3 font-bold" style={{ color: C.ink }}>{o.storeName}</td><td className="p-3" style={{ color: C.inkSoft }}>{o.customer}</td><td className="p-3" style={{ color: C.inkSoft }}>{money(o.total)}</td><td className="p-3"><StatusPill status={o.status} /></td></tr>))}</tbody></table>
         </div>
+      </div>
+
+      <div className="p-4 rounded-2xl space-y-3" style={{ background: "#fff", border: `1px solid ${C.line}` }} data-testid="test-account-review-panel">
+        <div className="flex items-center justify-between gap-2 flex-wrap"><div><h3 className="font-black flex items-center gap-2" style={{ color: C.ink }}><ShieldCheck size={17} color={C.teal} /> مراجعة حسابات الاختبار</h3><p className="text-xs mt-1" style={{ color: C.inkSoft }}>تظهر الحسابات الموسومة كاختبار فقط. لا يمكن حذف أي حساب لديه طلبات أو حالة تشغيلية معتمدة.</p></div><span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: testAccountCandidates.length ? C.ochre + "1A" : C.sage + "20", color: testAccountCandidates.length ? C.ochre : C.tealDark }}>{testAccountCandidates.length} مرشح</span></div>
+        <div className="space-y-2">{testAccountCandidates.length === 0 && <p className="text-xs py-2" style={{ color: C.inkSoft }}>لا توجد حسابات اختبار مؤهلة للمراجعة حالياً.</p>}{testAccountCandidates.map((account) => (<div key={account.id} className="p-3 rounded-xl flex items-center justify-between gap-3 flex-wrap" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}><div><div className="text-sm font-black" style={{ color: C.ink }}>{account.name || "حساب اختبار"} <span className="font-normal" style={{ color: C.inkSoft }}>· {account.role === "merchant" ? "تاجر" : "موصل"}</span></div><div className="text-xs mt-1" style={{ color: C.inkSoft }}>{account.email} · أُنشئ {account.createdAt}</div><div className="text-[10px] mt-1" style={{ color: C.tealDark }}>موسوم كاختبار · لا توجد طلبات مرتبطة</div></div><button onClick={() => deleteTestAccount(account)} className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A", border: "1px solid #8B3A2A33" }}><Trash2 size={12} /> حذف بعد التأكيد</button></div>))}</div>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
@@ -1453,6 +1478,7 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [archiveAuditLogs, setArchiveAuditLogs] = useState([]);
   const [archiveNotifications, setArchiveNotifications] = useState([]);
+  const [testAccountCandidates, setTestAccountCandidates] = useState([]);
   const [archiveAlertSettings, setArchiveAlertSettings] = useState({ sensitiveOrderTotal: 5000, sensitiveStatuses: ["ready", "delivering", "delivered"], notifyOnMessageArchive: false });
   const [couriers, setCouriers] = useState([]);
   const [accounts, setAccounts] = useState([]);
@@ -1480,7 +1506,7 @@ export default function App() {
         loadKey(STORAGE.cart, { storeId: null, items: [], address: null }), loadKey(STORAGE.myStoreId, null), loadKey(STORAGE.notifications, []),
       ]);
       if (cancelled) return;
-      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setCouriers([]);
+      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setTestAccountCandidates([]); setCouriers([]);
       setAccounts([]); setAuth(null);
       setCart(loadedCart); setMyStoreId(loadedMyStoreId); setNotifications(loadedNotifications);
       setLoading(false);
@@ -1511,17 +1537,17 @@ export default function App() {
       setAuth(null);
       setMyStoreId(null);
       setRole("customer");
-      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setCouriers([]);
+      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setTestAccountCandidates([]); setCouriers([]);
       return;
     }
     const nextAuth = await resolveSupabaseUser(session.user);
     setAuth(nextAuth);
     setRole(nextAuth.type);
     if (nextAuth.type === "merchant") setMyStoreId(nextAuth.id);
-    await refreshSupabaseData();
+    await refreshSupabaseData(nextAuth.type);
   }
 
-  async function refreshSupabaseData() {
+  async function refreshSupabaseData(activeRole = auth?.type) {
     const [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult, messagesResult, auditResult, archiveNotificationsResult, alertSettingsResult] = await Promise.all([
       supabase.from("merchants").select("*").order("created_at", { ascending: false }),
       supabase.from("products").select("*").order("created_at", { ascending: false }),
@@ -1538,6 +1564,7 @@ export default function App() {
       notify("طبّق امتداد التجارة في supabase/schema.sql لتفعيل المنتجات والطلبات السحابية.");
       return;
     }
+    const testAccountsResult = activeRole === "admin" ? await supabase.rpc("admin_list_test_accounts") : { data: [] };
     const productRows = productsResult.data || [];
     const merchantRows = merchantsResult.data || [];
     const courierRows = couriersResult.data || [];
@@ -1574,6 +1601,8 @@ export default function App() {
       id: entry.id, kind: entry.kind, orderId: entry.order_id, actorId: entry.actor_id, priority: entry.priority, title: entry.title,
       body: entry.body, metadata: entry.metadata || {}, isRead: entry.is_read, createdAt: new Date(entry.created_at).toLocaleString("ar-DZ", { dateStyle: "short", timeStyle: "short" }),
     })));
+    if (testAccountsResult.error && testAccountsResult.error.code !== "42883") notify("تعذر تحميل قائمة مراجعة حسابات الاختبار: " + testAccountsResult.error.message);
+    setTestAccountCandidates((testAccountsResult.data || []).map((account) => ({ id: account.user_id, email: account.email, role: account.role, name: account.name, createdAt: new Date(account.created_at).toLocaleDateString("ar-DZ", { dateStyle: "medium" }) })));
     if (alertSettingsResult.data) {
       setArchiveAlertSettings({
         sensitiveOrderTotal: Number(alertSettingsResult.data.sensitive_order_total),
@@ -1714,6 +1743,16 @@ export default function App() {
     if (error) { notify("تعذر الحذف النهائي للرسالة: " + error.message); return false; }
     await refreshSupabaseData();
     notify("تم حذف الرسالة نهائياً من الأرشيف الإداري.");
+    return true;
+  }
+
+  async function deleteTestAccount(account) {
+    if (auth?.type !== "admin") { notify("لا تملك صلاحية حذف حسابات الاختبار."); return false; }
+    if (!window.confirm(`سيُحذف حساب الاختبار ${account.email} نهائياً. لا يمكن استعادته. هل تريد المتابعة؟`)) return false;
+    const { error } = await supabase.rpc("admin_delete_test_account", { p_user_id: account.id });
+    if (error) { notify("تعذر حذف حساب الاختبار: " + error.message); return false; }
+    await refreshSupabaseData("admin");
+    notify("تم حذف حساب الاختبار بعد المراجعة.");
     return true;
   }
 
@@ -1927,7 +1966,7 @@ export default function App() {
           {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else { setAdminLoginRequested(false); setShowAuth(true); } }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} />)}
           {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} registerMerchant={registerMerchant} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} messages={messages} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} completeDelivery={completeDelivery} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
-          {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} archiveAlertSettings={archiveAlertSettings} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} markArchiveNotificationRead={markArchiveNotificationRead} saveArchiveAlertSettings={saveArchiveAlertSettings} />}
+          {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} saveArchiveAlertSettings={saveArchiveAlertSettings} />}
         </div>
 
         {role === "customer" && !showRoleGuide && (
