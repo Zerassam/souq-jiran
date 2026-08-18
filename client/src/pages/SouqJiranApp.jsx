@@ -1346,7 +1346,7 @@ function CourierHoursEditor({ courier, onSave }) {
 /* ===========================================================
    ADMIN VIEW
 =========================================================== */
-function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], archiveNotifications = [], orderNotifications = [], archiveAlertSettings, testAccountCandidates = [], testAccountReviewAuditLogs = [], customerReports = [], customerBlacklist = [], deliveryPricing, notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently, deleteTestAccount, markArchiveNotificationRead, markOrderNotificationRead, markAllOrderNotificationsRead, saveArchiveAlertSettings, setCustomerBlacklist, saveDeliveryPricing }) {
+function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], archiveNotifications = [], orderNotifications = [], mockMessages = [], archiveAlertSettings, testAccountCandidates = [], testAccountReviewAuditLogs = [], customerReports = [], customerBlacklist = [], deliveryPricing, notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently, deleteTestAccount, markArchiveNotificationRead, markOrderNotificationRead, markAllOrderNotificationsRead, saveArchiveAlertSettings, setCustomerBlacklist, saveDeliveryPricing }) {
   const pendingReview = stores.filter((s) => s.status === "pending_review");
   const awaitingProfile = stores.filter((s) => s.status === "awaiting_profile");
   const approved = stores.filter((s) => s.status === "approved");
@@ -1422,6 +1422,13 @@ function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], 
         <button onClick={() => saveDeliveryPricing(pricingDraft)} className="text-xs px-3 py-2 rounded-xl font-black" style={{ background: C.purple, color: "#fff" }}>حفظ إعدادات التسعير</button>
         <div className="pt-3" style={{ borderTop: `1px solid ${C.line}` }}><h4 className="font-black text-sm" style={{ color: C.ink }}>بلاغات العملاء المفتوحة</h4><div className="space-y-2 mt-2">{customerReports.filter((report) => report.status === "open").map((report) => <div key={report.id} className="p-3 rounded-xl flex items-start justify-between gap-3" style={{ background: C.paperDark }}><div><p className="text-xs font-bold" style={{ color: C.ink }}>{report.reason}</p><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>طلب مرتبط: {report.relatedOrderId ? report.relatedOrderId.slice(0, 8) : "غير محدد"}</p></div><button onClick={() => setCustomerBlacklist(report.customerId, report.reason, true)} className="text-xs px-2.5 py-1.5 rounded-lg font-bold shrink-0" style={{ background: C.rust, color: "#fff" }}>حظر الحساب</button></div>)}{customerReports.filter((report) => report.status === "open").length === 0 && <p className="text-xs py-2" style={{ color: C.inkSoft }}>لا توجد بلاغات مفتوحة.</p>}</div></div>
         <div className="pt-3" style={{ borderTop: `1px solid ${C.line}` }}><h4 className="font-black text-sm" style={{ color: C.ink }}>الحسابات المحظورة</h4><div className="space-y-2 mt-2">{customerBlacklist.filter((entry) => !entry.revokedAt).map((entry) => <div key={entry.customerId} className="p-3 rounded-xl flex items-center justify-between gap-3" style={{ background: C.rust + "10" }}><div><p className="text-xs font-bold" style={{ color: C.ink }}>{entry.reason}</p><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>معرّف العميل: {entry.customerId.slice(0, 8)}</p></div><button onClick={() => setCustomerBlacklist(entry.customerId, entry.reason, false)} className="text-xs px-2.5 py-1.5 rounded-lg font-bold" style={{ border: `1px solid ${C.rust}`, color: C.rust }}>رفع الحظر</button></div>)}{customerBlacklist.filter((entry) => !entry.revokedAt).length === 0 && <p className="text-xs py-2" style={{ color: C.inkSoft }}>لا توجد حسابات محظورة حالياً.</p>}</div></div>
+      </section>
+
+      <section className="p-4 sm:p-5 rounded-2xl space-y-3" style={{ background: "linear-gradient(135deg, #FFFFFF 0%, #EEF0FF 100%)", border: `1px solid ${C.teal}30` }} data-testid="admin-mock-messaging-panel">
+        <div className="flex items-start justify-between gap-3 flex-wrap"><div className="flex items-start gap-3"><span className="flex items-center justify-center rounded-xl shrink-0" style={{ width: 40, height: 40, background: C.teal, color: "#fff" }}><MessageCircle size={19} /></span><div><h3 className="font-black" style={{ color: C.ink }}>قنوات الرسائل والأتمتة</h3><p className="text-xs mt-1 leading-5" style={{ color: C.inkSoft }}>وضع الاختبار مفعل: تُحاكى رسائل WhatsApp وViber وسجلها هنا، ولا تُرسل أي رسالة خارج التطبيق.</p></div></div><span className="text-[11px] font-black px-2.5 py-1 rounded-full" style={{ background: C.ochre + "20", color: C.ochre }}>Mock Mode</span></div>
+        <div className="grid sm:grid-cols-3 gap-2 text-xs"><div className="p-3 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><p className="font-black" style={{ color: C.ink }}>WhatsApp Business</p><p className="mt-1" style={{ color: C.inkSoft }}>جاهز للمفتاح لاحقاً</p></div><div className="p-3 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><p className="font-black" style={{ color: C.ink }}>Viber Bot</p><p className="mt-1" style={{ color: C.inkSoft }}>جاهز للمفتاح لاحقاً</p></div><div className="p-3 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><p className="font-black" style={{ color: C.ink }}>CallMeBot</p><p className="mt-1" style={{ color: C.inkSoft }}>اختياري للتجارب فقط</p></div></div>
+        <p className="text-[11px]" style={{ color: C.inkSoft }}>عند جاهزية مفاتيح القناة، سيُفعّلها المشرف من الإعدادات الآمنة. لا تحفظ المفاتيح في هذه الشاشة أو في window.storage.</p>
+        <div className="space-y-2">{mockMessages.length === 0 && <p className="text-xs py-3 text-center rounded-xl" style={{ color: C.inkSoft, background: "rgba(255,255,255,.72)", border: `1px dashed ${C.line}` }}>لم تُحاكَ رسائل بعد. أرسل طلباً تجريبياً لتظهر أحداث الرسائل هنا.</p>}{mockMessages.slice(0, 12).map((message) => <div key={message.id} className="p-3 rounded-xl flex items-start justify-between gap-3" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="min-w-0"><p className="text-xs font-black" style={{ color: C.ink }}>{message.recipient} · {message.channel}</p><p className="text-xs mt-1 leading-5" style={{ color: C.inkSoft }}>{message.body}</p></div><span className="text-[10px] shrink-0" style={{ color: C.inkSoft }}>{message.createdAt}</span></div>)}</div>
       </section>
 
       <section className="p-4 sm:p-5 rounded-2xl space-y-3" style={{ background: "linear-gradient(135deg, #FFFFFF 0%, #F5F3FF 100%)", border: `1px solid ${C.purple}35` }} data-testid="admin-order-notifications-panel">
@@ -1535,6 +1542,7 @@ const STORAGE = {
   cart: { key: "souq-jiran:cart:v4", shared: false },
   myStoreId: { key: "souq-jiran:my-store-id:v4", shared: false },
   notifications: { key: "souq-jiran:notifications:v4", shared: false },
+  mockMessaging: { key: "souq-jiran:mock-messaging:v1", shared: true },
 };
 async function loadKey({ key, shared }, fallback) {
   try {
@@ -1604,6 +1612,7 @@ export default function App() {
   const [customerReports, setCustomerReports] = useState([]);
   const [customerBlacklist, setCustomerBlacklist] = useState([]);
   const [deliveryPricing, setDeliveryPricing] = useState(null);
+  const [mockMessages, setMockMessages] = useState([]);
   const [archiveAlertSettings, setArchiveAlertSettings] = useState({ sensitiveOrderTotal: 5000, sensitiveStatuses: ["ready", "delivering", "delivered"], notifyOnMessageArchive: false });
   const [couriers, setCouriers] = useState([]);
   const [accounts, setAccounts] = useState([]);
@@ -1623,17 +1632,22 @@ export default function App() {
   function notify(msg) { setToast(msg); setTimeout(() => setToast(""), 2400); }
   function pushNotification(message) { setNotifications((prev) => { const next = [{ id: "n" + Math.random().toString(36).slice(2, 7), message, time: new Date().toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" }), read: false }, ...prev].slice(0, 25); saveKey(STORAGE.notifications, next); return next; }); }
   function markAllRead() { setNotifications((prev) => { const next = prev.map((n) => ({ ...n, read: true })); saveKey(STORAGE.notifications, next); return next; }); }
+  function recordMockMessage({ recipient, body, orderId = null, channel = "WhatsApp/Viber (تجريبي)" }) {
+    const entry = { id: `mock-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, recipient, body, orderId, channel, createdAt: new Date().toLocaleString("ar-DZ", { dateStyle: "short", timeStyle: "short" }) };
+    setMockMessages((previous) => { const next = [entry, ...previous].slice(0, 80); saveKey(STORAGE.mockMessaging, next); return next; });
+    if ((recipient === "العميل" && auth?.type === "customer") || (recipient === "التاجر" && auth?.type === "merchant") || (recipient === "الموصل" && auth?.type === "courier")) pushNotification(`[تجريبي] ${body}`);
+  }
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [loadedCart, loadedMyStoreId, loadedNotifications] = await Promise.all([
-        loadKey(STORAGE.cart, { storeId: null, items: [], address: null }), loadKey(STORAGE.myStoreId, null), loadKey(STORAGE.notifications, []),
+      const [loadedCart, loadedMyStoreId, loadedNotifications, loadedMockMessages] = await Promise.all([
+        loadKey(STORAGE.cart, { storeId: null, items: [], address: null }), loadKey(STORAGE.myStoreId, null), loadKey(STORAGE.notifications, []), loadKey(STORAGE.mockMessaging, []),
       ]);
       if (cancelled) return;
       setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]);
       setAccounts([]); setAuth(null);
-      setCart(loadedCart); setMyStoreId(loadedMyStoreId); setNotifications(loadedNotifications);
+      setCart(loadedCart); setMyStoreId(loadedMyStoreId); setNotifications(loadedNotifications); setMockMessages(loadedMockMessages);
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -1800,6 +1814,9 @@ export default function App() {
     if (error) { notify("تعذر إرسال الطلب: " + error.message); return false; }
     persistentSetCart({ storeId: null, items: [], address: null });
     await refreshSupabaseData();
+    recordMockMessage({ recipient: "التاجر", body: `طلب جديد من العميل بانتظار المراجعة لدى ${store.name}.` });
+    const needsMockOtp = deliveryType === "courier" && (cart.items.reduce((total, item) => total + Number(item.price || 0) * Number(item.qty || 0), 0) >= 10000 || Boolean(address?.wilaya && store.wilaya && address.wilaya !== store.wilaya));
+    if (needsMockOtp) recordMockMessage({ recipient: "العميل", body: "رمز OTP تجريبي: 123456 لتأكيد طلب التوصيل. لا تُرسل رسالة فعلية في وضع الاختبار." });
     notify("تم إرسال طلبك — الدفع نقداً عند الاستلام");
     return true;
   }
@@ -1839,6 +1856,9 @@ export default function App() {
     const { error } = await supabase.rpc("set_merchant_order_status", { p_order_id: orderId, p_status: status });
     if (error) { notify("تعذر تحديث الطلب: " + error.message); return false; }
     await refreshSupabaseData();
+    const order = orders.find((item) => item.id === orderId);
+    if (status === "ready") recordMockMessage({ recipient: "الموصل", orderId, body: `طلب ${order?.storeName || "محل الحي"} أصبح جاهزاً للاستلام${order?.isInterwilaya ? ` لمسار ${order.originWilaya || "المصدر"} إلى ${order.destinationWilaya || "الوجهة"}` : ""}.` });
+    else recordMockMessage({ recipient: "العميل", orderId, body: `تم تحديث طلبك من ${order?.storeName || "محل الحي"} إلى «${STATUS_MAP[status]?.label || status}».` });
     return true;
   }
 
@@ -1846,6 +1866,9 @@ export default function App() {
     const { error } = await supabase.rpc("claim_ready_order", { p_order_id: orderId });
     if (error) { notify("تعذر قبول الطلب: " + error.message); return false; }
     await refreshSupabaseData();
+    const order = orders.find((item) => item.id === orderId);
+    recordMockMessage({ recipient: "التاجر", orderId, body: `تم إسناد طلب ${order?.storeName || "محل الحي"} إلى موصل معتمد.` });
+    recordMockMessage({ recipient: "العميل", orderId, body: "تم إسناد طلبك إلى موصل. لن تظهر بيانات الموصل حفاظاً على الخصوصية." });
     notify("تم قبول الطلب — توجه إلى المحل لاستلامه");
     return true;
   }
@@ -1862,6 +1885,17 @@ export default function App() {
     const { error } = await supabase.rpc(rpcName, { p_order_id: orderId });
     if (error) { notify("تعذر تحديث مرحلة الطلب: " + error.message); return false; }
     await refreshSupabaseData();
+    const order = orders.find((item) => item.id === orderId);
+    const messagesByAction = {
+      courier_confirm_pickup: { recipient: "العميل", body: "استلم الموصل طلبك من المحل رسمياً." },
+      courier_start_delivery: { recipient: "العميل", body: "طلبك في الطريق إليك الآن." },
+      courier_confirm_delivery: { recipient: "العميل", body: "تم تسجيل التسليم. يرجى تأكيد الاستلام والدفع من التطبيق." },
+      customer_confirm_delivery: { recipient: "الموصل", body: "أكد العميل الاستلام والدفع. يمكنك تحويل مستحقات التاجر." },
+      courier_confirm_remittance: { recipient: "التاجر", body: "أكد الموصل تحويل مستحقات طلبك. يرجى تأكيد الاستلام لإغلاق الدورة." },
+      merchant_confirm_settlement: { recipient: "العميل", body: "اكتملت تسوية طلبك بنجاح. شكراً لاستخدام سوق الجيران." },
+    };
+    const message = messagesByAction[rpcName];
+    if (message) recordMockMessage({ ...message, orderId, body: `${message.body}${order?.storeName ? ` (${order.storeName})` : ""}` });
     notify(successMessage);
     return true;
   }
@@ -1883,6 +1917,7 @@ export default function App() {
   async function confirmCustomerPhoneVerification(phone, method = "mock_otp") {
     const { error } = await supabase.rpc("confirm_customer_phone_verification", { p_phone: phone, p_method: method });
     if (error) { notify("تعذر حفظ التحقق التجريبي: " + error.message); return false; }
+    recordMockMessage({ recipient: "العميل", channel: "OTP تجريبي", body: `تم تسجيل تأكيد الرقم عبر ${method}. لم يُرسل رمز فعلي.` });
     notify("تم تسجيل التحقق في الوضع التجريبي؛ لم يُرسل OTP فعلي.");
     return true;
   }
@@ -2206,7 +2241,7 @@ export default function App() {
           {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else { setAdminLoginRequested(false); setShowAuth(true); } }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} confirmCustomerPhoneVerification={confirmCustomerPhoneVerification} />)}
           {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} registerMerchant={registerMerchant} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} merchantConfirmSettlement={merchantConfirmSettlement} reportCustomerAccount={reportCustomerAccount} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} messages={messages} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} courierConfirmPickup={courierConfirmPickup} courierStartDelivery={courierStartDelivery} courierConfirmDelivery={courierConfirmDelivery} courierConfirmRemittance={courierConfirmRemittance} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
-          {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} orderNotifications={adminOrderNotifications} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} customerReports={customerReports} customerBlacklist={customerBlacklist} deliveryPricing={deliveryPricing} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} markOrderNotificationRead={markOrderNotificationRead} markAllOrderNotificationsRead={markAllOrderNotificationsRead} saveArchiveAlertSettings={saveArchiveAlertSettings} setCustomerBlacklist={setCustomerBlacklistStatus} saveDeliveryPricing={saveDeliveryPricingConfig} />}
+          {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} orderNotifications={adminOrderNotifications} mockMessages={mockMessages} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} customerReports={customerReports} customerBlacklist={customerBlacklist} deliveryPricing={deliveryPricing} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} markOrderNotificationRead={markOrderNotificationRead} markAllOrderNotificationsRead={markAllOrderNotificationsRead} saveArchiveAlertSettings={saveArchiveAlertSettings} setCustomerBlacklist={setCustomerBlacklistStatus} saveDeliveryPricing={saveDeliveryPricingConfig} />}
         </div>
 
         {role === "customer" && !showRoleGuide && (

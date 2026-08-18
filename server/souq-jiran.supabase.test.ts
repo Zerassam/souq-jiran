@@ -294,4 +294,21 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain("حفظ إعدادات التسعير");
     expect(appSource).toContain("auth?.type !== \"admin\"");
   });
+
+  it("keeps automated messaging in an explicit local mock mode until a provider is configured", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(appSource).toContain('mockMessaging: { key: "souq-jiran:mock-messaging:v1", shared: true }');
+    expect(appSource).toContain("function recordMockMessage");
+    expect(appSource).toContain('data-testid="admin-mock-messaging-panel"');
+    expect(appSource).toContain("لا تُرسل أي رسالة خارج التطبيق");
+    expect(appSource).toContain("لا تحفظ المفاتيح في هذه الشاشة أو في window.storage");
+    expect(appSource).toContain("courier_confirm_pickup");
+    expect(appSource).toContain("courier_start_delivery");
+    expect(appSource).toContain("courier_confirm_delivery");
+    expect(appSource).toContain("customer_confirm_delivery");
+    expect(appSource).toContain("courier_confirm_remittance");
+    expect(appSource).toContain("merchant_confirm_settlement");
+    expect(appSource).toContain("رمز OTP تجريبي: 123456");
+  });
 });
