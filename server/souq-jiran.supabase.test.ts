@@ -121,6 +121,33 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain('aria-label={`${newAvailableOrdersCount} طلبات جديدة متاحة`}');
   });
 
+  it("connects new-order counters to focused order views and preserves the courier status filter", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(appSource).toContain('data-testid="merchant-new-orders-link"');
+    expect(appSource).toContain('data-testid="courier-new-orders-link"');
+    expect(appSource).toContain("openNewMerchantOrders");
+    expect(appSource).toContain('selectCourierOrderFilter("ready")');
+    expect(appSource).toContain('data-testid="courier-order-status-filter"');
+    expect(appSource).toContain('"souq-jiran:courier-order-filter"');
+    expect(appSource).toContain("window.sessionStorage.setItem");
+  });
+
+  it("keeps test-account review restricted to explicit qa accounts with a confirmed admin deletion path", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const migration = readFileSync(resolve(projectRoot, "supabase/migrations/20260819_test_account_review.sql"), "utf8");
+
+    expect(appSource).toContain('data-testid="test-account-review-panel"');
+    expect(appSource).toContain('supabase.rpc("admin_list_test_accounts")');
+    expect(appSource).toContain('supabase.rpc("admin_delete_test_account"');
+    expect(appSource).toContain("سيُحذف حساب الاختبار");
+    expect(migration).toContain("test_account_review_audit_logs");
+    expect(migration).toContain("admin_list_test_accounts");
+    expect(migration).toContain("admin_delete_test_account");
+    expect(migration).toContain("^qa-(merchant|courier)");
+    expect(migration).toContain("not exists (");
+  });
+
   it("defines protected audit and notification flows for archive management", () => {
     const schema = readFileSync(resolve(projectRoot, "supabase/schema.sql"), "utf8").toLowerCase();
     const migration = readFileSync(resolve(projectRoot, "supabase/migrations/20260818_archive_management.sql"), "utf8").toLowerCase();
