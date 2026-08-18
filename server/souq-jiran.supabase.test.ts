@@ -217,4 +217,27 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain('data-testid="archive-audit-log"');
     expect(appSource).toContain("markArchiveNotificationRead");
   });
+
+  it("records protected admin notifications for new and delivered orders with their totals", () => {
+    const schema = readFileSync(resolve(projectRoot, "supabase/schema.sql"), "utf8");
+    const migration = readFileSync(resolve(projectRoot, "supabase/migrations/20260821_admin_order_notifications.sql"), "utf8");
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(schema).toContain("create table if not exists public.admin_order_notifications");
+    expect(schema).toContain("record_admin_order_notification");
+    expect(schema).toContain("admin_mark_order_notification_read");
+    expect(schema).toContain("admin_mark_all_order_notifications_read");
+    expect(schema).toContain("'order_created'");
+    expect(schema).toContain("'order_delivered'");
+    expect(schema).toContain("public.is_app_admin()");
+    expect(migration).toContain("perform public.record_admin_order_notification(v_order.id, 'order_created')");
+    expect(migration).toContain("perform public.record_admin_order_notification(v_order.id, 'order_delivered')");
+    expect(migration).toContain("order_total integer not null check (order_total >= 0)");
+    expect(migration).toContain("alter publication supabase_realtime add table public.admin_order_notifications");
+    expect(appSource).toContain('data-testid="admin-order-notifications-panel"');
+    expect(appSource).toContain('supabase.from("admin_order_notifications")');
+    expect(appSource).toContain('supabase.rpc("admin_mark_order_notification_read"');
+    expect(appSource).toContain('supabase.rpc("admin_mark_all_order_notifications_read")');
+    expect(appSource).toContain("إشعارات الطلبات");
+  });
 });

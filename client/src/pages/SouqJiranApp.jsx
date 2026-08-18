@@ -1290,7 +1290,7 @@ function CourierHoursEditor({ courier, onSave }) {
 /* ===========================================================
    ADMIN VIEW
 =========================================================== */
-function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], archiveNotifications = [], archiveAlertSettings, testAccountCandidates = [], testAccountReviewAuditLogs = [], notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently, deleteTestAccount, markArchiveNotificationRead, saveArchiveAlertSettings }) {
+function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], archiveNotifications = [], orderNotifications = [], archiveAlertSettings, testAccountCandidates = [], testAccountReviewAuditLogs = [], notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently, deleteTestAccount, markArchiveNotificationRead, markOrderNotificationRead, markAllOrderNotificationsRead, saveArchiveAlertSettings }) {
   const pendingReview = stores.filter((s) => s.status === "pending_review");
   const awaitingProfile = stores.filter((s) => s.status === "awaiting_profile");
   const approved = stores.filter((s) => s.status === "approved");
@@ -1301,6 +1301,7 @@ function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], 
   const [archiveStatus, setArchiveStatus] = useState("all");
   const [auditAction, setAuditAction] = useState("all");
   const [onlyUnreadAlerts, setOnlyUnreadAlerts] = useState(false);
+  const [onlyUnreadOrderNotifications, setOnlyUnreadOrderNotifications] = useState(false);
   const [testAccountQuery, setTestAccountQuery] = useState("");
   const [settingsDraft, setSettingsDraft] = useState(() => ({ ...archiveAlertSettings }));
   useEffect(() => setSettingsDraft({ ...archiveAlertSettings }), [archiveAlertSettings]);
@@ -1321,6 +1322,8 @@ function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], 
   const visibleAuditLogs = archiveAuditLogs.filter((entry) => auditAction === "all" || entry.action === auditAction);
   const visibleNotifications = archiveNotifications.filter((entry) => !onlyUnreadAlerts || !entry.isRead);
   const unreadAlertsCount = archiveNotifications.filter((entry) => !entry.isRead).length;
+  const visibleOrderNotifications = orderNotifications.filter((entry) => !onlyUnreadOrderNotifications || !entry.isRead);
+  const unreadOrderNotificationsCount = orderNotifications.filter((entry) => !entry.isRead).length;
   const normalizedTestAccountQuery = testAccountQuery.trim().toLocaleLowerCase("ar-DZ");
   const filteredTestAccounts = testAccountCandidates.filter((account) => !normalizedTestAccountQuery || [account.name, account.email, account.roleLabel].some((value) => String(value || "").toLocaleLowerCase("ar-DZ").includes(normalizedTestAccountQuery)));
 
@@ -1354,6 +1357,17 @@ function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], 
   return (
     <div className="dashboard-shell space-y-6">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{stats.map((s) => (<div key={s.label} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><s.icon size={18} color={s.color} /><div className="font-black text-lg mt-2" style={{ color: C.ink }}>{s.value}</div><div className="text-xs" style={{ color: C.inkSoft }}>{s.label}</div></div>))}</div>
+
+      <section className="p-4 sm:p-5 rounded-2xl space-y-3" style={{ background: "linear-gradient(135deg, #FFFFFF 0%, #F5F3FF 100%)", border: `1px solid ${C.purple}35` }} data-testid="admin-order-notifications-panel">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="flex items-start gap-3"><span className="flex items-center justify-center rounded-xl shrink-0" style={{ width: 40, height: 40, background: C.purple, color: "#fff" }}><Bell size={19} /></span><div><h3 className="font-black flex items-center gap-2" style={{ color: C.ink }}>إشعارات الطلبات <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: unreadOrderNotificationsCount ? C.rust : C.paperDark, color: unreadOrderNotificationsCount ? "#fff" : C.inkSoft }}>{unreadOrderNotificationsCount} غير مقروء</span></h3><p className="text-xs mt-1" style={{ color: C.inkSoft }}>تظهر هنا فوراً الطلبات الجديدة والطلبات المسلّمة مع المبلغ الإجمالي.</p></div></div>
+          <div className="flex items-center gap-2"><button onClick={() => setOnlyUnreadOrderNotifications((value) => !value)} className="text-xs font-bold px-3 py-1.5 rounded-xl" style={{ border: `1px solid ${C.line}`, color: onlyUnreadOrderNotifications ? C.purple : C.inkSoft, background: onlyUnreadOrderNotifications ? C.purple + "12" : "#fff" }}>{onlyUnreadOrderNotifications ? "عرض الكل" : "غير المقروءة"}</button><button onClick={markAllOrderNotificationsRead} disabled={!unreadOrderNotificationsCount} className="text-xs font-bold px-3 py-1.5 rounded-xl disabled:opacity-40" style={{ background: C.purple, color: "#fff" }}>تعليم الكل كمقروء</button></div>
+        </div>
+        <div className="space-y-2">
+          {visibleOrderNotifications.length === 0 && <p className="text-xs py-4 text-center rounded-xl" style={{ color: C.inkSoft, background: "rgba(255,255,255,.66)", border: `1px dashed ${C.line}` }}>{onlyUnreadOrderNotifications ? "لا توجد إشعارات طلبات غير مقروءة." : "ستظهر إشعارات الطلبات الجديدة والمسلّمة هنا."}</p>}
+          {visibleOrderNotifications.map((entry) => (<button key={entry.id} onClick={() => !entry.isRead && markOrderNotificationRead(entry.id)} className="w-full text-right p-3 rounded-xl flex items-start justify-between gap-3" style={{ background: entry.isRead ? "rgba(255,255,255,.66)" : "#fff", border: `1px solid ${entry.isRead ? C.line : C.purple + "40"}` }}><div className="flex items-start gap-2 min-w-0"><span className="mt-0.5 flex items-center justify-center rounded-lg shrink-0" style={{ width: 27, height: 27, background: entry.eventType === "order_delivered" ? C.sage + "22" : C.rust + "18", color: entry.eventType === "order_delivered" ? C.sage : C.rust }}>{entry.eventType === "order_delivered" ? <CheckCircle2 size={14} /> : <PackageCheck size={14} />}</span><div className="min-w-0"><div className="text-sm font-black" style={{ color: C.ink }}>{entry.title}</div><div className="text-xs leading-5 mt-0.5" style={{ color: C.inkSoft }}>{entry.body}</div><div className="text-[11px] mt-1" style={{ color: C.inkSoft }}>{entry.createdAt}</div></div></div><div className="shrink-0 text-left"><PriceTag amount={entry.orderTotal} />{!entry.isRead && <span className="block text-[10px] mt-1 font-bold" style={{ color: C.purple }}>جديد</span>}</div></button>))}
+        </div>
+      </section>
 
       <div>
         <h3 className="font-black mb-3 flex items-center gap-2" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}><Wallet size={17} color={C.rust} /> اللوحة المالية للمحلات</h3>
@@ -1518,6 +1532,7 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [archiveAuditLogs, setArchiveAuditLogs] = useState([]);
   const [archiveNotifications, setArchiveNotifications] = useState([]);
+  const [adminOrderNotifications, setAdminOrderNotifications] = useState([]);
   const [testAccountCandidates, setTestAccountCandidates] = useState([]);
   const [testAccountReviewAuditLogs, setTestAccountReviewAuditLogs] = useState([]);
   const [archiveAlertSettings, setArchiveAlertSettings] = useState({ sensitiveOrderTotal: 5000, sensitiveStatuses: ["ready", "delivering", "delivered"], notifyOnMessageArchive: false });
@@ -1547,7 +1562,7 @@ export default function App() {
         loadKey(STORAGE.cart, { storeId: null, items: [], address: null }), loadKey(STORAGE.myStoreId, null), loadKey(STORAGE.notifications, []),
       ]);
       if (cancelled) return;
-      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCouriers([]);
+      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCouriers([]);
       setAccounts([]); setAuth(null);
       setCart(loadedCart); setMyStoreId(loadedMyStoreId); setNotifications(loadedNotifications);
       setLoading(false);
@@ -1578,7 +1593,7 @@ export default function App() {
       setAuth(null);
       setMyStoreId(null);
       setRole("customer");
-      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCouriers([]);
+      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCouriers([]);
       return;
     }
     const nextAuth = await resolveSupabaseUser(session.user);
@@ -1589,7 +1604,7 @@ export default function App() {
   }
 
   async function refreshSupabaseData(activeRole = auth?.type) {
-    const [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult, messagesResult, auditResult, archiveNotificationsResult, alertSettingsResult] = await Promise.all([
+    const [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult, messagesResult, auditResult, archiveNotificationsResult, orderNotificationsResult, alertSettingsResult] = await Promise.all([
       supabase.from("merchants").select("*").order("created_at", { ascending: false }),
       supabase.from("products").select("*").order("created_at", { ascending: false }),
       supabase.from("couriers").select("*").order("created_at", { ascending: false }),
@@ -1598,6 +1613,7 @@ export default function App() {
       supabase.from("order_messages").select("*").order("created_at", { ascending: false }),
       supabase.from("admin_archive_audit_logs").select("*").order("created_at", { ascending: false }).limit(100),
       supabase.from("admin_archive_notifications").select("*").order("created_at", { ascending: false }).limit(100),
+      activeRole === "admin" ? supabase.from("admin_order_notifications").select("*").order("created_at", { ascending: false }).limit(100) : Promise.resolve({ data: [] }),
       supabase.from("admin_archive_alert_settings").select("*").eq("id", true).maybeSingle(),
     ]);
     const migrationMissing = [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult].some((result) => result.error?.code === "42P01");
@@ -1646,6 +1662,10 @@ export default function App() {
     setArchiveNotifications((archiveNotificationsResult.data || []).map((entry) => ({
       id: entry.id, kind: entry.kind, orderId: entry.order_id, actorId: entry.actor_id, priority: entry.priority, title: entry.title,
       body: entry.body, metadata: entry.metadata || {}, isRead: entry.is_read, createdAt: new Date(entry.created_at).toLocaleString("ar-DZ", { dateStyle: "short", timeStyle: "short" }),
+    })));
+    setAdminOrderNotifications((orderNotificationsResult.data || []).map((entry) => ({
+      id: entry.id, eventType: entry.event_type, orderId: entry.order_id, orderTotal: Number(entry.order_total || 0), title: entry.title,
+      body: entry.body, metadata: entry.metadata || {}, isRead: Boolean(entry.is_read), createdAt: new Date(entry.created_at).toLocaleString("ar-DZ", { dateStyle: "short", timeStyle: "short" }),
     })));
     if (testAccountsResult.error && testAccountsResult.error.code !== "42883") notify("تعذر تحميل قائمة مراجعة حسابات الاختبار: " + testAccountsResult.error.message);
     if (testAccountAuditResult.error) notify("تعذر تحميل سجل مراجعة حسابات الاختبار: " + testAccountAuditResult.error.message);
@@ -1814,6 +1834,22 @@ export default function App() {
     const { error } = await supabase.rpc("admin_mark_archive_notification_read", { p_notification_id: notificationId });
     if (error) { notify("تعذر تحديث الإشعار: " + error.message); return false; }
     await refreshSupabaseData();
+    return true;
+  }
+
+  async function markOrderNotificationRead(notificationId) {
+    if (auth?.type !== "admin") { notify("لا تملك صلاحية تعديل إشعارات الطلبات."); return false; }
+    const { error } = await supabase.rpc("admin_mark_order_notification_read", { p_notification_id: notificationId });
+    if (error) { notify("تعذر تحديث إشعار الطلب: " + error.message); return false; }
+    await refreshSupabaseData("admin");
+    return true;
+  }
+
+  async function markAllOrderNotificationsRead() {
+    if (auth?.type !== "admin") { notify("لا تملك صلاحية تعديل إشعارات الطلبات."); return false; }
+    const { error } = await supabase.rpc("admin_mark_all_order_notifications_read");
+    if (error) { notify("تعذر تحديث إشعارات الطلبات: " + error.message); return false; }
+    await refreshSupabaseData("admin");
     return true;
   }
 
@@ -2035,7 +2071,7 @@ export default function App() {
           {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else { setAdminLoginRequested(false); setShowAuth(true); } }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} />)}
           {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} registerMerchant={registerMerchant} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} messages={messages} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} completeDelivery={completeDelivery} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
-          {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} saveArchiveAlertSettings={saveArchiveAlertSettings} />}
+          {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} orderNotifications={adminOrderNotifications} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} markOrderNotificationRead={markOrderNotificationRead} markAllOrderNotificationsRead={markAllOrderNotificationsRead} saveArchiveAlertSettings={saveArchiveAlertSettings} />}
         </div>
 
         {role === "customer" && !showRoleGuide && (
