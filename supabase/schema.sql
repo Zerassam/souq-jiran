@@ -577,7 +577,7 @@ create policy merchants_read_approved_or_self on public.merchants
 
 drop policy if exists couriers_read_self_or_merchant on public.couriers;
 create policy couriers_read_self_or_merchant on public.couriers
-  for select using (
+  for select to authenticated using (
     auth.uid() = id
     or public.is_app_admin()
     or (status = 'approved' and public.current_app_role() = 'merchant')

@@ -45,12 +45,31 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain("await applySupabaseSession(activeSession)");
   });
 
+  it("keeps courier discovery private while allowing customers to select platform delivery", () => {
+    const schema = readFileSync(resolve(projectRoot, "supabase/schema.sql"), "utf8");
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const customerView = appSource.match(/function CustomerView[\s\S]*?(?=function MerchantView)/)?.[0] ?? "";
+
+    expect(schema).toContain("for select to authenticated using (");
+    expect(schema).toContain("public.current_app_role() = 'merchant'");
+    expect(customerView).toContain("const platformCourierEnabled");
+    expect(customerView).toContain("يُسند تلقائياً عند الجاهزية");
+    expect(customerView).not.toContain("const courierAssigned = deliveryChoice");
+    expect(customerView).not.toContain('from("couriers").select');
+  });
+
   it("keeps the admin order monitor read-only when no persisted confirmation action exists", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
 
     expect(appSource).toContain("function AdminView");
     expect(appSource).toContain("متابعة الطلبات المباشرة");
     expect(appSource).not.toContain("confirmOrder(");
+  });
+
+  it("renders an administrative status badge safely when persisted data has an unknown state", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(appSource).toContain('STATUS_MAP[status] ?? { label: "بانتظار التحديث", color: C.inkSoft }');
   });
 
   it("defines per-user archives while reserving permanent deletion for the Supabase admin role", () => {

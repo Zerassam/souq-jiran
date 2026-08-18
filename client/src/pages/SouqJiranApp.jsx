@@ -284,7 +284,7 @@ const STATUS_MAP = {
   preparing: { label: "قيد التحضير", color: C.teal }, ready: { label: "جاهز للتسليم", color: C.rust },
   delivered: { label: "تم التسليم", color: C.tealDark }, declined: { label: "مرفوض", color: "#8B3A2A" },
 };
-function StatusPill({ status }) { const s = STATUS_MAP[status]; return <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full" style={{ background: s.color + "1F", color: s.color }}><span style={{ width: 6, height: 6, borderRadius: 999, background: s.color }} />{s.label}</span>; }
+function StatusPill({ status }) { const s = STATUS_MAP[status] ?? { label: "بانتظار التحديث", color: C.inkSoft }; return <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full" style={{ background: s.color + "1F", color: s.color }}><span style={{ width: 6, height: 6, borderRadius: 999, background: s.color }} />{s.label}</span>; }
 function Toast({ message }) { if (!message) return null; return <div className="fixed bottom-6 left-1/2 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-bold" style={{ transform: "translateX(-50%)", background: C.ink, color: C.paper }}>{message}</div>; }
 function Truck2(props) { return <Store {...props} />; }
 const DELIVERY_LABELS = { store: { label: "توصيل المحل", icon: Truck2 }, courier: { label: "موصل معتمد من المنصة", icon: Bike }, pickup: { label: "استلام ذاتي من المحل", icon: Home } };
@@ -704,12 +704,9 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const finalTotal = Math.max(0, cartSubtotal - discountAmount + deliveryFee);
   const belowMinOrder = cartStore && cartStore.minOrder && cartSubtotal < cartStore.minOrder;
 
-  const availableCourier = useMemo(() => {
-    if (!cartStore) return null;
-    const matching = couriers.filter((c) => c.status === "approved" && c.wilaya === cartStore.wilaya && (c.communes.length === 0 || c.communes.includes(cartStore.commune)) && (c.storeMode === "all" || (c.selectedStoreIds || []).includes(cartStore.id)));
-    if (cartStore.approvedCourierIds?.length) { const preferred = matching.find((c) => cartStore.approvedCourierIds.includes(c.id)); if (preferred) return preferred; }
-    return matching[0] || null;
-  }, [cartStore, couriers]);
+  // The customer chooses the platform delivery service, not a named courier.
+  // Assignment occurs after the merchant marks the order ready, preserving courier privacy.
+  const platformCourierEnabled = Boolean(cartStore && !cartStore.hasOwnDelivery);
 
   function addToCart(store, product) {
     setCart((prev) => {
@@ -735,7 +732,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const shownProducts = openStore ? openStore.products.filter((p) => activeDept === "all" || p.department === activeDept) : [];
   const deliveryOptions = [
     cartStore?.hasOwnDelivery && { id: "store", label: "توصيل المحل", desc: money(cartStore.deliveryFee), icon: Truck2 },
-    { id: "courier", label: "موصل معتمد من المنصة", desc: availableCourier ? `${availableCourier.name} — ${money(PLATFORM_COURIER_FEE)}` : "لا يوجد موصل متاح حالياً في منطقتك", icon: Bike, disabled: !availableCourier },
+    { id: "courier", label: "موصل معتمد من المنصة", desc: platformCourierEnabled ? `يُسند تلقائياً عند الجاهزية — ${money(PLATFORM_COURIER_FEE)}` : "التوصيل عبر المنصة غير مفعّل لهذا المحل", icon: Bike, disabled: !platformCourierEnabled },
     { id: "pickup", label: "استلام ذاتي من المحل", desc: "بدون رسوم توصيل", icon: Home },
   ].filter(Boolean);
 
@@ -855,7 +852,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                   <div className="flex items-center justify-between pt-1"><span className="font-bold text-sm" style={{ color: C.ink }}>يُدفع نقداً عند الاستلام</span><PriceTag amount={finalTotal} size="lg" /></div>
                 </div>
                 {belowMinOrder && <p className="text-xs font-bold mb-3" style={{ color: "#8B3A2A" }}>الحد الأدنى للطلب من هذا المحل هو {money(cartStore.minOrder)}.</p>}
-                <button disabled={belowMinOrder} onClick={() => { const courierAssigned = deliveryChoice === "courier" ? availableCourier : null; placeOrder(cartStore, appliedPromo, discountAmount, cart.address, deliveryChoice, deliveryFee, courierAssigned); setAppliedPromo(null); setPromoInput(""); setShowCart(false); setTab("orders"); setDeliveryChoice("pickup"); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>تأكيد الطلب (دفع نقدي)</button>
+                <button disabled={belowMinOrder} onClick={() => { placeOrder(cartStore, appliedPromo, discountAmount, cart.address, deliveryChoice, deliveryFee); setAppliedPromo(null); setPromoInput(""); setShowCart(false); setTab("orders"); setDeliveryChoice("pickup"); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>تأكيد الطلب (دفع نقدي)</button>
               </>
             )}
           </div>
