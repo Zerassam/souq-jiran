@@ -17,9 +17,9 @@ import {
    Design tokens
 --------------------------------------------------------- */
 const C = {
-  paper: "#F7F2E4", paperDark: "#EDE4CC", ink: "#23201B", inkSoft: "#5B5548",
-  teal: "#1E4B43", tealDark: "#123430", rust: "#B24A2B", ochre: "#D9A441",
-  sage: "#7C9A81", line: "#DED2AE", purple: "#6B4A8A",
+  paper: "#F7F8FC", paperDark: "#EEF0FF", ink: "#172033", inkSoft: "#697386",
+  teal: "#5B5BF7", tealDark: "#3730A3", rust: "#F45B7A", ochre: "#F59E0B",
+  sage: "#10B981", line: "#E5E7F0", purple: "#8B5CF6",
 };
 const LOGO_COLORS = [C.teal, C.rust, C.ochre, C.sage, C.purple];
 const PLATFORM_COURIER_FEE = 120;
@@ -267,18 +267,17 @@ const PROMOS = [
 /* ---------------------------------------------------------
    عناصر مشتركة
 --------------------------------------------------------- */
-function StripeDivider({ height = 7 }) { return <div style={{ height, borderRadius: 999, backgroundImage: `repeating-linear-gradient(115deg, ${C.teal} 0 10px, ${C.ochre} 10px 20px)`, opacity: 0.9 }} />; }
+function StripeDivider({ height = 3 }) { return <div className="app-signal-line" style={{ height, borderRadius: 999, backgroundImage: `linear-gradient(90deg, ${C.teal}, ${C.purple} 48%, ${C.rust})` }} />; }
 function PriceTag({ amount, size = "md" }) {
   const big = size === "lg";
   return (
-    <span className="relative inline-flex items-center" style={{ background: C.paper, border: `2px solid ${C.ink}`, borderRadius: 6, padding: big ? "8px 16px 8px 10px" : "4px 10px 4px 8px", transform: "rotate(-2.5deg)", boxShadow: "2px 3px 0 rgba(35,32,27,0.18)" }}>
-      <span className="absolute" style={{ width: 9, height: 9, borderRadius: 999, background: C.paper, border: `2px solid ${C.ink}`, left: -5, top: "50%", transform: "translateY(-50%)" }} />
-      <span style={{ fontFamily: "Tajawal, sans-serif", fontWeight: 800, color: C.rust, fontSize: big ? 20 : 13 }}>{money(amount)}</span>
+    <span className="inline-flex items-center" style={{ background: C.teal + "12", border: `1px solid ${C.teal}26`, borderRadius: 999, padding: big ? "8px 14px" : "4px 10px" }}>
+      <span style={{ fontFamily: "'IBM Plex Sans Arabic', sans-serif", fontWeight: 800, color: C.teal, fontSize: big ? 20 : 13 }}>{money(amount)}</span>
     </span>
   );
 }
 function DeptBadge({ id, size = 16 }) { const info = deptInfo(id); const Icon = info.icon; return <span className="inline-flex items-center justify-center" style={{ width: size + 14, height: size + 14, borderRadius: 999, background: info.color + "22", color: info.color }}><Icon size={size} strokeWidth={2.3} /></span>; }
-function StoreAvatar({ logo, size = 42 }) { return <span className="flex items-center justify-center rounded-xl shrink-0 font-black" style={{ width: size, height: size, background: logo?.color || C.teal, color: "#fff", fontSize: size * 0.36, fontFamily: "'Reem Kufi', sans-serif" }}>{logo?.text || <Store size={size * 0.5} />}</span>; }
+function StoreAvatar({ logo, size = 42 }) { return <span className="flex items-center justify-center rounded-[14px] shrink-0 font-black" style={{ width: size, height: size, background: `linear-gradient(145deg, ${logo?.color || C.teal}, ${C.purple})`, color: "#fff", fontSize: size * 0.36, fontFamily: "'IBM Plex Sans Arabic', sans-serif", boxShadow: `0 8px 18px ${(logo?.color || C.teal)}35` }}>{logo?.text || <Store size={size * 0.5} />}</span>; }
 const STATUS_MAP = {
   pending: { label: "قيد الانتظار", color: C.ochre }, accepted: { label: "تم القبول", color: C.sage },
   preparing: { label: "قيد التحضير", color: C.teal }, ready: { label: "جاهز للتسليم", color: C.rust },
@@ -313,7 +312,7 @@ function WilayaCommuneSelect({ wilaya, commune, onChange, allowAllWilaya = false
 /* ---------------------------------------------------------
    الخريطة
 --------------------------------------------------------- */
-function mapGridStyle(size = 34) { return { backgroundImage: `repeating-linear-gradient(0deg, ${C.line} 0 1px, transparent 1px ${size}px), repeating-linear-gradient(90deg, ${C.line} 0 1px, transparent 1px ${size}px)`, backgroundColor: C.sage + "17" }; }
+function mapGridStyle(size = 34) { return { backgroundImage: `linear-gradient(${C.teal}08 1px, transparent 1px), linear-gradient(90deg, ${C.teal}08 1px, transparent 1px), radial-gradient(circle at 80% 20%, ${C.purple}1c, transparent 34%)`, backgroundSize: `${size}px ${size}px, ${size}px ${size}px, auto`, backgroundColor: "#F9FAFF" }; }
 function MapPreview({ x = 50, y = 50, height = 64 }) { return (<div className="relative rounded-lg overflow-hidden" style={{ height, ...mapGridStyle(18) }}><span className="absolute" style={{ left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -95%)" }}><MapPin size={18} color={C.rust} fill={C.rust + "33"} /></span></div>); }
 function MapPicker({ initial, title = "حدد الموقع على الخريطة", onConfirm, onClose }) {
   const [pos, setPos] = useState(initial || { x: 50, y: 50 });
@@ -392,7 +391,7 @@ function ReviewModal({ order, onSubmit, onClose }) {
 --------------------------------------------------------- */
 function PromoBar({ notify }) {
   function copyCode(code) { try { navigator.clipboard.writeText(code); } catch (e) {} notify(`تم نسخ الكود «${code}»`); }
-  return (<div className="flex gap-3 overflow-x-auto pb-1">{PROMOS.map((p) => (<div key={p.code} className="shrink-0 w-64 p-3.5 rounded-2xl flex items-center justify-between gap-2" style={{ background: p.color, color: "#fff" }}><div><div className="flex items-center gap-1 text-xs font-bold opacity-90 mb-1"><Tag size={12} /> {p.title}</div><div className="text-xs opacity-90 mb-2">{p.desc}</div><span className="text-xs font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.22)" }}>{p.code}</span></div><button onClick={() => copyCode(p.code)} className="flex items-center justify-center rounded-full shrink-0" style={{ width: 32, height: 32, background: "rgba(255,255,255,0.22)" }}><Copy size={14} color="#fff" /></button></div>))}</div>);
+  return (<div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">{PROMOS.map((p, index) => (<div key={p.code} className="promo-card shrink-0 w-64 p-4 rounded-2xl flex items-center justify-between gap-2" style={{ background: `linear-gradient(135deg, ${p.color}, ${index === 1 ? C.purple : C.teal})`, color: "#fff" }}><div><div className="flex items-center gap-1 text-xs font-bold opacity-90 mb-1"><Tag size={12} /> {p.title}</div><div className="text-xs opacity-90 mb-2 leading-5">{p.desc}</div><span className="text-xs font-black px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.16)", border: "1px solid rgba(255,255,255,0.18)" }}>{p.code}</span></div><button aria-label={`نسخ ${p.code}`} onClick={() => copyCode(p.code)} className="flex items-center justify-center rounded-xl shrink-0" style={{ width: 34, height: 34, background: "rgba(255,255,255,0.16)", border: "1px solid rgba(255,255,255,0.18)" }}><Copy size={14} color="#fff" /></button></div>))}</div>);
 }
 function NotificationsBell({ notifications, markAllRead }) {
   const [open, setOpen] = useState(false); const unread = notifications.filter((n) => !n.read).length;
@@ -991,7 +990,7 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
   }
 
   return (
-    <div className="space-y-5">
+    <div className="dashboard-shell space-y-5">
       <div className="p-4 rounded-2xl" style={{ background: C.paperDark }}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3"><StoreAvatar logo={myStore.logo} size={44} /><div><div className="font-black" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>{myStore.name}</div><div className="text-xs" style={{ color: C.inkSoft }}>{myStore.wilaya} · {myStore.commune} · {myStore.open}:00 - {myStore.close}:00</div><div className="flex items-center gap-1 mt-1"><StarRating value={Math.round(myStore.rating || 0)} size={11} /><span className="text-xs font-bold" style={{ color: C.inkSoft }}>{myStore.rating || "لا تقييمات بعد"}</span></div></div></div>
@@ -1007,7 +1006,7 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
       </div>
       {showMapPicker && <MapPicker title="تعديل موقع المحل" initial={{ x: myStore.lng ?? 50, y: myStore.lat ?? 50 }} onConfirm={(pos) => updateStore({ lat: pos.y, lng: pos.x })} onClose={() => setShowMapPicker(false)} />}
 
-      <div className="flex gap-2 flex-wrap">
+      <div className="dashboard-tabs flex gap-2 flex-wrap">
         <button onClick={() => setTab("products")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "products" ? C.teal : "transparent", color: tab === "products" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "products" ? C.teal : C.line}` }}>المنتجات</button>
         <button onClick={() => setTab("orders")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "orders" ? C.teal : "transparent", color: tab === "orders" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "orders" ? C.teal : C.line}` }}>الطلبات الواردة {newMerchantOrders.length > 0 && `(${newMerchantOrders.length})`}</button>
         <button onClick={() => setTab("delivery")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "delivery" ? C.teal : "transparent", color: tab === "delivery" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "delivery" ? C.teal : C.line}` }}>إعدادات التوصيل</button>
@@ -1158,7 +1157,7 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
     : (courier.availability || []).map((a) => AVAILABILITY_SLOTS.find((s) => s.id === a)?.label).join(" / ") || "—";
 
   return (
-    <div className="space-y-5">
+    <div className="dashboard-shell space-y-5">
       <div className="p-4 rounded-2xl" style={{ background: C.paperDark }}>
         <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
           <div className="flex items-center gap-3">
@@ -1353,7 +1352,7 @@ function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], 
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-shell space-y-6">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{stats.map((s) => (<div key={s.label} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><s.icon size={18} color={s.color} /><div className="font-black text-lg mt-2" style={{ color: C.ink }}>{s.value}</div><div className="text-xs" style={{ color: C.inkSoft }}>{s.label}</div></div>))}</div>
 
       <div>
@@ -1485,17 +1484,17 @@ function RoleBenefitsPage({ onBack, onMerchant, onCourier }) {
 
   return (
     <section className="space-y-5" data-testid="role-benefits-page">
-      <div className="p-5 sm:p-6 rounded-3xl" style={{ background: C.teal, color: "#fff" }}>
+      <div className="p-5 sm:p-7 rounded-[28px]" style={{ background: `linear-gradient(125deg, ${C.teal}, ${C.purple})`, color: "#fff", boxShadow: `0 20px 45px ${C.teal}30` }}>
         <button onClick={onBack} className="flex items-center gap-1.5 text-xs font-bold mb-5 opacity-90 hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 rounded-md"><ChevronRight size={15} /> العودة للتسوّق</button>
         <span className="text-[11px] font-black px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,.14)" }}>مسار واضح قبل التسجيل</span>
-        <h1 className="font-black text-2xl mt-3" style={{ fontFamily: "'Reem Kufi', sans-serif" }}>انضم إلى شبكة الحيّ</h1>
+        <h1 className="font-black text-2xl mt-3 tracking-tight" style={{ fontFamily: "'IBM Plex Sans Arabic', sans-serif" }}>انضم إلى شبكة الحيّ</h1>
         <p className="text-sm leading-6 mt-2 max-w-2xl" style={{ color: "rgba(255,255,255,.82)" }}>اختر الدور الأنسب لك. ستسجّل بالبريد الإلكتروني، ثم تتابع أعمالك من لوحتك الخاصة بعد اكتمال المراجعة.</p>
       </div>
       <div className="grid md:grid-cols-2 gap-4">
         {roles.map((roleInfo) => {
           const Icon = roleInfo.icon;
           return (
-            <article key={roleInfo.id} className="role-benefit-card p-5 rounded-3xl" style={{ background: "#fff", border: `1px solid ${C.line}`, "--role-accent": roleInfo.accent }}>
+            <article key={roleInfo.id} className="role-benefit-card p-5 rounded-[24px]" style={{ background: "rgba(255,255,255,.9)", border: `1px solid ${C.line}`, "--role-accent": roleInfo.accent, boxShadow: "0 14px 34px rgba(51, 59, 120, .08)" }}>
               <div className="flex items-start justify-between gap-3"><span className="flex items-center justify-center rounded-2xl" style={{ width: 46, height: 46, background: roleInfo.accent + "18", color: roleInfo.accent }}><Icon size={23} /></span><span className="text-[11px] font-black px-2.5 py-1 rounded-full" style={{ background: roleInfo.accent + "14", color: roleInfo.accent }}>{roleInfo.label}</span></div>
               <h2 className="font-black text-lg mt-4" style={{ color: C.ink }}>{roleInfo.title}</h2>
               <p className="text-sm leading-6 mt-2" style={{ color: C.inkSoft }}>{roleInfo.description}</p>
@@ -1993,39 +1992,44 @@ export default function App() {
   }
 
   if (loading) {
-    return (<div dir="rtl" className="flex flex-col items-center justify-center gap-3" style={{ minHeight: "60vh", background: C.paper, fontFamily: "Tajawal, sans-serif" }}><style>{`@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');`}</style><Loader2 size={26} className="animate-spin" color={C.teal} /><span className="text-sm font-bold" style={{ color: C.inkSoft }}>جارٍ تحميل بياناتك المحفوظة...</span></div>);
+    return (<div dir="rtl" className="flex flex-col items-center justify-center gap-3" style={{ minHeight: "60vh", background: C.paper, fontFamily: "'IBM Plex Sans Arabic', sans-serif" }}><Loader2 size={26} className="animate-spin" color={C.teal} /><span className="text-sm font-bold" style={{ color: C.inkSoft }}>جارٍ تحميل بياناتك المحفوظة...</span></div>);
   }
 
   return (
-    <div dir="rtl" style={{ fontFamily: "Tajawal, sans-serif", background: C.paper, minHeight: "100%", color: C.ink }}>
+    <div dir="rtl" className="souq-next-app" style={{ fontFamily: "'IBM Plex Sans Arabic', sans-serif", background: C.paper, minHeight: "100%", color: C.ink }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=Reem+Kufi:wght@400;600;700&display=swap');
         * { box-sizing: border-box; }
-        input, select { font-family: 'Tajawal', sans-serif; }
-        ::selection { background: ${C.ochre}55; }
+        input, select, textarea { font-family: 'IBM Plex Sans Arabic', sans-serif; }
+        ::selection { background: ${C.teal}25; }
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .role-join-card, .role-benefit-card { transition: transform 180ms cubic-bezier(.23,1,.32,1), box-shadow 180ms cubic-bezier(.23,1,.32,1), border-color 180ms cubic-bezier(.23,1,.32,1); }
-        .role-join-card:hover, .role-benefit-card:hover { transform: translateY(-4px); border-color: var(--role-accent) !important; box-shadow: 0 16px 30px rgba(35,32,27,.12); }
+        .souq-next-app { background: linear-gradient(180deg, #FBFCFF 0%, ${C.paper} 30%, #F8F9FF 100%); }
+        .app-header { backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+        .role-join-card, .role-benefit-card { transition: transform 180ms cubic-bezier(.23,1,.32,1), box-shadow 180ms cubic-bezier(.23,1,.32,1), border-color 180ms cubic-bezier(.23,1,.32,1), background 180ms cubic-bezier(.23,1,.32,1); }
+        .role-join-card:hover, .role-benefit-card:hover { transform: translateY(-5px); border-color: var(--role-accent) !important; box-shadow: 0 20px 38px rgba(74, 76, 160, .14); }
         .role-join-card:focus-visible, .role-guide-cta:focus-visible, .role-benefit-card:focus-within { outline: 3px solid var(--role-accent, ${C.teal}); outline-offset: 3px; }
         .role-join-card:active, .role-guide-cta:active { transform: scale(.98); }
+        .dashboard-shell > div:first-child { box-shadow: 0 14px 34px rgba(51, 59, 120, .08); }
+        [style*="Reem Kufi"] { font-family: 'IBM Plex Sans Arabic', Inter, sans-serif !important; letter-spacing: -.025em; }
+        .dashboard-shell .dashboard-tabs { padding: .35rem; border-radius: 1rem; width: fit-content; background: rgba(255,255,255,.82); border: 1px solid ${C.line}; box-shadow: 0 8px 20px rgba(51,59,120,.05); }
+        .dashboard-shell button, .dashboard-shell input, .dashboard-shell select { transition: border-color 160ms cubic-bezier(.23,1,.32,1), box-shadow 160ms cubic-bezier(.23,1,.32,1), transform 160ms cubic-bezier(.23,1,.32,1); }
         @media (prefers-reduced-motion: reduce) { .role-join-card, .role-benefit-card { transition: none; } .role-join-card:hover, .role-benefit-card:hover { transform: none; } }
         @media print { body * { visibility: hidden; } #invoice-print-area, #invoice-print-area * { visibility: visible; } #invoice-print-area { position: absolute; top: 0; left: 0; width: 100%; } .no-print { display: none !important; } }
       `}</style>
 
-      <div className="max-w-5xl mx-auto px-4 py-5">
-        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 sm:py-7">
+        <header className="app-header flex items-center justify-between mb-3 gap-3 flex-wrap p-3 sm:p-4 rounded-[22px]" style={{ background: "rgba(255,255,255,.78)", border: `1px solid ${C.line}`, boxShadow: "0 12px 30px rgba(51, 59, 120, .07)" }}>
           <div className="flex items-center gap-2.5">
-            <span className="flex items-center justify-center rounded-xl" style={{ width: 40, height: 40, background: C.teal, color: C.paper }}><ShoppingBag size={20} /></span>
-            <div><div className="font-black text-xl leading-none" style={{ fontFamily: "'Reem Kufi', sans-serif" }}>سوق الجيران</div><div className="text-xs mt-0.5" style={{ color: C.inkSoft }}>{role === "admin" ? "لوحة الإدارة" : "توصيل سوبر ماركت — الدفع نقداً عند الاستلام"}</div></div>
+            <span className="flex items-center justify-center rounded-2xl" style={{ width: 44, height: 44, background: `linear-gradient(145deg, ${C.teal}, ${C.purple})`, color: "#fff", boxShadow: `0 10px 20px ${C.teal}35` }}><ShoppingBag size={21} /></span>
+            <div><div className="font-black text-xl leading-none tracking-tight" style={{ fontFamily: "Inter, 'IBM Plex Sans Arabic', sans-serif" }}>سوق الجيران</div><div className="text-[11px] mt-1 font-semibold" style={{ color: C.inkSoft }}>{role === "admin" ? "مساحة إدارة المنصة" : "طلبات محلية، تجربة رقمية أسرع"}</div></div>
           </div>
           {role === "admin" ? (
-            <button onClick={signOut} className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm" style={{ background: C.ink, color: "#fff" }}><LogOut size={15} /> خروج من لوحة الإدارة</button>
-          ) : auth && <div className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-2 rounded-xl" style={{ background: C.sage + "18", color: C.tealDark }}><span style={{ width: 7, height: 7, borderRadius: 999, background: C.sage }} />{auth.name}<button onClick={signOut} className="flex items-center gap-1 mr-1" style={{ color: C.inkSoft, fontSize: 10 }}><LogOut size={12} /> خروج</button></div>}
-        </div>
+            <button onClick={signOut} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-sm" style={{ background: C.ink, color: "#fff" }}><LogOut size={15} /> خروج من لوحة الإدارة</button>
+          ) : auth && <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl" style={{ background: C.sage + "16", color: C.sage, border: `1px solid ${C.sage}2A` }}><span style={{ width: 7, height: 7, borderRadius: 999, background: C.sage }} />{auth.name}<button onClick={signOut} className="flex items-center gap-1 mr-1" style={{ color: C.inkSoft, fontSize: 10 }}><LogOut size={12} /> خروج</button></div>}
+        </header>
 
         <StripeDivider />
-        {role !== "admin" && <p className="text-xs mt-3 mb-1 flex items-center gap-1.5" style={{ color: C.inkSoft }}><PackageCheck size={13} color={C.sage} /> بياناتك تُحفظ تلقائياً — أغلق المحادثة وارجع لاحقاً وستجدها كما تركتها.</p>}
+        {role !== "admin" && <p className="text-xs mt-3 mb-1 flex items-center gap-1.5 font-medium" style={{ color: C.inkSoft }}><PackageCheck size={13} color={C.sage} /> تُحفَظ بياناتك تلقائياً وتبقى الخصوصية تحت تحكمك.</p>}
 
         <div className="mt-4">
           {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else { setAdminLoginRequested(false); setShowAuth(true); } }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} />)}
@@ -2035,16 +2039,16 @@ export default function App() {
         </div>
 
         {role === "customer" && !showRoleGuide && (
-          <section className="mt-10 pt-5" style={{ borderTop: `1px solid ${C.line}` }} data-testid="role-join-cards">
-            <div className="flex items-center justify-between gap-3 mb-3"><div><h2 className="font-black text-base" style={{ color: C.ink }}>انضم إلى سوق الجيران</h2><p className="text-xs mt-0.5" style={{ color: C.inkSoft }}>اختر الدور الذي يناسب عملك في الحي.</p></div><div className="flex items-center gap-2"><button data-testid="role-benefits-link" onClick={() => setShowRoleGuide(true)} className="text-xs font-black px-3 py-1.5 rounded-full" style={{ background: C.teal + "12", color: C.teal, border: `1px solid ${C.teal}38` }}>تعرّف على المزايا</button><span className="text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: C.sage + "24", color: C.tealDark }}>طلبات مراجعة آمنة</span></div></div>
+          <section className="mt-10 p-5 sm:p-6 rounded-[28px]" style={{ background: "rgba(238,240,255,.7)", border: `1px solid ${C.line}` }} data-testid="role-join-cards">
+            <div className="flex items-center justify-between gap-3 mb-4"><div><h2 className="font-black text-lg tracking-tight" style={{ color: C.ink }}>ابنِ حضورك على المنصة</h2><p className="text-xs mt-1" style={{ color: C.inkSoft }}>اختر مساحة العمل المناسبة لك، وابدأ من بريدك الإلكتروني.</p></div><div className="flex items-center gap-2"><button data-testid="role-benefits-link" onClick={() => setShowRoleGuide(true)} className="text-xs font-black px-3 py-2 rounded-xl" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}2B` }}>استكشف المسارات</button></div></div>
             <div data-testid="provider-role-switches" className="grid sm:grid-cols-2 gap-3">
-              <button data-testid="merchant-role-button" onClick={() => (auth?.type === "merchant" ? (setRole("merchant"), persistentSetMyStoreId(auth.id)) : (setAdminLoginRequested(false), setShowAuth(true)))} className="role-join-card group text-right p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(35,32,27,.05)", "--role-accent": C.rust }}>
-                <div className="flex items-start justify-between gap-3"><div className="flex items-center justify-center rounded-2xl" style={{ width: 42, height: 42, background: C.rust + "16", color: C.rust }}><Store size={21} /></div><ChevronLeft size={18} className="transition-transform group-hover:-translate-x-0.5" color={C.inkSoft} /></div>
-                <h3 className="font-black mt-3" style={{ color: C.ink }}>انضم كتاجر</h3><p className="text-xs leading-5 mt-1" style={{ color: C.inkSoft }}>أدر منتجات محلك، اطلب اعتماد موصلين، وتابع الطلبات من لوحة واحدة.</p>
+              <button data-testid="merchant-role-button" onClick={() => (auth?.type === "merchant" ? (setRole("merchant"), persistentSetMyStoreId(auth.id)) : (setAdminLoginRequested(false), setShowAuth(true)))} className="role-join-card group text-right p-5 rounded-[22px]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(51,59,120,.06)", "--role-accent": C.rust }}>
+                <div className="flex items-start justify-between gap-3"><div className="flex items-center justify-center rounded-2xl" style={{ width: 46, height: 46, background: C.rust + "16", color: C.rust }}><Store size={22} /></div><span className="flex items-center justify-center rounded-xl" style={{ width: 30, height: 30, background: C.paperDark, color: C.inkSoft }}><ChevronLeft size={17} className="transition-transform group-hover:-translate-x-0.5" /></span></div>
+                <h3 className="font-black mt-4" style={{ color: C.ink }}>انضم كتاجر</h3><p className="text-xs leading-5 mt-1.5" style={{ color: C.inkSoft }}>منتجاتك، طلباتك، وشركاء التوصيل؛ في لوحة نظيفة واحدة.</p>
               </button>
-              <button data-testid="courier-role-button" onClick={() => (auth?.type === "courier" ? setRole("courier") : setShowCourierForm(true))} className="role-join-card group text-right p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(35,32,27,.05)", "--role-accent": C.teal }}>
-                <div className="flex items-start justify-between gap-3"><div className="flex items-center justify-center rounded-2xl" style={{ width: 42, height: 42, background: C.teal + "16", color: C.teal }}><Bike size={21} /></div><ChevronLeft size={18} className="transition-transform group-hover:-translate-x-0.5" color={C.inkSoft} /></div>
-                <h3 className="font-black mt-3" style={{ color: C.ink }}>انضم كموصل</h3><p className="text-xs leading-5 mt-1" style={{ color: C.inkSoft }}>حدد أوقاتك ونطاقك واختر المحلات التي تناسب مسار توصيلك.</p>
+              <button data-testid="courier-role-button" onClick={() => (auth?.type === "courier" ? setRole("courier") : setShowCourierForm(true))} className="role-join-card group text-right p-5 rounded-[22px]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(51,59,120,.06)", "--role-accent": C.teal }}>
+                <div className="flex items-start justify-between gap-3"><div className="flex items-center justify-center rounded-2xl" style={{ width: 46, height: 46, background: C.teal + "16", color: C.teal }}><Bike size={22} /></div><span className="flex items-center justify-center rounded-xl" style={{ width: 30, height: 30, background: C.paperDark, color: C.inkSoft }}><ChevronLeft size={17} className="transition-transform group-hover:-translate-x-0.5" /></span></div>
+                <h3 className="font-black mt-4" style={{ color: C.ink }}>انضم كموصل</h3><p className="text-xs leading-5 mt-1.5" style={{ color: C.inkSoft }}>تحكم في ساعاتك ونطاقك وطلباتك النشطة في أي وقت.</p>
               </button>
             </div>
           </section>
