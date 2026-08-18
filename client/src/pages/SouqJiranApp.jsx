@@ -1873,21 +1873,7 @@ export default function App() {
           </div>
           {role === "admin" ? (
             <button onClick={signOut} className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm" style={{ background: C.ink, color: "#fff" }}><LogOut size={15} /> خروج من لوحة الإدارة</button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <div data-testid="provider-role-switches" className="flex gap-2 p-1 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
-                <button data-testid="courier-role-button" onClick={() => (auth?.type === "courier" ? setRole("courier") : setShowAuth(true))} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: role === "courier" ? C.teal : "transparent", color: role === "courier" ? "#fff" : C.inkSoft }}><Bike size={16} /> موصّل</button>
-                <button data-testid="merchant-role-button" onClick={() => (auth?.type === "merchant" ? (setRole("merchant"), setMyStoreId(auth.id)) : setShowAuth(true))} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: role === "merchant" ? C.teal : "transparent", color: role === "merchant" ? "#fff" : C.inkSoft }}><Store size={16} /> تاجر</button>
-              </div>
-              {auth ? (
-                <div className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-2 rounded-xl" style={{ background: C.sage + "18", color: C.tealDark }}><span style={{ width: 7, height: 7, borderRadius: 999, background: C.sage }} />{auth.name}<button onClick={signOut} className="flex items-center gap-1 mr-1" style={{ color: C.inkSoft, fontSize: 10 }}><LogOut size={12} /> خروج</button></div>
-              ) : (
-                <button onClick={() => setShowAuth(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: C.rust, color: "#fff" }}><LogIn size={14} /> دخول بالإيميل</button>
-              )}
-              <NotificationsBell notifications={notifications} markAllRead={markAllRead} />
-              <button onClick={() => setShowResetConfirm(true)} title="إعادة ضبط البيانات التجريبية" className="text-xs font-bold px-3 py-2 rounded-xl" style={{ color: C.inkSoft, border: `1px solid ${C.line}` }}>إعادة ضبط</button>
-            </div>
-          )}
+          ) : auth && <div className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-2 rounded-xl" style={{ background: C.sage + "18", color: C.tealDark }}><span style={{ width: 7, height: 7, borderRadius: 999, background: C.sage }} />{auth.name}<button onClick={signOut} className="flex items-center gap-1 mr-1" style={{ color: C.inkSoft, fontSize: 10 }}><LogOut size={12} /> خروج</button></div>}
         </div>
 
         <StripeDivider />
@@ -1900,10 +1886,20 @@ export default function App() {
           {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} archiveAlertSettings={archiveAlertSettings} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} markArchiveNotificationRead={markArchiveNotificationRead} saveArchiveAlertSettings={saveArchiveAlertSettings} />}
         </div>
 
-        {role !== "admin" && (
-          <div className="mt-10 pt-4 flex items-center justify-between" style={{ borderTop: `1px solid ${C.line}` }}>
-            <button onClick={() => setShowCourierForm(true)} className="text-xs font-bold flex items-center gap-1.5" style={{ color: C.teal }}><Bike size={14} /> انضم كموصل</button>
-          </div>
+        {role === "customer" && (
+          <section className="mt-10 pt-5" style={{ borderTop: `1px solid ${C.line}` }} data-testid="role-join-cards">
+            <div className="flex items-center justify-between gap-3 mb-3"><div><h2 className="font-black text-base" style={{ color: C.ink }}>انضم إلى سوق الجيران</h2><p className="text-xs mt-0.5" style={{ color: C.inkSoft }}>اختر الدور الذي يناسب عملك في الحي.</p></div><span className="text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: C.sage + "24", color: C.tealDark }}>طلبات مراجعة آمنة</span></div>
+            <div data-testid="provider-role-switches" className="grid sm:grid-cols-2 gap-3">
+              <button data-testid="merchant-role-button" onClick={() => (auth?.type === "merchant" ? (setRole("merchant"), persistentSetMyStoreId(auth.id)) : (setAdminLoginRequested(false), setShowAuth(true)))} className="group text-right p-4 rounded-2xl transition-transform active:scale-[0.98]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(35,32,27,.05)" }}>
+                <div className="flex items-start justify-between gap-3"><div className="flex items-center justify-center rounded-2xl" style={{ width: 42, height: 42, background: C.rust + "16", color: C.rust }}><Store size={21} /></div><ChevronLeft size={18} className="transition-transform group-hover:-translate-x-0.5" color={C.inkSoft} /></div>
+                <h3 className="font-black mt-3" style={{ color: C.ink }}>انضم كتاجر</h3><p className="text-xs leading-5 mt-1" style={{ color: C.inkSoft }}>أدر منتجات محلك، اطلب اعتماد موصلين، وتابع الطلبات من لوحة واحدة.</p>
+              </button>
+              <button data-testid="courier-role-button" onClick={() => (auth?.type === "courier" ? setRole("courier") : setShowCourierForm(true))} className="group text-right p-4 rounded-2xl transition-transform active:scale-[0.98]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(35,32,27,.05)" }}>
+                <div className="flex items-start justify-between gap-3"><div className="flex items-center justify-center rounded-2xl" style={{ width: 42, height: 42, background: C.teal + "16", color: C.teal }}><Bike size={21} /></div><ChevronLeft size={18} className="transition-transform group-hover:-translate-x-0.5" color={C.inkSoft} /></div>
+                <h3 className="font-black mt-3" style={{ color: C.ink }}>انضم كموصل</h3><p className="text-xs leading-5 mt-1" style={{ color: C.inkSoft }}>حدد أوقاتك ونطاقك واختر المحلات التي تناسب مسار توصيلك.</p>
+              </button>
+            </div>
+          </section>
         )}
       </div>
 

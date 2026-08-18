@@ -56,5 +56,5 @@ describe("Supabase configuration", () => {
       expect(response.ok, `${table} should exist and accept the RLS-protected request`).toBe(true);
       expect(await response.json()).toEqual([]);
     }
-  });
+  }, 15_000);
 });

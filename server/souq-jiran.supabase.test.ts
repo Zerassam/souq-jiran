@@ -78,14 +78,25 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain('supabase.rpc("admin_delete_message_permanently"');
   });
 
-  it("places merchant and courier actions together in the header role-switch group", () => {
+  it("moves merchant and courier actions into the lower join cards and keeps the public header minimal", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
     const providerSwitchIndex = appSource.indexOf('data-testid="provider-role-switches"');
-    const providerSwitchSource = appSource.slice(providerSwitchIndex, providerSwitchIndex + 1800);
+    const providerSwitchSource = appSource.slice(providerSwitchIndex, providerSwitchIndex + 2200);
+    const publicHeaderSource = appSource.slice(
+      appSource.indexOf('<div className="max-w-5xl mx-auto px-4 py-5">'),
+      appSource.indexOf("<StripeDivider />"),
+    );
 
     expect(providerSwitchIndex).toBeGreaterThan(-1);
     expect(providerSwitchSource).toContain('data-testid="courier-role-button"');
     expect(providerSwitchSource).toContain('data-testid="merchant-role-button"');
+    expect(appSource).toContain('data-testid="role-join-cards"');
+    expect(appSource).toContain("انضم كتاجر");
+    expect(appSource).toContain("انضم كموصل");
+    expect(appSource.indexOf('data-testid="role-join-cards"')).toBeGreaterThan(appSource.indexOf("<CustomerView"));
+    expect(publicHeaderSource).not.toContain("دخول بالإيميل");
+    expect(publicHeaderSource).not.toContain("<NotificationsBell");
+    expect(publicHeaderSource).not.toContain("إعادة ضبط");
     expect(providerSwitchSource).not.toContain('> عميل</button>');
   });
 
