@@ -100,6 +100,27 @@ describe("Souq Jiran Supabase integration", () => {
     expect(providerSwitchSource).not.toContain('> عميل</button>');
   });
 
+  it("provides an accessible role benefits page and explicit new-order counters for providers", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(appSource).toContain('data-testid="role-benefits-link"');
+    expect(appSource).toContain('data-testid="role-benefits-page"');
+    expect(appSource).toContain("انضم إلى شبكة الحيّ");
+    expect(appSource).toContain("إدارة المنتجات والمخزون");
+    expect(appSource).toContain("أوقات عمل مرنة");
+    expect(appSource).toContain("role-join-card:hover");
+    expect(appSource).toContain("prefers-reduced-motion");
+    expect(appSource).toContain('data-testid="merchant-new-orders-counter"');
+    expect(appSource).toContain('data-testid="courier-new-orders-counter"');
+    expect(appSource).toContain("const newMerchantOrders");
+    expect(appSource).toContain("const newAvailableOrdersCount");
+    expect(appSource).toContain('o.status === "pending"');
+    expect(appSource).toContain('o.deliveryType !== "courier" || o.status !== "ready" || o.courier');
+    expect(appSource).toContain('courier.storeMode === "selected"');
+    expect(appSource).toContain('aria-label={`${newMerchantOrders.length} طلبات جديدة`}');
+    expect(appSource).toContain('aria-label={`${newAvailableOrdersCount} طلبات جديدة متاحة`}');
+  });
+
   it("defines protected audit and notification flows for archive management", () => {
     const schema = readFileSync(resolve(projectRoot, "supabase/schema.sql"), "utf8").toLowerCase();
     const migration = readFileSync(resolve(projectRoot, "supabase/migrations/20260818_archive_management.sql"), "utf8").toLowerCase();
