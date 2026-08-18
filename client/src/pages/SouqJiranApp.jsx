@@ -10,7 +10,7 @@ import {
   Package, Droplet, Sparkles, Map as MapIcon, List, Upload, Download,
   FileText, Phone, Palette, CreditCard, Bike, Lock, LogOut, Wallet,
   Percent, CalendarClock, Home, Sun, Sunset, Moon,
-  Mail, LogIn, UserPlus, ShieldCheck, Archive, MessageCircle
+  Mail, LogIn, UserPlus, ShieldCheck, Archive, MessageCircle, ArrowLeft
 } from "lucide-react";
 
 /* ---------------------------------------------------------
@@ -1950,13 +1950,24 @@ export default function App() {
       selected_store_ids: [],
       status: "pending",
     };
-    const { error } = await supabase.from("couriers").insert(courier);
-    if (error) {
+    let activeSession = created.session;
+    let { error: courierError } = await supabase.from("couriers").insert(courier);
+    // قد يصل حساب جديد بجلسة سابقة لإنشاء صفّ profiles في trigger، فتفشل سياسة RLS
+    // مؤقتاً رغم صحة الدور. نجدد الجلسة مرة واحدة ثم نعيد محاولة الإدراج نفسه فقط.
+    if (courierError?.code === "42501") {
+      const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+      if (!refreshError && refreshed.session) {
+        activeSession = refreshed.session;
+        const retry = await supabase.from("couriers").insert(courier);
+        courierError = retry.error;
+      }
+    }
+    if (courierError) {
       return { error: "تعذر حفظ ملف الموصل. بقي حساب الدخول صالحاً؛ طبّق ملف supabase/schema.sql ثم أرسل النموذج مجدداً لإكمال الملف." };
     }
     const localCourier = { id: created.user.id, name: form.name, phone: form.phone, email: form.email, vehicle: form.vehicle, wilaya: form.wilaya, commune: form.commune || "", communes: form.communes, availability: form.useCustomHours ? [] : form.availability, customHours: form.useCustomHours ? { from: form.hoursFrom, to: form.hoursTo } : null, timeLabel: form.timeLabel || "", coverageLabel: form.coverageLabel || "", storeMode: form.storeMode, selectedStoreIds: form.selectedStoreIds, status: "pending" };
     persistentSetCouriers((prev) => [...prev.filter((item) => item.id !== localCourier.id), localCourier]);
-    await applySupabaseSession(created.session);
+    await applySupabaseSession(activeSession);
     setShowCourierForm(false);
     notify("تم إرسال طلب انضمامك كموصل، بانتظار موافقة المشرف");
     return {};

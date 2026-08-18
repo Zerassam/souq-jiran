@@ -35,6 +35,16 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).not.toContain("AdminGateModal");
   });
 
+  it("retries the initial courier profile insertion once after refreshing a newly created session", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(appSource).toContain('let { error: courierError } = await supabase.from("couriers").insert(courier)');
+    expect(appSource).toContain('if (courierError?.code === "42501")');
+    expect(appSource).toContain("supabase.auth.refreshSession()");
+    expect(appSource).toContain('const retry = await supabase.from("couriers").insert(courier)');
+    expect(appSource).toContain("await applySupabaseSession(activeSession)");
+  });
+
   it("keeps the admin order monitor read-only when no persisted confirmation action exists", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
 
