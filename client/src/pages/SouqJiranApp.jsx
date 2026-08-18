@@ -1254,12 +1254,19 @@ function CourierHoursEditor({ courier, onSave }) {
 /* ===========================================================
    ADMIN VIEW
 =========================================================== */
-function AdminView({ stores, orders, messages, couriers, notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently }) {
+function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], archiveNotifications = [], archiveAlertSettings, notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently, markArchiveNotificationRead, saveArchiveAlertSettings }) {
   const pendingReview = stores.filter((s) => s.status === "pending_review");
   const awaitingProfile = stores.filter((s) => s.status === "awaiting_profile");
   const approved = stores.filter((s) => s.status === "approved");
   const revenue = orders.filter((o) => o.status === "delivered").reduce((a, o) => a + o.total, 0);
   const pendingCouriers = couriers.filter((c) => c.status === "pending");
+  const [archiveQuery, setArchiveQuery] = useState("");
+  const [archiveType, setArchiveType] = useState("all");
+  const [archiveStatus, setArchiveStatus] = useState("all");
+  const [auditAction, setAuditAction] = useState("all");
+  const [onlyUnreadAlerts, setOnlyUnreadAlerts] = useState(false);
+  const [settingsDraft, setSettingsDraft] = useState(() => ({ ...archiveAlertSettings }));
+  useEffect(() => setSettingsDraft({ ...archiveAlertSettings }), [archiveAlertSettings]);
 
   async function approveInitial(id) { if (await setProviderStatus("merchant", id, "approved")) notify("تم اعتماد التاجر."); }
   async function reject(id) { if (await setProviderStatus("merchant", id, "suspended")) notify("تم تعليق طلب التاجر."); }
@@ -1269,6 +1276,14 @@ function AdminView({ stores, orders, messages, couriers, notify, setProviderStat
   function storeCommissionDue(store) { if (store.commissionType !== "percentage") return 0; const earned = orders.filter((o) => o.storeId === store.id && o.status === "delivered").reduce((a, o) => a + (o.subtotal || 0) * (store.commissionRate / 100), 0); return Math.max(0, Math.round(earned - (store.duesPaid || 0))); }
   function settleDues(store) { notify(`إدارة العمولات ستُحفظ في مرحلة مالية مستقلة؛ لم يُسجّل تحصيل ${store.name}.`); }
   function updateCommission() { notify("إعدادات العمولة ليست ضمن ترحيل المنتجات والطلبات الحالي."); }
+
+  const normalizedArchiveQuery = archiveQuery.trim().toLocaleLowerCase("ar-DZ");
+  const includesArchiveQuery = (values) => !normalizedArchiveQuery || values.some((value) => String(value || "").toLocaleLowerCase("ar-DZ").includes(normalizedArchiveQuery));
+  const filteredArchiveOrders = orders.filter((order) => (archiveType === "all" || archiveType === "orders") && (archiveStatus === "all" || order.status === archiveStatus) && includesArchiveQuery([order.storeName, order.customer, order.status, order.items.map((item) => item.name).join(" ")]));
+  const filteredArchiveMessages = messages.filter((message) => (archiveType === "all" || archiveType === "messages") && includesArchiveQuery([message.body, message.orderId, message.createdAt]));
+  const visibleAuditLogs = archiveAuditLogs.filter((entry) => auditAction === "all" || entry.action === auditAction);
+  const visibleNotifications = archiveNotifications.filter((entry) => !onlyUnreadAlerts || !entry.isRead);
+  const unreadAlertsCount = archiveNotifications.filter((entry) => !entry.isRead).length;
 
   const totalDues = approved.filter((s) => s.commissionType === "percentage").reduce((a, s) => a + storeCommissionDue(s), 0);
   const stats = [
@@ -1327,14 +1342,36 @@ function AdminView({ stores, orders, messages, couriers, notify, setProviderStat
         </div>
       </div>
 
+      <div className="grid lg:grid-cols-2 gap-4">
+        <div className="p-4 rounded-2xl space-y-3" style={{ background: "#fff", border: `1px solid ${C.line}` }} data-testid="archive-alerts-panel">
+          <div className="flex items-center justify-between gap-2"><h3 className="font-black flex items-center gap-2" style={{ color: C.ink }}><Bell size={17} color={C.rust} /> تنبيهات الأرشفة الحساسة</h3><span className="text-xs font-bold px-2 py-1 rounded-full" style={{ background: unreadAlertsCount ? C.rust + "18" : C.sage + "20", color: unreadAlertsCount ? C.rust : C.tealDark }}>{unreadAlertsCount ? `${unreadAlertsCount} غير مقروء` : "محدّثة"}</span></div>
+          <label className="flex items-center gap-2 text-xs font-bold" style={{ color: C.inkSoft }}><input type="checkbox" checked={onlyUnreadAlerts} onChange={(event) => setOnlyUnreadAlerts(event.target.checked)} /> غير المقروءة فقط</label>
+          <div className="space-y-2 max-h-60 overflow-y-auto">{visibleNotifications.length === 0 && <p className="text-xs py-3" style={{ color: C.inkSoft }}>لا توجد تنبيهات مطابقة.</p>}{visibleNotifications.map((alert) => (<div key={alert.id} className="p-3 rounded-xl" style={{ background: alert.isRead ? C.paperDark : C.rust + "0D", border: `1px solid ${alert.isRead ? C.line : C.rust + "55"}` }}><div className="flex items-start justify-between gap-2"><div><div className="text-xs font-black" style={{ color: C.ink }}>{alert.title}</div><p className="text-xs mt-1" style={{ color: C.inkSoft }}>{alert.body}</p><p className="text-[10px] mt-1" style={{ color: C.inkSoft }}>{alert.createdAt}</p></div>{!alert.isRead && <button onClick={() => markArchiveNotificationRead(alert.id)} className="text-xs font-bold px-2.5 py-1 rounded-full shrink-0" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}>تأكيد القراءة</button>}</div></div>))}</div>
+        </div>
+
+        <div className="p-4 rounded-2xl space-y-3" style={{ background: "#fff", border: `1px solid ${C.line}` }} data-testid="archive-alert-settings">
+          <h3 className="font-black flex items-center gap-2" style={{ color: C.ink }}><AlertCircle size={17} color={C.ochre} /> معيار الأرشفة الحساسة</h3>
+          <label className="block text-xs font-bold" style={{ color: C.inkSoft }}>قيمة الطلب (دج)<input aria-label="قيمة الطلب الحساس" type="number" min="0" value={settingsDraft.sensitiveOrderTotal ?? 0} onChange={(event) => setSettingsDraft({ ...settingsDraft, sensitiveOrderTotal: Number(event.target.value) })} className="w-full mt-1.5 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /></label>
+          <label className="block text-xs font-bold" style={{ color: C.inkSoft }}>حالات الطلب (مفصولة بفواصل)<input aria-label="حالات الأرشفة الحساسة" value={(settingsDraft.sensitiveStatuses || []).join(", ")} onChange={(event) => setSettingsDraft({ ...settingsDraft, sensitiveStatuses: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} className="w-full mt-1.5 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /></label>
+          <label className="flex items-center gap-2 text-xs font-bold" style={{ color: C.inkSoft }}><input type="checkbox" checked={Boolean(settingsDraft.notifyOnMessageArchive)} onChange={(event) => setSettingsDraft({ ...settingsDraft, notifyOnMessageArchive: event.target.checked })} /> تنبيه عند أرشفة رسالة</label>
+          <button onClick={() => saveArchiveAlertSettings(settingsDraft)} className="w-full py-2.5 rounded-xl text-sm font-black" style={{ background: C.teal, color: "#fff" }}>حفظ المعيار</button>
+        </div>
+      </div>
+
       <div>
-        <div className="flex items-center justify-between mb-3 flex-wrap gap-2"><h3 className="font-black flex items-center gap-2" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}><Archive size={17} color={C.rust} /> أرشيف الطلبات الكامل</h3><span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: C.rust + "16", color: C.rust }}>لا يتأثر بحذف التاجر أو الموصل</span></div>
-        <div className="space-y-2">{orders.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>لا توجد طلبات في الأرشيف.</p>}{orders.map((o) => (<div key={o.id} className="p-3 rounded-2xl flex items-center justify-between gap-3 flex-wrap" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div><div className="font-bold text-sm" style={{ color: C.ink }}>{o.storeName} · {o.customer}</div><div className="text-xs mt-1" style={{ color: C.inkSoft }}>{o.items.map((item) => `${item.name} ×${item.qty}`).join(" · ")} · {money(o.total)} · {o.createdAt}</div></div><div className="flex items-center gap-2"><StatusPill status={o.status} /><button onClick={() => deleteOrderPermanently(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A" }}><Trash2 size={12} /> حذف نهائي</button></div></div>))}</div>
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2"><h3 className="font-black flex items-center gap-2" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}><Archive size={17} color={C.rust} /> أرشيف السجلات الكامل</h3><span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: C.rust + "16", color: C.rust }}>لا يتأثر بحذف التاجر أو الموصل</span></div>
+        <div className="p-3 rounded-2xl grid sm:grid-cols-3 gap-2 mb-3" style={{ background: C.paperDark, border: `1px solid ${C.line}` }} data-testid="archive-search-filters"><div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white" style={{ border: `1px solid ${C.line}` }}><Search size={15} color={C.inkSoft} /><input aria-label="بحث في الأرشيف" value={archiveQuery} onChange={(event) => setArchiveQuery(event.target.value)} placeholder="بحث باسم المحل أو العميل أو المحتوى" className="flex-1 text-sm outline-none bg-transparent" /></div><select aria-label="نوع السجل" value={archiveType} onChange={(event) => setArchiveType(event.target.value)} className="px-3 py-2 rounded-xl text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }}><option value="all">كل السجلات</option><option value="orders">الطلبات فقط</option><option value="messages">الرسائل فقط</option></select><select aria-label="حالة الطلب" value={archiveStatus} onChange={(event) => setArchiveStatus(event.target.value)} disabled={archiveType === "messages"} className="px-3 py-2 rounded-xl text-sm outline-none bg-white disabled:opacity-50" style={{ border: `1px solid ${C.line}` }}><option value="all">كل الحالات</option>{Object.entries(STATUS_MAP).map(([id, status]) => <option key={id} value={id}>{status.label}</option>)}</select></div>
+        <div className="space-y-2">{filteredArchiveOrders.length === 0 && archiveType !== "messages" && <p className="text-sm py-2" style={{ color: C.inkSoft }}>لا توجد طلبات مطابقة للبحث أو الفلترة.</p>}{filteredArchiveOrders.map((o) => (<div key={o.id} className="p-3 rounded-2xl flex items-center justify-between gap-3 flex-wrap" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div><div className="font-bold text-sm" style={{ color: C.ink }}>{o.storeName} · {o.customer}</div><div className="text-xs mt-1" style={{ color: C.inkSoft }}>{o.items.map((item) => `${item.name} ×${item.qty}`).join(" · ")} · {money(o.total)} · {o.createdAt}</div></div><div className="flex items-center gap-2"><StatusPill status={o.status} /><button onClick={() => deleteOrderPermanently(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A" }}><Trash2 size={12} /> حذف نهائي</button></div></div>))}</div>
       </div>
 
       <div>
         <h3 className="font-black mb-3 flex items-center gap-2" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}><MessageCircle size={17} color={C.teal} /> أرشيف الرسائل</h3>
-        <div className="space-y-2">{messages.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>لا توجد رسائل محفوظة بعد.</p>}{messages.map((message) => (<div key={message.id} className="p-3 rounded-2xl flex items-center justify-between gap-3 flex-wrap" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="flex-1"><div className="text-sm" style={{ color: C.ink }}>{message.body}</div><div className="text-xs mt-1" style={{ color: C.inkSoft }}>الطلب: {String(message.orderId).slice(0, 8)} · {message.createdAt}</div></div><button onClick={() => deleteMessagePermanently(message.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A" }}><Trash2 size={12} /> حذف نهائي</button></div>))}</div>
+        <div className="space-y-2">{filteredArchiveMessages.length === 0 && archiveType !== "orders" && <p className="text-sm" style={{ color: C.inkSoft }}>لا توجد رسائل مطابقة للبحث.</p>}{filteredArchiveMessages.map((message) => (<div key={message.id} className="p-3 rounded-2xl flex items-center justify-between gap-3 flex-wrap" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="flex-1"><div className="text-sm" style={{ color: C.ink }}>{message.body}</div><div className="text-xs mt-1" style={{ color: C.inkSoft }}>الطلب: {String(message.orderId).slice(0, 8)} · {message.createdAt}</div></div><button onClick={() => deleteMessagePermanently(message.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A" }}><Trash2 size={12} /> حذف نهائي</button></div>))}</div>
+      </div>
+
+      <div className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }} data-testid="archive-audit-log">
+        <div className="flex items-center justify-between mb-3 gap-2 flex-wrap"><h3 className="font-black flex items-center gap-2" style={{ color: C.ink }}><ClipboardList size={17} color={C.purple} /> سجل تدقيق الحذف النهائي</h3><select aria-label="إجراء سجل التدقيق" value={auditAction} onChange={(event) => setAuditAction(event.target.value)} className="px-3 py-1.5 rounded-xl text-xs font-bold outline-none" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}><option value="all">كل الإجراءات</option><option value="permanent_delete_order">حذف طلب نهائي</option><option value="permanent_delete_message">حذف رسالة نهائي</option></select></div>
+        <div className="space-y-2">{visibleAuditLogs.length === 0 && <p className="text-xs py-2" style={{ color: C.inkSoft }}>لا توجد عمليات حذف نهائي مسجلة بعد.</p>}{visibleAuditLogs.map((entry) => (<div key={entry.id} className="flex items-center justify-between gap-3 p-2.5 rounded-xl flex-wrap" style={{ background: C.paperDark }}><div className="text-xs" style={{ color: C.ink }}><b>{entry.action === "permanent_delete_order" ? "حذف طلب نهائي" : "حذف رسالة نهائي"}</b> · {entry.resourceType}: {String(entry.resourceId).slice(0, 8)}</div><div className="text-[10px]" style={{ color: C.inkSoft }}>{entry.createdAt}</div></div>))}</div>
       </div>
     </div>
   );
@@ -1376,6 +1413,9 @@ export default function App() {
   const [stores, setStores] = useState([]);
   const [orders, setOrders] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [archiveAuditLogs, setArchiveAuditLogs] = useState([]);
+  const [archiveNotifications, setArchiveNotifications] = useState([]);
+  const [archiveAlertSettings, setArchiveAlertSettings] = useState({ sensitiveOrderTotal: 5000, sensitiveStatuses: ["ready", "delivering", "delivered"], notifyOnMessageArchive: false });
   const [couriers, setCouriers] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [auth, setAuth] = useState(null);
@@ -1401,7 +1441,7 @@ export default function App() {
         loadKey(STORAGE.cart, { storeId: null, items: [], address: null }), loadKey(STORAGE.myStoreId, null), loadKey(STORAGE.notifications, []),
       ]);
       if (cancelled) return;
-      setStores([]); setOrders([]); setMessages([]); setCouriers([]);
+      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setCouriers([]);
       setAccounts([]); setAuth(null);
       setCart(loadedCart); setMyStoreId(loadedMyStoreId); setNotifications(loadedNotifications);
       setLoading(false);
@@ -1432,7 +1472,7 @@ export default function App() {
       setAuth(null);
       setMyStoreId(null);
       setRole("customer");
-      setStores([]); setOrders([]); setMessages([]); setCouriers([]);
+      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setCouriers([]);
       return;
     }
     const nextAuth = await resolveSupabaseUser(session.user);
@@ -1443,13 +1483,16 @@ export default function App() {
   }
 
   async function refreshSupabaseData() {
-    const [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult, messagesResult] = await Promise.all([
+    const [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult, messagesResult, auditResult, archiveNotificationsResult, alertSettingsResult] = await Promise.all([
       supabase.from("merchants").select("*").order("created_at", { ascending: false }),
       supabase.from("products").select("*").order("created_at", { ascending: false }),
       supabase.from("couriers").select("*").order("created_at", { ascending: false }),
       supabase.from("orders").select("*").order("created_at", { ascending: false }),
       supabase.from("order_items").select("*").order("created_at", { ascending: true }),
       supabase.from("order_messages").select("*").order("created_at", { ascending: false }),
+      supabase.from("admin_archive_audit_logs").select("*").order("created_at", { ascending: false }).limit(100),
+      supabase.from("admin_archive_notifications").select("*").order("created_at", { ascending: false }).limit(100),
+      supabase.from("admin_archive_alert_settings").select("*").eq("id", true).maybeSingle(),
     ]);
     const migrationMissing = [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult].some((result) => result.error?.code === "42P01");
     if (migrationMissing) {
@@ -1484,6 +1527,21 @@ export default function App() {
       id: message.id, orderId: message.order_id, senderId: message.sender_id, recipientId: message.recipient_id, body: message.body,
       createdAt: new Date(message.created_at).toLocaleString("ar-DZ", { dateStyle: "short", timeStyle: "short" }),
     })));
+    setArchiveAuditLogs((auditResult.data || []).map((entry) => ({
+      id: entry.id, actorId: entry.actor_id, action: entry.action, resourceType: entry.resource_type, resourceId: entry.resource_id,
+      archivedByUserId: entry.archived_by_user_id, createdAt: new Date(entry.created_at).toLocaleString("ar-DZ", { dateStyle: "short", timeStyle: "short" }),
+    })));
+    setArchiveNotifications((archiveNotificationsResult.data || []).map((entry) => ({
+      id: entry.id, kind: entry.kind, orderId: entry.order_id, actorId: entry.actor_id, priority: entry.priority, title: entry.title,
+      body: entry.body, metadata: entry.metadata || {}, isRead: entry.is_read, createdAt: new Date(entry.created_at).toLocaleString("ar-DZ", { dateStyle: "short", timeStyle: "short" }),
+    })));
+    if (alertSettingsResult.data) {
+      setArchiveAlertSettings({
+        sensitiveOrderTotal: Number(alertSettingsResult.data.sensitive_order_total),
+        sensitiveStatuses: alertSettingsResult.data.sensitive_statuses || [],
+        notifyOnMessageArchive: Boolean(alertSettingsResult.data.notify_on_message_archive),
+      });
+    }
   }
 
   useEffect(() => {
@@ -1617,6 +1675,34 @@ export default function App() {
     if (error) { notify("تعذر الحذف النهائي للرسالة: " + error.message); return false; }
     await refreshSupabaseData();
     notify("تم حذف الرسالة نهائياً من الأرشيف الإداري.");
+    return true;
+  }
+
+  async function markArchiveNotificationRead(notificationId) {
+    if (auth?.type !== "admin") { notify("لا تملك صلاحية تعديل إشعارات الأرشيف."); return false; }
+    const { error } = await supabase.rpc("admin_mark_archive_notification_read", { p_notification_id: notificationId });
+    if (error) { notify("تعذر تحديث الإشعار: " + error.message); return false; }
+    await refreshSupabaseData();
+    return true;
+  }
+
+  async function saveArchiveAlertSettings(nextSettings) {
+    if (auth?.type !== "admin") { notify("لا تملك صلاحية تعديل إعدادات الأرشيف."); return false; }
+    const sensitiveStatuses = nextSettings.sensitiveStatuses.filter(Boolean);
+    if (!Number.isFinite(nextSettings.sensitiveOrderTotal) || nextSettings.sensitiveOrderTotal < 0) {
+      notify("أدخل قيمة مالية صحيحة لمعيار الطلب الحساس."); return false;
+    }
+    const { error } = await supabase.from("admin_archive_alert_settings").upsert({
+      id: true,
+      sensitive_order_total: nextSettings.sensitiveOrderTotal,
+      sensitive_statuses: sensitiveStatuses,
+      notify_on_message_archive: nextSettings.notifyOnMessageArchive,
+      updated_at: new Date().toISOString(),
+      updated_by: auth.id,
+    });
+    if (error) { notify("تعذر حفظ إعدادات الأرشيف: " + error.message); return false; }
+    await refreshSupabaseData();
+    notify("تم حفظ معيار الأرشفة الحساسة.");
     return true;
   }
 
@@ -1811,7 +1897,7 @@ export default function App() {
           {role === "customer" && <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} />}
           {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} registerMerchant={registerMerchant} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} messages={messages} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} completeDelivery={completeDelivery} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
-          {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} />}
+          {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} archiveAlertSettings={archiveAlertSettings} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} markArchiveNotificationRead={markArchiveNotificationRead} saveArchiveAlertSettings={saveArchiveAlertSettings} />}
         </div>
 
         {role !== "admin" && (

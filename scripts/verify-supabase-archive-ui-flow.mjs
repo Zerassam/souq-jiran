@@ -11,7 +11,7 @@ const customer = {
   email: `ui.archive.customer.${runId}@example.invalid`,
   password: `UiArchiveCustomer-${runId}-Test`,
 };
-const product = { name: `منتج أرشفة Supabase ${runId}`, price: "101" };
+const product = { name: `منتج أرشفة حساسة Supabase ${runId}`, price: "5001" };
 
 async function expectVisible(locator, label) {
   await locator.waitFor({ state: "visible", timeout: 20_000 });

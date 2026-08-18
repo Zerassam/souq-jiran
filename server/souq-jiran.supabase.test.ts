@@ -56,7 +56,8 @@ describe("Souq Jiran Supabase integration", () => {
     expect(schema).toContain("is_app_admin()");
     expect(appSource).toContain("archiveOrderForCurrentUser");
     expect(appSource).toContain("deleteOrderPermanently");
-    expect(appSource).toContain("أرشيف الطلبات الكامل");
+    expect(appSource).toContain("أرشيف السجلات الكامل");
+    expect(appSource).toContain('data-testid="archive-search-filters"');
   });
 
   it("keeps the public header free of a customer switch and gates admin sign-in behind its discreet entry", () => {
@@ -86,5 +87,23 @@ describe("Souq Jiran Supabase integration", () => {
     expect(providerSwitchSource).toContain('data-testid="courier-role-button"');
     expect(providerSwitchSource).toContain('data-testid="merchant-role-button"');
     expect(providerSwitchSource).not.toContain('> عميل</button>');
+  });
+
+  it("defines protected audit and notification flows for archive management", () => {
+    const schema = readFileSync(resolve(projectRoot, "supabase/schema.sql"), "utf8").toLowerCase();
+    const migration = readFileSync(resolve(projectRoot, "supabase/migrations/20260818_archive_management.sql"), "utf8").toLowerCase();
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(schema).toContain("create table if not exists public.admin_archive_audit_logs");
+    expect(schema).toContain("create table if not exists public.admin_archive_notifications");
+    expect(schema).toContain("admin_mark_archive_notification_read");
+    expect(schema).toContain("notify_on_message_archive");
+    expect(schema).toContain("'message_archive'");
+    expect(migration).toContain("create or replace function public.archive_message_for_user");
+    expect(migration).toContain("'message_archive'");
+    expect(appSource).toContain('data-testid="archive-search-filters"');
+    expect(appSource).toContain('data-testid="archive-alerts-panel"');
+    expect(appSource).toContain('data-testid="archive-audit-log"');
+    expect(appSource).toContain("markArchiveNotificationRead");
   });
 });
