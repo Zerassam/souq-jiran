@@ -907,6 +907,7 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
   async function toggleAvailable(id) { const product = myStore.products.find((item) => item.id === id); if (product) await setProductAvailability(id, !product.available); }
 
   const myOrders = orders.filter((o) => o.storeId === myStoreId);
+  const newMerchantOrders = myOrders.filter((o) => o.status === "pending");
   async function setOrderStatus(id, status) { await setMerchantOrderStatus(id, status); }
   const nextStatus = { accepted: "preparing", preparing: "ready", ready: "delivered" };
 
@@ -975,7 +976,7 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
       <div className="p-4 rounded-2xl" style={{ background: C.paperDark }}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3"><StoreAvatar logo={myStore.logo} size={44} /><div><div className="font-black" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>{myStore.name}</div><div className="text-xs" style={{ color: C.inkSoft }}>{myStore.wilaya} · {myStore.commune} · {myStore.open}:00 - {myStore.close}:00</div><div className="flex items-center gap-1 mt-1"><StarRating value={Math.round(myStore.rating || 0)} size={11} /><span className="text-xs font-bold" style={{ color: C.inkSoft }}>{myStore.rating || "لا تقييمات بعد"}</span></div></div></div>
-          <span className="text-xs font-bold px-3 py-1 rounded-full shrink-0" style={{ background: C.sage + "30", color: C.tealDark }}>محل مفعّل</span>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end"><button data-testid="merchant-new-orders-counter" onClick={() => setTab("orders")} className="flex items-center gap-1 text-xs font-black px-3 py-1.5 rounded-full" aria-label={`${newMerchantOrders.length} طلبات جديدة`} style={{ background: newMerchantOrders.length ? C.rust + "18" : C.sage + "22", color: newMerchantOrders.length ? C.rust : C.tealDark }}><Bell size={13} />{newMerchantOrders.length} طلبات جديدة</button><span className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: C.sage + "30", color: C.tealDark }}>محل مفعّل</span></div>
         </div>
         <div className="flex items-center gap-3 text-xs mb-2 flex-wrap" style={{ color: C.inkSoft }}>
           <span className="flex items-center gap-1"><Truck2 size={12} /> {myStore.hasOwnDelivery ? `توصيل خاص (${money(myStore.deliveryFee)})` : "يعتمد موصلي المنصة"}</span>
@@ -989,7 +990,7 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
 
       <div className="flex gap-2 flex-wrap">
         <button onClick={() => setTab("products")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "products" ? C.teal : "transparent", color: tab === "products" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "products" ? C.teal : C.line}` }}>المنتجات</button>
-        <button onClick={() => setTab("orders")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "orders" ? C.teal : "transparent", color: tab === "orders" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "orders" ? C.teal : C.line}` }}>الطلبات الواردة {myOrders.filter((o) => o.status === "pending").length > 0 && `(${myOrders.filter((o) => o.status === "pending").length})`}</button>
+        <button onClick={() => setTab("orders")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "orders" ? C.teal : "transparent", color: tab === "orders" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "orders" ? C.teal : C.line}` }}>الطلبات الواردة {newMerchantOrders.length > 0 && `(${newMerchantOrders.length})`}</button>
         <button onClick={() => setTab("delivery")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "delivery" ? C.teal : "transparent", color: tab === "delivery" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "delivery" ? C.teal : C.line}` }}>إعدادات التوصيل</button>
         <button onClick={() => setTab("messages")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "messages" ? C.teal : "transparent", color: tab === "messages" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "messages" ? C.teal : C.line}` }}>الرسائل</button>
       </div>
@@ -1112,6 +1113,7 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
 
   const myActiveOrders = (orders || []).filter((o) => o.courier?.id === courierId && !["delivered", "declined"].includes(o.status));
   const completedOrders = (orders || []).filter((o) => o.courier?.id === courierId && o.status === "delivered");
+  const newAvailableOrdersCount = availableOrders.length;
 
   async function acceptOrder(orderId) { await claimReadyOrder(orderId); }
   async function advanceOrder(orderId) { await completeDelivery(orderId); }
@@ -1136,8 +1138,9 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
           </div>
           <button onClick={onLogout} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A20", color: "#8B3A2A" }}><LogOut size={12} /> خروج</button>
         </div>
+        <button data-testid="courier-new-orders-counter" onClick={() => setTab("available")} className="w-full mb-3 p-3 rounded-xl flex items-center justify-between gap-3 text-right" aria-label={`${newAvailableOrdersCount} طلبات جديدة متاحة`} style={{ background: newAvailableOrdersCount ? C.teal + "10" : "rgba(255,255,255,.42)", border: `1px solid ${newAvailableOrdersCount ? C.teal + "38" : C.line}`, color: C.ink }}><span className="flex items-center gap-2 text-xs font-black"><span className="flex items-center justify-center rounded-lg" style={{ width: 28, height: 28, background: newAvailableOrdersCount ? C.teal : C.sage, color: "#fff" }}><Bell size={14} /></span>طلبات جديدة ضمن نطاقك</span><span className="text-sm font-black px-2.5 py-1 rounded-full" style={{ background: newAvailableOrdersCount ? C.teal : C.sage, color: "#fff" }}>{newAvailableOrdersCount}</span></button>
         <div className="flex gap-2 flex-wrap">
-          <button onClick={() => setTab("available")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "available" ? C.teal : "transparent", color: tab === "available" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "available" ? C.teal : C.line}` }}>الطلبات المتاحة {availableOrders.length > 0 && `(${availableOrders.length})`}</button>
+          <button onClick={() => setTab("available")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "available" ? C.teal : "transparent", color: tab === "available" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "available" ? C.teal : C.line}` }}>الطلبات المتاحة {newAvailableOrdersCount > 0 && `(${newAvailableOrdersCount})`}</button>
           <button onClick={() => setTab("my")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "my" ? C.teal : "transparent", color: tab === "my" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "my" ? C.teal : C.line}` }}>طلباتي النشطة {myActiveOrders.length > 0 && `(${myActiveOrders.length})`}</button>
           <button onClick={() => setTab("history")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "history" ? C.teal : "transparent", color: tab === "history" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "history" ? C.teal : C.line}` }}>سجل التسليمات ({completedOrders.length})</button>
           <button onClick={() => setTab("hours")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "hours" ? C.teal : "transparent", color: tab === "hours" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "hours" ? C.teal : C.line}` }}>ساعات العمل</button>
@@ -1406,6 +1409,41 @@ async function saveKey({ key, shared }, value) {
 }
 
 /* ===========================================================
+   صفحة تعريف الانضمام
+=========================================================== */
+function RoleBenefitsPage({ onBack, onMerchant, onCourier }) {
+  const roles = [
+    { id: "merchant", icon: Store, accent: C.rust, label: "للتاجر", title: "أدر محلّك من مكان واحد", description: "أضف المنتجات، راقب الطلبات، وحدد الموصلين الذين تتعامل معهم ضمن نطاق توصيلك.", benefits: ["إدارة المنتجات والمخزون", "متابعة الطلبات خطوة بخطوة", "اختيار الموصلين المعتمدين"], action: "ابدأ كتاجر", onClick: onMerchant },
+    { id: "courier", icon: Bike, accent: C.teal, label: "للموصل", title: "نظّم توصيلاتك بطريقتك", description: "حدد أوقاتك، ونطاق تغطيتك، والمحلات التي تناسب مسارك قبل استقبال الطلبات.", benefits: ["أوقات عمل مرنة", "تغطية الأحياء والبلديات التي تختارها", "طلبات متاحة ضمن نطاقك"], action: "ابدأ كموصل", onClick: onCourier },
+  ];
+
+  return (
+    <section className="space-y-5" data-testid="role-benefits-page">
+      <div className="p-5 sm:p-6 rounded-3xl" style={{ background: C.teal, color: "#fff" }}>
+        <button onClick={onBack} className="flex items-center gap-1.5 text-xs font-bold mb-5 opacity-90 hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 rounded-md"><ChevronRight size={15} /> العودة للتسوّق</button>
+        <span className="text-[11px] font-black px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,.14)" }}>مسار واضح قبل التسجيل</span>
+        <h1 className="font-black text-2xl mt-3" style={{ fontFamily: "'Reem Kufi', sans-serif" }}>انضم إلى شبكة الحيّ</h1>
+        <p className="text-sm leading-6 mt-2 max-w-2xl" style={{ color: "rgba(255,255,255,.82)" }}>اختر الدور الأنسب لك. ستسجّل بالبريد الإلكتروني، ثم تتابع أعمالك من لوحتك الخاصة بعد اكتمال المراجعة.</p>
+      </div>
+      <div className="grid md:grid-cols-2 gap-4">
+        {roles.map((roleInfo) => {
+          const Icon = roleInfo.icon;
+          return (
+            <article key={roleInfo.id} className="role-benefit-card p-5 rounded-3xl" style={{ background: "#fff", border: `1px solid ${C.line}`, "--role-accent": roleInfo.accent }}>
+              <div className="flex items-start justify-between gap-3"><span className="flex items-center justify-center rounded-2xl" style={{ width: 46, height: 46, background: roleInfo.accent + "18", color: roleInfo.accent }}><Icon size={23} /></span><span className="text-[11px] font-black px-2.5 py-1 rounded-full" style={{ background: roleInfo.accent + "14", color: roleInfo.accent }}>{roleInfo.label}</span></div>
+              <h2 className="font-black text-lg mt-4" style={{ color: C.ink }}>{roleInfo.title}</h2>
+              <p className="text-sm leading-6 mt-2" style={{ color: C.inkSoft }}>{roleInfo.description}</p>
+              <ul className="space-y-2 mt-4">{roleInfo.benefits.map((benefit) => <li key={benefit} className="flex items-center gap-2 text-xs font-bold" style={{ color: C.ink }}><CheckCircle2 size={15} color={roleInfo.accent} />{benefit}</li>)}</ul>
+              <button onClick={roleInfo.onClick} className="role-guide-cta w-full mt-5 py-3 rounded-xl text-sm font-black flex items-center justify-center gap-1.5" style={{ background: roleInfo.accent, color: "#fff", "--role-accent": roleInfo.accent }}>{roleInfo.action}<ChevronLeft size={15} /></button>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/* ===========================================================
    APP ROOT
 =========================================================== */
 export default function App() {
@@ -1428,6 +1466,7 @@ export default function App() {
   const [showCourierForm, setShowCourierForm] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
   const [adminLoginRequested, setAdminLoginRequested] = useState(false);
+  const [showRoleGuide, setShowRoleGuide] = useState(false);
   const prevOrdersRef = useRef(null);
 
   function notify(msg) { setToast(msg); setTimeout(() => setToast(""), 2400); }
@@ -1862,6 +1901,11 @@ export default function App() {
         ::selection { background: ${C.ochre}55; }
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        .role-join-card, .role-benefit-card { transition: transform 180ms cubic-bezier(.23,1,.32,1), box-shadow 180ms cubic-bezier(.23,1,.32,1), border-color 180ms cubic-bezier(.23,1,.32,1); }
+        .role-join-card:hover, .role-benefit-card:hover { transform: translateY(-4px); border-color: var(--role-accent) !important; box-shadow: 0 16px 30px rgba(35,32,27,.12); }
+        .role-join-card:focus-visible, .role-guide-cta:focus-visible, .role-benefit-card:focus-within { outline: 3px solid var(--role-accent, ${C.teal}); outline-offset: 3px; }
+        .role-join-card:active, .role-guide-cta:active { transform: scale(.98); }
+        @media (prefers-reduced-motion: reduce) { .role-join-card, .role-benefit-card { transition: none; } .role-join-card:hover, .role-benefit-card:hover { transform: none; } }
         @media print { body * { visibility: hidden; } #invoice-print-area, #invoice-print-area * { visibility: visible; } #invoice-print-area { position: absolute; top: 0; left: 0; width: 100%; } .no-print { display: none !important; } }
       `}</style>
 
@@ -1880,21 +1924,21 @@ export default function App() {
         {role !== "admin" && <p className="text-xs mt-3 mb-1 flex items-center gap-1.5" style={{ color: C.inkSoft }}><PackageCheck size={13} color={C.sage} /> بياناتك تُحفظ تلقائياً — أغلق المحادثة وارجع لاحقاً وستجدها كما تركتها.</p>}
 
         <div className="mt-4">
-          {role === "customer" && <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} />}
+          {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else { setAdminLoginRequested(false); setShowAuth(true); } }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} />)}
           {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} registerMerchant={registerMerchant} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} messages={messages} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} completeDelivery={completeDelivery} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} archiveAlertSettings={archiveAlertSettings} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} markArchiveNotificationRead={markArchiveNotificationRead} saveArchiveAlertSettings={saveArchiveAlertSettings} />}
         </div>
 
-        {role === "customer" && (
+        {role === "customer" && !showRoleGuide && (
           <section className="mt-10 pt-5" style={{ borderTop: `1px solid ${C.line}` }} data-testid="role-join-cards">
-            <div className="flex items-center justify-between gap-3 mb-3"><div><h2 className="font-black text-base" style={{ color: C.ink }}>انضم إلى سوق الجيران</h2><p className="text-xs mt-0.5" style={{ color: C.inkSoft }}>اختر الدور الذي يناسب عملك في الحي.</p></div><span className="text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: C.sage + "24", color: C.tealDark }}>طلبات مراجعة آمنة</span></div>
+            <div className="flex items-center justify-between gap-3 mb-3"><div><h2 className="font-black text-base" style={{ color: C.ink }}>انضم إلى سوق الجيران</h2><p className="text-xs mt-0.5" style={{ color: C.inkSoft }}>اختر الدور الذي يناسب عملك في الحي.</p></div><div className="flex items-center gap-2"><button data-testid="role-benefits-link" onClick={() => setShowRoleGuide(true)} className="text-xs font-black px-3 py-1.5 rounded-full" style={{ background: C.teal + "12", color: C.teal, border: `1px solid ${C.teal}38` }}>تعرّف على المزايا</button><span className="text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: C.sage + "24", color: C.tealDark }}>طلبات مراجعة آمنة</span></div></div>
             <div data-testid="provider-role-switches" className="grid sm:grid-cols-2 gap-3">
-              <button data-testid="merchant-role-button" onClick={() => (auth?.type === "merchant" ? (setRole("merchant"), persistentSetMyStoreId(auth.id)) : (setAdminLoginRequested(false), setShowAuth(true)))} className="group text-right p-4 rounded-2xl transition-transform active:scale-[0.98]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(35,32,27,.05)" }}>
+              <button data-testid="merchant-role-button" onClick={() => (auth?.type === "merchant" ? (setRole("merchant"), persistentSetMyStoreId(auth.id)) : (setAdminLoginRequested(false), setShowAuth(true)))} className="role-join-card group text-right p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(35,32,27,.05)", "--role-accent": C.rust }}>
                 <div className="flex items-start justify-between gap-3"><div className="flex items-center justify-center rounded-2xl" style={{ width: 42, height: 42, background: C.rust + "16", color: C.rust }}><Store size={21} /></div><ChevronLeft size={18} className="transition-transform group-hover:-translate-x-0.5" color={C.inkSoft} /></div>
                 <h3 className="font-black mt-3" style={{ color: C.ink }}>انضم كتاجر</h3><p className="text-xs leading-5 mt-1" style={{ color: C.inkSoft }}>أدر منتجات محلك، اطلب اعتماد موصلين، وتابع الطلبات من لوحة واحدة.</p>
               </button>
-              <button data-testid="courier-role-button" onClick={() => (auth?.type === "courier" ? setRole("courier") : setShowCourierForm(true))} className="group text-right p-4 rounded-2xl transition-transform active:scale-[0.98]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(35,32,27,.05)" }}>
+              <button data-testid="courier-role-button" onClick={() => (auth?.type === "courier" ? setRole("courier") : setShowCourierForm(true))} className="role-join-card group text-right p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(35,32,27,.05)", "--role-accent": C.teal }}>
                 <div className="flex items-start justify-between gap-3"><div className="flex items-center justify-center rounded-2xl" style={{ width: 42, height: 42, background: C.teal + "16", color: C.teal }}><Bike size={21} /></div><ChevronLeft size={18} className="transition-transform group-hover:-translate-x-0.5" color={C.inkSoft} /></div>
                 <h3 className="font-black mt-3" style={{ color: C.ink }}>انضم كموصل</h3><p className="text-xs leading-5 mt-1" style={{ color: C.inkSoft }}>حدد أوقاتك ونطاقك واختر المحلات التي تناسب مسار توصيلك.</p>
               </button>
