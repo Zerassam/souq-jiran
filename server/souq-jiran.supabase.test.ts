@@ -240,4 +240,58 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain('supabase.rpc("admin_mark_all_order_notifications_read")');
     expect(appSource).toContain("إشعارات الطلبات");
   });
+
+  it("defines the advanced order lifecycle, geographic quote, and administrative safeguards", () => {
+    const schema = readFileSync(resolve(projectRoot, "supabase/schema.sql"), "utf8");
+    const migration = readFileSync(resolve(projectRoot, "supabase/migrations/20260822_advanced_order_lifecycle.sql"), "utf8");
+
+    expect(schema).toContain("20260822_advanced_order_lifecycle.sql");
+    expect(migration).toContain("customer_phone_verifications");
+    expect(migration).toContain("customer_behavior_reports");
+    expect(migration).toContain("customer_blacklist");
+    expect(migration).toContain("delivery_pricing_config");
+    expect(migration).toContain("quote_delivery");
+    expect(migration).toContain("courier_confirm_pickup");
+    expect(migration).toContain("courier_start_delivery");
+    expect(migration).toContain("courier_confirm_delivery");
+    expect(migration).toContain("customer_confirm_delivery");
+    expect(migration).toContain("courier_confirm_remittance");
+    expect(migration).toContain("merchant_confirm_settlement");
+    expect(migration).toContain("requires_phone_verification");
+    expect(migration).toContain("is_interwilaya");
+  });
+
+  it("wires the customer, courier, and merchant interfaces to the advanced lifecycle without real OTP claims", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const customerView = appSource.match(/function CustomerView[\s\S]*?(?=function OrderTracker)/)?.[0] ?? "";
+
+    expect(customerView).toContain("تسعير محسوب من الخادم");
+    expect(customerView).toContain("هذا وضع تجريبي معلن");
+    expect(customerView).toContain("فتح WhatsApp");
+    expect(customerView).toContain("فتح Viber");
+    expect(customerView).toContain("customerConfirmDelivery");
+    expect(appSource).toContain('supabase.rpc("quote_delivery"');
+    expect(appSource).toContain('supabase.rpc("confirm_customer_phone_verification"');
+    expect(appSource).toContain('"courier_confirm_pickup"');
+    expect(appSource).toContain('"courier_start_delivery"');
+    expect(appSource).toContain('"courier_confirm_delivery"');
+    expect(appSource).toContain('"customer_confirm_delivery"');
+    expect(appSource).toContain('"courier_confirm_remittance"');
+    expect(appSource).toContain('"merchant_confirm_settlement"');
+    expect(appSource).toContain("تأكيد تحويل المستحقات للتاجر");
+    expect(appSource).toContain("تأكيد استلام المستحقات");
+  });
+
+  it("loads reports, blacklist entries, and delivery pricing only for the protected admin tools", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(appSource).toContain('from("customer_behavior_reports")');
+    expect(appSource).toContain('from("customer_blacklist")');
+    expect(appSource).toContain('from("delivery_pricing_config")');
+    expect(appSource).toContain('supabase.rpc("admin_set_customer_blacklist"');
+    expect(appSource).toContain('data-testid="advanced-order-admin-panel"');
+    expect(appSource).toContain("حظر الحساب");
+    expect(appSource).toContain("حفظ إعدادات التسعير");
+    expect(appSource).toContain("auth?.type !== \"admin\"");
+  });
 });

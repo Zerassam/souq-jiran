@@ -281,7 +281,10 @@ function StoreAvatar({ logo, size = 42 }) { return <span className="flex items-c
 const STATUS_MAP = {
   pending: { label: "قيد الانتظار", color: C.ochre }, accepted: { label: "تم القبول", color: C.sage },
   preparing: { label: "قيد التحضير", color: C.teal }, ready: { label: "جاهز للتسليم", color: C.rust },
-  delivered: { label: "تم التسليم", color: C.tealDark }, declined: { label: "مرفوض", color: "#8B3A2A" },
+  assigned: { label: "أُسند للموصل", color: C.purple }, picked_up: { label: "استلمه الموصل", color: C.teal },
+  out_for_delivery: { label: "في الطريق إليك", color: C.teal }, delivered: { label: "تم التسليم", color: C.tealDark },
+  customer_confirmed: { label: "أكد العميل الاستلام", color: C.sage }, remittance_confirmed: { label: "حوّل الموصل المستحقات", color: C.sage },
+  settled: { label: "تمت التسوية", color: C.sage }, declined: { label: "مرفوض", color: "#8B3A2A" }, cancelled: { label: "ملغى", color: "#8B3A2A" },
 };
 function StatusPill({ status }) { const s = STATUS_MAP[status] ?? { label: "بانتظار التحديث", color: C.inkSoft }; return <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full" style={{ background: s.color + "1F", color: s.color }}><span style={{ width: 6, height: 6, borderRadius: 999, background: s.color }} />{s.label}</span>; }
 function Toast({ message }) { if (!message) return null; return <div className="fixed bottom-6 left-1/2 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-bold" style={{ transform: "translateX(-50%)", background: C.ink, color: C.paper }}>{message}</div>; }
@@ -665,7 +668,7 @@ function MessagesInbox({ messages, orders, userId, admin = false, onArchiveMessa
 /* ===========================================================
    CUSTOMER VIEW
 =========================================================== */
-function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, couriers, placeOrder, notify, customerId }) {
+function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, couriers, placeOrder, notify, customerId, customerConfirmDelivery, quoteDelivery, confirmCustomerPhoneVerification }) {
   const [tab, setTab] = useState("browse");
   const [browseMode, setBrowseMode] = useState("list");
   const [query, setQuery] = useState("");
@@ -680,6 +683,11 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const [reviewingOrder, setReviewingOrder] = useState(null);
   const [invoiceOrder, setInvoiceOrder] = useState(null);
   const [deliveryChoice, setDeliveryChoice] = useState("pickup");
+  const [deliveryQuote, setDeliveryQuote] = useState(null);
+  const [quoteError, setQuoteError] = useState("");
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [mockPhone, setMockPhone] = useState("");
+  const [phoneVerified, setPhoneVerified] = useState(false);
 
   const approvedStores = stores.filter((s) => s.status === "approved");
   const visibleStores = useMemo(() => {
@@ -699,13 +707,30 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const cartCount = cart.items.reduce((a, i) => a + i.qty, 0);
   const cartSubtotal = cart.items.reduce((a, i) => a + i.qty * i.price, 0);
   const discountAmount = appliedPromo ? Math.round((cartSubtotal * appliedPromo.discount) / 100) : 0;
-  const deliveryFee = deliveryChoice === "store" ? (cartStore?.deliveryFee || 0) : deliveryChoice === "courier" ? PLATFORM_COURIER_FEE : 0;
+  const deliveryFee = deliveryChoice === "store" ? (cartStore?.deliveryFee || 0) : deliveryChoice === "courier" ? Number(deliveryQuote?.fee || 0) : 0;
   const finalTotal = Math.max(0, cartSubtotal - discountAmount + deliveryFee);
   const belowMinOrder = cartStore && cartStore.minOrder && cartSubtotal < cartStore.minOrder;
+  const isInterwilaya = Boolean(deliveryQuote?.isInterwilaya || (cart.address?.wilaya && cartStore?.wilaya && cart.address.wilaya !== cartStore.wilaya));
+  const requiresPhoneVerification = deliveryChoice === "courier" && (finalTotal >= 10000 || isInterwilaya);
 
   // The customer chooses the platform delivery service, not a named courier.
   // Assignment occurs after the merchant marks the order ready, preserving courier privacy.
   const platformCourierEnabled = Boolean(cartStore && !cartStore.hasOwnDelivery);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (deliveryChoice !== "courier" || !cartStore?.id || !cart.address?.wilaya || !cart.address?.commune) {
+      setDeliveryQuote(null); setQuoteError(""); setQuoteLoading(false); return undefined;
+    }
+    setQuoteLoading(true); setQuoteError("");
+    quoteDelivery(cartStore.id, cart.address, cart.items.reduce((sum, item) => sum + item.qty, 0)).then((result) => {
+      if (cancelled) return;
+      if (!result?.ok) { setDeliveryQuote(null); setQuoteError(result?.message || "تعذر احتساب رسوم التوصيل."); }
+      else setDeliveryQuote(result.quote);
+      setQuoteLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [deliveryChoice, cartStore?.id, cart.address?.wilaya, cart.address?.commune, cart.address?.label, cart.items, quoteDelivery]);
 
   function addToCart(store, product) {
     setCart((prev) => {
@@ -720,6 +745,20 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   }
   function changeQty(id, delta) { setCart((prev) => ({ ...prev, items: prev.items.map((i) => (i.id === id ? { ...i, qty: i.qty + delta } : i)).filter((i) => i.qty > 0) })); }
   function applyPromo() { const match = PROMOS.find((p) => p.code.toLowerCase() === promoInput.trim().toLowerCase()); if (!match) { notify("كود الخصم غير صالح"); return; } setAppliedPromo(match); notify(`تم تطبيق خصم ${match.discount}%`); }
+  function updateAddress(values) { setCart((prev) => ({ ...prev, address: { ...(prev.address || {}), ...values } })); setPhoneVerified(false); }
+  function requestCurrentLocation() {
+    if (!navigator.geolocation) { notify("لا يدعم متصفحك تحديد الموقع الجغرافي."); return; }
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => { updateAddress({ latitude: coords.latitude, longitude: coords.longitude }); notify("تم حفظ موقع GPS الدقيق. أكمل الولاية والبلدية ووصف العنوان."); },
+      () => notify("تعذر الوصول إلى GPS. راجع أذونات الموقع أو حدد الموقع على الخريطة."),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 },
+    );
+  }
+  async function verifyMockPhone(method) {
+    if (!mockPhone.trim()) { notify("أدخل رقم هاتفك أولاً."); return; }
+    const ok = await confirmCustomerPhoneVerification(mockPhone.trim(), method);
+    if (ok) setPhoneVerified(true);
+  }
   function submitReview(order, stars, comment) {
     setStores((prev) => prev.map((s) => { if (s.id !== order.storeId) return s; const reviews = [...(s.reviews || []), { id: "r" + Math.random().toString(36).slice(2, 7), customer: "أنت", stars, comment, date: "الآن" }]; const avg = reviews.reduce((a, r) => a + r.stars, 0) / reviews.length; return { ...s, reviews, rating: Math.round(avg * 10) / 10 }; }));
     setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, rated: true } : o)));
@@ -731,7 +770,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const shownProducts = openStore ? openStore.products.filter((p) => activeDept === "all" || p.department === activeDept) : [];
   const deliveryOptions = [
     cartStore?.hasOwnDelivery && { id: "store", label: "توصيل المحل", desc: money(cartStore.deliveryFee), icon: Truck2 },
-    { id: "courier", label: "موصل معتمد من المنصة", desc: platformCourierEnabled ? `يُسند تلقائياً عند الجاهزية — ${money(PLATFORM_COURIER_FEE)}` : "التوصيل عبر المنصة غير مفعّل لهذا المحل", icon: Bike, disabled: !platformCourierEnabled },
+    { id: "courier", label: "موصل معتمد من المنصة", desc: platformCourierEnabled ? "يُسند تلقائياً عند الجاهزية — تُحسب الرسوم بعد إدخال العنوان" : "التوصيل عبر المنصة غير مفعّل لهذا المحل", icon: Bike, disabled: !platformCourierEnabled },
     { id: "pickup", label: "استلام ذاتي من المحل", desc: "بدون رسوم توصيل", icon: Home },
   ].filter(Boolean);
 
@@ -813,7 +852,8 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
               <OrderTracker status={o.status} />
               <div className="flex items-center gap-2 mt-3 pt-3 flex-wrap" style={{ borderTop: `1px solid ${C.line}` }}>
                 <button onClick={() => setInvoiceOrder(o)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}><Printer size={12} /> الفاتورة</button>
-                {o.status === "delivered" && !o.rated && <button onClick={() => setReviewingOrder(o)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.ochre + "25", color: "#8A6318" }}><Star size={12} /> قيّم تجربتك</button>}
+                {o.status === "delivered" && <button onClick={() => customerConfirmDelivery(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.sage + "20", color: C.sage }}><CheckCircle2 size={12} /> تأكيد الاستلام والدفع</button>}
+                {o.status === "customer_confirmed" && !o.rated && <button onClick={() => setReviewingOrder(o)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.ochre + "25", color: "#8A6318" }}><Star size={12} /> قيّم تجربتك</button>}
                 {o.rated && <span className="text-xs font-bold flex items-center gap-1" style={{ color: C.sage }}><Check size={12} /> تم التقييم</span>}
               </div>
             </div>
@@ -835,10 +875,19 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                   <div className="space-y-2">{deliveryOptions.map((opt) => (<button key={opt.id} disabled={opt.disabled} onClick={() => setDeliveryChoice(opt.id)} className="w-full flex items-center gap-2.5 p-2.5 rounded-xl text-right disabled:opacity-40" style={{ border: `1.5px solid ${deliveryChoice === opt.id ? C.teal : C.line}`, background: deliveryChoice === opt.id ? C.teal + "10" : "#fff" }}><opt.icon size={17} color={deliveryChoice === opt.id ? C.teal : C.inkSoft} /><div className="flex-1"><div className="text-xs font-bold" style={{ color: C.ink }}>{opt.label}</div><div className="text-[11px]" style={{ color: C.inkSoft }}>{opt.desc}</div></div>{deliveryChoice === opt.id && <CheckCircle2 size={16} color={C.teal} />}</button>))}</div>
                 </div>
 
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-1.5"><span className="text-xs font-bold flex items-center gap-1" style={{ color: C.ink }}><MapPin size={13} /> عنوان التوصيل</span><button onClick={() => setShowMapPicker(true)} className="text-xs font-bold" style={{ color: C.teal }}>{cart.address ? "تعديل الموقع" : "تحديد على الخريطة"}</button></div>
-                  {cart.address ? <MapPreview x={cart.address.x} y={cart.address.y} height={60} /> : <p className="text-xs" style={{ color: C.inkSoft }}>لم يتم تحديد الموقع بعد (اختياري).</p>}
-                </div>
+                {deliveryChoice !== "pickup" && <div className="mb-4 p-3 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+                  <div className="flex items-center justify-between mb-2"><span className="text-xs font-bold flex items-center gap-1" style={{ color: C.ink }}><MapPin size={13} /> عنوان التوصيل</span><button onClick={() => setShowMapPicker(true)} className="text-xs font-bold" style={{ color: C.teal }}>{cart.address ? "تحديد على الخريطة" : "فتح الخريطة"}</button></div>
+                  <WilayaCommuneSelect wilaya={cart.address?.wilaya || ""} commune={cart.address?.commune || ""} onChange={({ wilaya, commune }) => updateAddress({ wilaya, commune })} />
+                  <input value={cart.address?.label || ""} onChange={(e) => updateAddress({ label: e.target.value })} placeholder="وصف دقيق: الحي، الشارع، المعلم القريب" className="w-full mt-2 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
+                  <button onClick={requestCurrentLocation} className="mt-2 flex items-center gap-1 text-xs font-bold" style={{ color: C.teal }}><Navigation size={13} /> استخدام موقعي GPS الحالي</button>
+                  {cart.address?.latitude && cart.address?.longitude ? <p className="mt-2 text-[11px] font-bold" style={{ color: C.sage }}>تم حفظ إحداثيات GPS الدقيقة للعنوان.</p> : <p className="mt-2 text-[11px]" style={{ color: C.inkSoft }}>يمكنك حفظ GPS بعد منح إذن الموقع؛ الخريطة تبقى بديلاً لتحديد نقطة الوصول.</p>}
+                  {cart.address?.x !== undefined && <div className="mt-2"><MapPreview x={cart.address.x} y={cart.address.y} height={60} /></div>}
+                </div>}
+
+                {deliveryChoice === "courier" && quoteLoading && <p className="text-xs mb-3" style={{ color: C.inkSoft }}>جارٍ احتساب رسوم التوصيل من الخادم…</p>}
+                {deliveryChoice === "courier" && deliveryQuote && <div className="mb-3 p-3 rounded-xl text-xs" style={{ background: C.teal + "0F", border: `1px solid ${C.teal}30`, color: C.ink }}><div className="font-bold" style={{ color: C.teal }}>تسعير محسوب من الخادم</div><div className="mt-1">المسافة التقديرية: {Number(deliveryQuote.distanceKm || 0).toFixed(1)} كم · الوصول المتوقع: {deliveryQuote.etaMinutes || "—"} دقيقة{deliveryQuote.isInterwilaya ? " · توصيل بين الولايات" : ""}</div></div>}
+                {deliveryChoice === "courier" && quoteError && <p className="text-xs font-bold mb-3" style={{ color: "#8B3A2A" }}>{quoteError}</p>}
+                {requiresPhoneVerification && <div className="mb-3 p-3 rounded-xl" style={{ background: C.ochre + "16", border: `1px solid ${C.ochre}40` }}><div className="text-xs font-black" style={{ color: "#8A6318" }}>تحقق الهاتف مطلوب لهذا الطلب</div><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>هذا وضع تجريبي معلن: لن نرسل رمز OTP فعلياً. سيُسجل تأكيدك لاختبار تدفق الطلبات الكبيرة أو بين الولايات.</p><div className="flex gap-2 mt-2"><input value={mockPhone} onChange={(e) => { setMockPhone(e.target.value); setPhoneVerified(false); }} inputMode="tel" placeholder="رقم الهاتف" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /><button onClick={() => verifyMockPhone("mock_otp")} className="px-3 py-2 rounded-xl text-xs font-bold" style={{ background: C.ochre, color: "#fff" }}>{phoneVerified ? "تم التحقق" : "تأكيد تجريبي"}</button></div><div className="flex gap-3 mt-2"><a href={`https://wa.me/?text=${encodeURIComponent("طلب تأكيد لسوق الجيران")}`} target="_blank" rel="noreferrer" className="text-[11px] font-bold" style={{ color: C.teal }}>فتح WhatsApp</a><a href={`viber://forward?text=${encodeURIComponent("طلب تأكيد لسوق الجيران")}`} className="text-[11px] font-bold" style={{ color: C.teal }}>فتح Viber</a></div></div>}
 
                 <div className="flex gap-2 mb-3"><input value={promoInput} onChange={(e) => setPromoInput(e.target.value)} placeholder="أدخل كود الخصم" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /><button onClick={applyPromo} className="px-4 py-2 rounded-xl text-xs font-bold" style={{ background: C.ochre, color: "#fff" }}>تطبيق</button></div>
                 {appliedPromo && <p className="text-xs font-bold mb-3 flex items-center gap-1" style={{ color: C.sage }}><Tag size={12} /> تم تطبيق خصم {appliedPromo.discount}% ({appliedPromo.code})</p>}
@@ -846,19 +895,20 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                 <StripeDivider />
                 <div className="my-4 space-y-1.5">
                   <div className="flex items-center justify-between text-xs" style={{ color: C.inkSoft }}><span>المجموع الفرعي</span><span>{money(cartSubtotal)}</span></div>
-                  {deliveryFee > 0 && <div className="flex items-center justify-between text-xs" style={{ color: C.inkSoft }}><span>رسوم التوصيل</span><span>{money(deliveryFee)}</span></div>}
+                  {deliveryChoice === "courier" && <div className="flex items-center justify-between text-xs" style={{ color: C.inkSoft }}><span>رسوم التوصيل {deliveryQuote ? "المحسوبة" : ""}</span><span>{quoteLoading ? "…" : money(deliveryFee)}</span></div>}
+                  {deliveryChoice === "store" && deliveryFee > 0 && <div className="flex items-center justify-between text-xs" style={{ color: C.inkSoft }}><span>رسوم توصيل المحل</span><span>{money(deliveryFee)}</span></div>}
                   {discountAmount > 0 && <div className="flex items-center justify-between text-xs" style={{ color: C.sage }}><span>الخصم</span><span>- {money(discountAmount)}</span></div>}
                   <div className="flex items-center justify-between pt-1"><span className="font-bold text-sm" style={{ color: C.ink }}>يُدفع نقداً عند الاستلام</span><PriceTag amount={finalTotal} size="lg" /></div>
                 </div>
                 {belowMinOrder && <p className="text-xs font-bold mb-3" style={{ color: "#8B3A2A" }}>الحد الأدنى للطلب من هذا المحل هو {money(cartStore.minOrder)}.</p>}
-                <button disabled={belowMinOrder} onClick={() => { placeOrder(cartStore, appliedPromo, discountAmount, cart.address, deliveryChoice, deliveryFee); setAppliedPromo(null); setPromoInput(""); setShowCart(false); setTab("orders"); setDeliveryChoice("pickup"); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>تأكيد الطلب (دفع نقدي)</button>
+                <button disabled={belowMinOrder || quoteLoading || (deliveryChoice === "courier" && (!cart.address?.wilaya || !cart.address?.commune || !cart.address?.label || !deliveryQuote || (requiresPhoneVerification && !phoneVerified)))} onClick={async () => { const ok = await placeOrder(cartStore, appliedPromo, discountAmount, cart.address, deliveryChoice, deliveryFee); if (!ok) return; setAppliedPromo(null); setPromoInput(""); setShowCart(false); setTab("orders"); setDeliveryChoice("pickup"); setDeliveryQuote(null); setPhoneVerified(false); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>تأكيد الطلب (دفع نقدي)</button>
               </>
             )}
           </div>
         </div>
       )}
 
-      {showMapPicker && <MapPicker title="حدد عنوان التوصيل" initial={cart.address ? { x: cart.address.x, y: cart.address.y } : undefined} onConfirm={(pos) => setCart((prev) => ({ ...prev, address: { x: pos.x, y: pos.y } }))} onClose={() => setShowMapPicker(false)} />}
+      {showMapPicker && <MapPicker title="حدد عنوان التوصيل" initial={cart.address ? { x: cart.address.x, y: cart.address.y } : undefined} onConfirm={(pos) => updateAddress({ x: pos.x, y: pos.y })} onClose={() => setShowMapPicker(false)} />}
       {reviewingOrder && <ReviewModal order={reviewingOrder} onSubmit={(stars, comment) => submitReview(reviewingOrder, stars, comment)} onClose={() => setReviewingOrder(null)} />}
       {invoiceOrder && <InvoiceModal order={invoiceOrder} store={stores.find((s) => s.id === invoiceOrder.storeId)} onClose={() => setInvoiceOrder(null)} />}
     </div>
@@ -866,8 +916,8 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
 }
 
 function OrderTracker({ status }) {
-  const steps = ["pending", "accepted", "preparing", "ready", "delivered"];
-  if (status === "declined") return <p className="text-xs font-bold" style={{ color: STATUS_MAP.declined.color }}>تم رفض الطلب من المحل.</p>;
+  const steps = ["pending", "accepted", "preparing", "ready", "assigned", "picked_up", "out_for_delivery", "delivered", "customer_confirmed", "remittance_confirmed", "settled"];
+  if (["declined", "cancelled"].includes(status)) return <p className="text-xs font-bold" style={{ color: STATUS_MAP[status].color }}>{STATUS_MAP[status].label}.</p>;
   const idx = steps.indexOf(status);
   return (<div className="flex items-center">{steps.map((s, i) => (<React.Fragment key={s}><div className="flex items-center justify-center rounded-full shrink-0" style={{ width: 20, height: 20, background: i <= idx ? C.teal : C.paperDark, color: i <= idx ? "#fff" : C.inkSoft }}>{i <= idx ? <Check size={11} /> : <span style={{ width: 5, height: 5, borderRadius: 999, background: C.inkSoft }} />}</div>{i < steps.length - 1 && <div className="flex-1 h-0.5" style={{ background: i < idx ? C.teal : C.paperDark }} />}</React.Fragment>))}</div>);
 }
@@ -875,7 +925,7 @@ function OrderTracker({ status }) {
 /* ===========================================================
    MERCHANT VIEW
 =========================================================== */
-function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId, setMyStoreId, notify, registerMerchant, createProduct, createBulkProducts, removeProductRemote, setProductAvailability, setMerchantOrderStatus, archiveOrder, archiveMessage, userId }) {
+function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId, setMyStoreId, notify, registerMerchant, createProduct, createBulkProducts, removeProductRemote, setProductAvailability, setMerchantOrderStatus, merchantConfirmSettlement, reportCustomerAccount, archiveOrder, archiveMessage, userId }) {
   const myStore = stores.find((s) => s.id === myStoreId);
   const [merchantMode, setMerchantMode] = useState("select");
   const [form, setForm] = useState({ name: "", phone: "", email: "", password: "", wilaya: "", commune: "", lat: 50, lng: 50 });
@@ -922,7 +972,7 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
   const myOrders = orders.filter((o) => o.storeId === myStoreId);
   const newMerchantOrders = myOrders.filter((o) => o.status === "pending");
   async function setOrderStatus(id, status) { await setMerchantOrderStatus(id, status); }
-  const nextStatus = { accepted: "preparing", preparing: "ready", ready: "delivered" };
+  const nextStatus = { pending: "accepted", accepted: "preparing", preparing: "ready" };
 
   function openNewMerchantOrders() {
     setTab("orders");
@@ -1033,7 +1083,7 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
       {tab === "orders" && (
         <div id="merchant-new-orders" tabIndex={-1} className="space-y-3 outline-none">
           {myOrders.length === 0 && <p className="text-center text-sm py-10" style={{ color: C.inkSoft }}>لا توجد طلبات واردة حالياً.</p>}
-          {myOrders.map((o) => (<div key={o.id} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="flex items-center justify-between mb-2"><span className="font-bold text-sm" style={{ color: C.ink }}>{o.customer} · {o.createdAt}</span><StatusPill status={o.status} /></div><div className="text-xs mb-1" style={{ color: C.inkSoft }}>{o.items.map((i) => `${i.name} ×${i.qty}`).join(" · ")}</div><div className="text-xs mb-3 flex items-center gap-1" style={{ color: C.teal }}>{React.createElement(DELIVERY_LABELS[o.deliveryType]?.icon || Home, { size: 12 })} {DELIVERY_LABELS[o.deliveryType]?.label}{o.courier ? ` — ${o.courier.name}` : ""}</div><div className="flex items-center justify-between flex-wrap gap-2"><PriceTag amount={o.total} /><div className="flex gap-2 flex-wrap"><button onClick={() => setInvoiceOrder(o)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}><Printer size={12} /> الفاتورة</button><button onClick={() => archiveOrder(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A" }}><Trash2 size={12} /> حذف من قائمتي</button>{o.status === "pending" && (<><button onClick={() => setOrderStatus(o.id, "declined")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A20", color: "#8B3A2A" }}><X size={13} /> رفض</button><button onClick={() => setOrderStatus(o.id, "accepted")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.teal, color: "#fff" }}><Check size={13} /> قبول</button></>)}{nextStatus[o.status] && <button onClick={() => setOrderStatus(o.id, nextStatus[o.status])} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.rust, color: "#fff" }}>تحديث إلى «{STATUS_MAP[nextStatus[o.status]].label}»</button>}</div></div></div>))}
+          {myOrders.map((o) => (<div key={o.id} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="flex items-center justify-between mb-2"><span className="font-bold text-sm" style={{ color: C.ink }}>{o.customer} · {o.createdAt}</span><StatusPill status={o.status} /></div><div className="text-xs mb-1" style={{ color: C.inkSoft }}>{o.items.map((i) => `${i.name} ×${i.qty}`).join(" · ")}</div><div className="text-xs mb-3 flex items-center gap-1" style={{ color: C.teal }}>{React.createElement(DELIVERY_LABELS[o.deliveryType]?.icon || Home, { size: 12 })} {DELIVERY_LABELS[o.deliveryType]?.label}{o.courier ? ` — ${o.courier.name}` : ""}</div>{o.isInterwilaya && <p className="text-[11px] font-bold mb-3" style={{ color: C.purple }}>توصيل بين الولايات · {Number(o.deliveryDistanceKm || 0).toFixed(1)} كم · {o.estimatedDeliveryMinutes || "—"} دقيقة</p>}<div className="flex items-center justify-between flex-wrap gap-2"><PriceTag amount={o.total} /><div className="flex gap-2 flex-wrap"><button onClick={() => setInvoiceOrder(o)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}><Printer size={12} /> الفاتورة</button>{o.customerId && <button onClick={() => { const reason = window.prompt("سبب البلاغ (5 أحرف على الأقل)"); if (reason) reportCustomerAccount(o.customerId, reason, o.id); }} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.rust}55`, color: C.rust }}>إبلاغ عن الحساب</button>}<button onClick={() => archiveOrder(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A" }}><Trash2 size={12} /> حذف من قائمتي</button>{o.status === "pending" && (<><button onClick={() => setOrderStatus(o.id, "declined")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A20", color: "#8B3A2A" }}><X size={13} /> رفض</button><button onClick={() => setOrderStatus(o.id, "accepted")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.teal, color: "#fff" }}><Check size={13} /> قبول</button></>)}{nextStatus[o.status] && <button onClick={() => setOrderStatus(o.id, nextStatus[o.status])} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.rust, color: "#fff" }}>تحديث إلى «{STATUS_MAP[nextStatus[o.status]].label}»</button>}{o.status === "remittance_confirmed" && <button onClick={() => merchantConfirmSettlement(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.sage, color: "#fff" }}><Wallet size={12} /> تأكيد استلام المستحقات</button>}</div></div></div>))}
         </div>
       )}
 
@@ -1100,7 +1150,7 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
 /* ---------------------------------------------------------
    لوحة الموصل — الطلبات المتاحة حوله وساعات عمله
 --------------------------------------------------------- */
-function CourierDashboard({ courierId, stores, orders, messages, couriers, setCouriers, notify, onLogout, claimReadyOrder, completeDelivery, archiveOrder, archiveMessage, userId }) {
+function CourierDashboard({ courierId, stores, orders, messages, couriers, setCouriers, notify, onLogout, claimReadyOrder, courierConfirmPickup, courierStartDelivery, courierConfirmDelivery, courierConfirmRemittance, archiveOrder, archiveMessage, userId }) {
   const [tab, setTab] = useState("available");
   const [orderStatusFilter, setOrderStatusFilter] = useState(() => {
     try { return window.sessionStorage.getItem("souq-jiran:courier-order-filter") || "all"; } catch { return "all"; }
@@ -1132,20 +1182,23 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
     return true;
   });
 
-  const myActiveOrders = (orders || []).filter((o) => o.courier?.id === courierId && !["delivered", "declined"].includes(o.status));
-  const completedOrders = (orders || []).filter((o) => o.courier?.id === courierId && o.status === "delivered");
+  const myActiveOrders = (orders || []).filter((o) => o.courier?.id === courierId && !["settled", "declined", "cancelled"].includes(o.status));
+  const completedOrders = (orders || []).filter((o) => o.courier?.id === courierId && o.status === "settled");
   const newAvailableOrdersCount = availableOrders.length;
   const visibleAvailableOrders = ["all", "ready"].includes(orderStatusFilter) ? availableOrders : [];
   const visibleMyActiveOrders = orderStatusFilter === "all" ? myActiveOrders : myActiveOrders.filter((order) => order.status === orderStatusFilter);
-  const visibleCompletedOrders = ["all", "delivered"].includes(orderStatusFilter) ? completedOrders : [];
+  const visibleCompletedOrders = ["all", "settled"].includes(orderStatusFilter) ? completedOrders : [];
 
   async function acceptOrder(orderId) { await claimReadyOrder(orderId); }
-  async function advanceOrder(orderId) { await completeDelivery(orderId); }
+  async function advanceOrder(orderId, action) {
+    const actions = { picked_up: courierConfirmPickup, out_for_delivery: courierStartDelivery, delivered: courierConfirmDelivery, remittance_confirmed: courierConfirmRemittance };
+    await actions[action]?.(orderId);
+  }
 
   function selectCourierOrderFilter(filter) {
     setOrderStatusFilter(filter);
     try { window.sessionStorage.setItem("souq-jiran:courier-order-filter", filter); } catch { /* التخزين غير متاح في بعض أوضاع الخصوصية */ }
-    const targetTab = { ready: "available", assigned: "my", delivered: "history", all: "available" }[filter] || "available";
+    const targetTab = { ready: "available", assigned: "my", picked_up: "my", out_for_delivery: "my", customer_confirmed: "my", settled: "history", all: "available" }[filter] || "available";
     setTab(targetTab);
     window.requestAnimationFrame(() => document.getElementById("courier-new-orders")?.scrollIntoView({ block: "start" }));
   }
@@ -1171,7 +1224,7 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
           <button onClick={onLogout} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A20", color: "#8B3A2A" }}><LogOut size={12} /> خروج</button>
         </div>
         <button data-testid="courier-new-orders-counter" onClick={() => selectCourierOrderFilter("ready")} className="w-full mb-2 p-3 rounded-xl flex items-center justify-between gap-3 text-right" aria-label={`${newAvailableOrdersCount} طلبات جديدة متاحة`} style={{ background: newAvailableOrdersCount ? C.teal + "10" : "rgba(255,255,255,.42)", border: `1px solid ${newAvailableOrdersCount ? C.teal + "38" : C.line}`, color: C.ink }}><span className="flex items-center gap-2 text-xs font-black"><span className="flex items-center justify-center rounded-lg" style={{ width: 28, height: 28, background: newAvailableOrdersCount ? C.teal : C.sage, color: "#fff" }}><Bell size={14} /></span>طلبات جديدة ضمن نطاقك</span><span className="text-sm font-black px-2.5 py-1 rounded-full" style={{ background: newAvailableOrdersCount ? C.teal : C.sage, color: "#fff" }}>{newAvailableOrdersCount}</span></button>
-        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap"><button data-testid="courier-new-orders-link" onClick={() => selectCourierOrderFilter("ready")} className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}><ArrowLeft size={12} /> عرض الطلبات الجديدة</button><label className="flex items-center gap-2 text-xs font-bold" style={{ color: C.inkSoft }}>فلتر الحالة<select data-testid="courier-order-status-filter" value={orderStatusFilter} onChange={(event) => selectCourierOrderFilter(event.target.value)} className="px-2 py-1 rounded-lg bg-white outline-none" style={{ border: `1px solid ${C.line}`, color: C.ink }}><option value="all">كل الحالات</option><option value="ready">طلبات جديدة متاحة</option><option value="assigned">قيد التوصيل</option><option value="delivered">تم التسليم</option></select></label></div>
+        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap"><button data-testid="courier-new-orders-link" onClick={() => selectCourierOrderFilter("ready")} className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}><ArrowLeft size={12} /> عرض الطلبات الجديدة</button><label className="flex items-center gap-2 text-xs font-bold" style={{ color: C.inkSoft }}>فلتر الحالة<select data-testid="courier-order-status-filter" value={orderStatusFilter} onChange={(event) => selectCourierOrderFilter(event.target.value)} className="px-2 py-1 rounded-lg bg-white outline-none" style={{ border: `1px solid ${C.line}`, color: C.ink }}><option value="all">كل الحالات</option><option value="ready">طلبات جديدة متاحة</option><option value="assigned">بانتظار الاستلام من المحل</option><option value="picked_up">تم الاستلام</option><option value="out_for_delivery">في الطريق</option><option value="customer_confirmed">بانتظار تحويل المستحقات</option><option value="settled">مكتمل التسوية</option></select></label></div>
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => setTab("available")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "available" ? C.teal : "transparent", color: tab === "available" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "available" ? C.teal : C.line}` }}>الطلبات المتاحة {newAvailableOrdersCount > 0 && `(${newAvailableOrdersCount})`}</button>
           <button onClick={() => setTab("my")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "my" ? C.teal : "transparent", color: tab === "my" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "my" ? C.teal : C.line}` }}>طلباتي النشطة {myActiveOrders.length > 0 && `(${myActiveOrders.length})`}</button>
@@ -1213,7 +1266,10 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
                 {store && <div className="text-xs mb-3 flex items-center gap-1" style={{ color: C.teal }}><MapPin size={12} /> {store.wilaya} · {store.commune}{store.phone ? ` · هاتف المحل: ${store.phone}` : ""}</div>}
                 <OrderTracker status={o.status} />
                 <div className="flex gap-2 mt-3 pt-3 flex-wrap" style={{ borderTop: `1px solid ${C.line}` }}>
-                  {o.status === "assigned" && <button onClick={() => advanceOrder(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.sage, color: "#fff" }}><Check size={12} /> تسليم للعميل (تحصيل نقدًا)</button>}
+                  {o.status === "assigned" && <button onClick={() => advanceOrder(o.id, "picked_up")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.teal, color: "#fff" }}><PackageCheck size={12} /> تأكيد استلام الطلب من المحل</button>}
+                  {o.status === "picked_up" && <button onClick={() => advanceOrder(o.id, "out_for_delivery")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.teal, color: "#fff" }}><Navigation size={12} /> بدء التوصيل</button>}
+                  {o.status === "out_for_delivery" && <button onClick={() => advanceOrder(o.id, "delivered")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.sage, color: "#fff" }}><Check size={12} /> تأكيد التسليم للعميل</button>}
+                  {o.status === "customer_confirmed" && <button onClick={() => advanceOrder(o.id, "remittance_confirmed")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.purple, color: "#fff" }}><Wallet size={12} /> تأكيد تحويل المستحقات للتاجر</button>}
                   <button onClick={() => archiveOrder(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A" }}><Trash2 size={12} /> حذف من قائمتي</button>
                 </div>
               </div>
@@ -1224,7 +1280,7 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
 
       {tab === "history" && (
         <div className="space-y-3">
-          {visibleCompletedOrders.length === 0 && <div className="text-center py-14 rounded-2xl" style={{ background: "#fff", border: `1px dashed ${C.line}` }}><CheckCircle2 size={28} style={{ margin: "0 auto 8px", color: C.inkSoft }} /><p className="text-sm" style={{ color: C.inkSoft }}>{orderStatusFilter === "all" || orderStatusFilter === "delivered" ? "لم تُسلّم أي طلبات بعد." : "لا توجد طلبات مطابقة للفلتر الحالي."}</p></div>}
+          {visibleCompletedOrders.length === 0 && <div className="text-center py-14 rounded-2xl" style={{ background: "#fff", border: `1px dashed ${C.line}` }}><CheckCircle2 size={28} style={{ margin: "0 auto 8px", color: C.inkSoft }} /><p className="text-sm" style={{ color: C.inkSoft }}>{orderStatusFilter === "all" || orderStatusFilter === "settled" ? "لم تُغلق أي طلبات بالتسوية بعد." : "لا توجد طلبات مطابقة للفلتر الحالي."}</p></div>}
           {visibleCompletedOrders.map((o) => (
             <div key={o.id} className="p-4 rounded-2xl flex items-center justify-between" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
               <div><div className="text-sm font-bold" style={{ color: C.ink }}>{o.storeName} → {o.customer}</div><div className="text-xs mt-0.5" style={{ color: C.inkSoft }}>{o.items.map((i) => `${i.name} ×${i.qty}`).join(" · ")} · {o.createdAt}</div></div>
@@ -1290,7 +1346,7 @@ function CourierHoursEditor({ courier, onSave }) {
 /* ===========================================================
    ADMIN VIEW
 =========================================================== */
-function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], archiveNotifications = [], orderNotifications = [], archiveAlertSettings, testAccountCandidates = [], testAccountReviewAuditLogs = [], notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently, deleteTestAccount, markArchiveNotificationRead, markOrderNotificationRead, markAllOrderNotificationsRead, saveArchiveAlertSettings }) {
+function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], archiveNotifications = [], orderNotifications = [], archiveAlertSettings, testAccountCandidates = [], testAccountReviewAuditLogs = [], customerReports = [], customerBlacklist = [], deliveryPricing, notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently, deleteTestAccount, markArchiveNotificationRead, markOrderNotificationRead, markAllOrderNotificationsRead, saveArchiveAlertSettings, setCustomerBlacklist, saveDeliveryPricing }) {
   const pendingReview = stores.filter((s) => s.status === "pending_review");
   const awaitingProfile = stores.filter((s) => s.status === "awaiting_profile");
   const approved = stores.filter((s) => s.status === "approved");
@@ -1304,7 +1360,9 @@ function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], 
   const [onlyUnreadOrderNotifications, setOnlyUnreadOrderNotifications] = useState(false);
   const [testAccountQuery, setTestAccountQuery] = useState("");
   const [settingsDraft, setSettingsDraft] = useState(() => ({ ...archiveAlertSettings }));
+  const [pricingDraft, setPricingDraft] = useState(() => ({ baseFee: deliveryPricing?.baseFee ?? 120, feePerKm: deliveryPricing?.feePerKm ?? 18, feePerKg: deliveryPricing?.feePerKg ?? 35, interwilayaSurcharge: deliveryPricing?.interwilayaSurcharge ?? 600, minimumFee: deliveryPricing?.minimumFee ?? 120, averageSpeedKmh: deliveryPricing?.averageSpeedKmh ?? 45 }));
   useEffect(() => setSettingsDraft({ ...archiveAlertSettings }), [archiveAlertSettings]);
+  useEffect(() => { if (deliveryPricing) setPricingDraft(deliveryPricing); }, [deliveryPricing]);
 
   async function approveInitial(id) { if (await setProviderStatus("merchant", id, "approved")) notify("تم اعتماد التاجر."); }
   async function reject(id) { if (await setProviderStatus("merchant", id, "suspended")) notify("تم تعليق طلب التاجر."); }
@@ -1357,6 +1415,14 @@ function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], 
   return (
     <div className="dashboard-shell space-y-6">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{stats.map((s) => (<div key={s.label} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><s.icon size={18} color={s.color} /><div className="font-black text-lg mt-2" style={{ color: C.ink }}>{s.value}</div><div className="text-xs" style={{ color: C.inkSoft }}>{s.label}</div></div>))}</div>
+
+      <section className="p-4 sm:p-5 rounded-2xl space-y-4" style={{ background: "#fff", border: `1px solid ${C.line}` }} data-testid="advanced-order-admin-panel">
+        <div><h3 className="font-black" style={{ color: C.ink }}>ضبط جدية العملاء وتسعير التوصيل</h3><p className="text-xs mt-1" style={{ color: C.inkSoft }}>المبالغ التالية تستخدمها خدمة التسعير في الخادم؛ لا تُعدّل رسوم طلب قائم.</p></div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">{[["baseFee", "الرسم الأساسي"], ["feePerKm", "رسم الكيلومتر"], ["feePerKg", "رسم الكيلوغرام"], ["interwilayaSurcharge", "إضافة بين الولايات"], ["minimumFee", "الحد الأدنى"], ["averageSpeedKmh", "السرعة المتوسطة"]].map(([key, label]) => <label key={key} className="text-xs font-bold" style={{ color: C.inkSoft }}>{label}<input type="number" min="0" value={pricingDraft[key] ?? ""} onChange={(e) => setPricingDraft((draft) => ({ ...draft, [key]: Number(e.target.value) }))} className="mt-1 w-full px-2.5 py-2 rounded-lg outline-none" style={{ border: `1px solid ${C.line}`, color: C.ink }} /></label>)}</div>
+        <button onClick={() => saveDeliveryPricing(pricingDraft)} className="text-xs px-3 py-2 rounded-xl font-black" style={{ background: C.purple, color: "#fff" }}>حفظ إعدادات التسعير</button>
+        <div className="pt-3" style={{ borderTop: `1px solid ${C.line}` }}><h4 className="font-black text-sm" style={{ color: C.ink }}>بلاغات العملاء المفتوحة</h4><div className="space-y-2 mt-2">{customerReports.filter((report) => report.status === "open").map((report) => <div key={report.id} className="p-3 rounded-xl flex items-start justify-between gap-3" style={{ background: C.paperDark }}><div><p className="text-xs font-bold" style={{ color: C.ink }}>{report.reason}</p><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>طلب مرتبط: {report.relatedOrderId ? report.relatedOrderId.slice(0, 8) : "غير محدد"}</p></div><button onClick={() => setCustomerBlacklist(report.customerId, report.reason, true)} className="text-xs px-2.5 py-1.5 rounded-lg font-bold shrink-0" style={{ background: C.rust, color: "#fff" }}>حظر الحساب</button></div>)}{customerReports.filter((report) => report.status === "open").length === 0 && <p className="text-xs py-2" style={{ color: C.inkSoft }}>لا توجد بلاغات مفتوحة.</p>}</div></div>
+        <div className="pt-3" style={{ borderTop: `1px solid ${C.line}` }}><h4 className="font-black text-sm" style={{ color: C.ink }}>الحسابات المحظورة</h4><div className="space-y-2 mt-2">{customerBlacklist.filter((entry) => !entry.revokedAt).map((entry) => <div key={entry.customerId} className="p-3 rounded-xl flex items-center justify-between gap-3" style={{ background: C.rust + "10" }}><div><p className="text-xs font-bold" style={{ color: C.ink }}>{entry.reason}</p><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>معرّف العميل: {entry.customerId.slice(0, 8)}</p></div><button onClick={() => setCustomerBlacklist(entry.customerId, entry.reason, false)} className="text-xs px-2.5 py-1.5 rounded-lg font-bold" style={{ border: `1px solid ${C.rust}`, color: C.rust }}>رفع الحظر</button></div>)}{customerBlacklist.filter((entry) => !entry.revokedAt).length === 0 && <p className="text-xs py-2" style={{ color: C.inkSoft }}>لا توجد حسابات محظورة حالياً.</p>}</div></div>
+      </section>
 
       <section className="p-4 sm:p-5 rounded-2xl space-y-3" style={{ background: "linear-gradient(135deg, #FFFFFF 0%, #F5F3FF 100%)", border: `1px solid ${C.purple}35` }} data-testid="admin-order-notifications-panel">
         <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -1535,6 +1601,9 @@ export default function App() {
   const [adminOrderNotifications, setAdminOrderNotifications] = useState([]);
   const [testAccountCandidates, setTestAccountCandidates] = useState([]);
   const [testAccountReviewAuditLogs, setTestAccountReviewAuditLogs] = useState([]);
+  const [customerReports, setCustomerReports] = useState([]);
+  const [customerBlacklist, setCustomerBlacklist] = useState([]);
+  const [deliveryPricing, setDeliveryPricing] = useState(null);
   const [archiveAlertSettings, setArchiveAlertSettings] = useState({ sensitiveOrderTotal: 5000, sensitiveStatuses: ["ready", "delivering", "delivered"], notifyOnMessageArchive: false });
   const [couriers, setCouriers] = useState([]);
   const [accounts, setAccounts] = useState([]);
@@ -1562,7 +1631,7 @@ export default function App() {
         loadKey(STORAGE.cart, { storeId: null, items: [], address: null }), loadKey(STORAGE.myStoreId, null), loadKey(STORAGE.notifications, []),
       ]);
       if (cancelled) return;
-      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCouriers([]);
+      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]);
       setAccounts([]); setAuth(null);
       setCart(loadedCart); setMyStoreId(loadedMyStoreId); setNotifications(loadedNotifications);
       setLoading(false);
@@ -1593,7 +1662,7 @@ export default function App() {
       setAuth(null);
       setMyStoreId(null);
       setRole("customer");
-      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCouriers([]);
+      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]);
       return;
     }
     const nextAuth = await resolveSupabaseUser(session.user);
@@ -1604,7 +1673,7 @@ export default function App() {
   }
 
   async function refreshSupabaseData(activeRole = auth?.type) {
-    const [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult, messagesResult, auditResult, archiveNotificationsResult, orderNotificationsResult, alertSettingsResult] = await Promise.all([
+    const [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult, messagesResult, auditResult, archiveNotificationsResult, orderNotificationsResult, alertSettingsResult, customerReportsResult, customerBlacklistResult, pricingResult] = await Promise.all([
       supabase.from("merchants").select("*").order("created_at", { ascending: false }),
       supabase.from("products").select("*").order("created_at", { ascending: false }),
       supabase.from("couriers").select("*").order("created_at", { ascending: false }),
@@ -1615,6 +1684,9 @@ export default function App() {
       supabase.from("admin_archive_notifications").select("*").order("created_at", { ascending: false }).limit(100),
       activeRole === "admin" ? supabase.from("admin_order_notifications").select("*").order("created_at", { ascending: false }).limit(100) : Promise.resolve({ data: [] }),
       supabase.from("admin_archive_alert_settings").select("*").eq("id", true).maybeSingle(),
+      activeRole === "admin" ? supabase.from("customer_behavior_reports").select("*").order("created_at", { ascending: false }).limit(100) : Promise.resolve({ data: [] }),
+      activeRole === "admin" ? supabase.from("customer_blacklist").select("*").order("created_at", { ascending: false }).limit(100) : Promise.resolve({ data: [] }),
+      supabase.from("delivery_pricing_config").select("*").eq("id", true).maybeSingle(),
     ]);
     const migrationMissing = [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult].some((result) => result.error?.code === "42P01");
     if (migrationMissing) {
@@ -1648,6 +1720,8 @@ export default function App() {
       id: order.id, storeId: order.merchant_id, storeName: storesById[order.merchant_id]?.store_name || "محل الحي", customerId: order.customer_id, customer: order.customer_id === auth?.id ? "أنت" : "عميل",
       items: (itemsByOrder[order.id] || []).map((item) => ({ id: item.product_id || item.id, name: item.product_name, price: item.unit_price, unit: item.unit, qty: item.quantity })),
       subtotal: order.subtotal, deliveryFee: order.delivery_fee, total: order.total, status: order.status, deliveryLocation: order.delivery_address,
+      isInterwilaya: order.is_interwilaya || false, deliveryDistanceKm: Number(order.delivery_distance_km || 0), estimatedDeliveryMinutes: order.estimated_delivery_minutes,
+      requiresPhoneVerification: order.requires_phone_verification || false, originWilaya: order.origin_wilaya, destinationWilaya: order.destination_wilaya,
       deliveryType: order.delivery_choice, courier: order.courier_id ? { id: order.courier_id, name: "موصل" } : null, rated: false, confirmed: false,
       createdAt: new Date(order.created_at).toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" }),
     })));
@@ -1676,6 +1750,9 @@ export default function App() {
       return { id: account.user_id, email: account.email, role: account.role, roleLabel: account.role === "merchant" ? "تاجر" : "موصل", name: account.name, createdAt: new Date(account.created_at).toLocaleDateString("ar-DZ", { dateStyle: "medium" }), lastActivityAt, lastActivityDate, lastActivityLabel };
     }));
     setTestAccountReviewAuditLogs((testAccountAuditResult.data || []).map((entry) => ({ id: entry.id, targetEmail: entry.target_email, action: entry.action, actionLabel: entry.action === "delete_confirmed" ? "حذف مؤكد" : entry.action, createdAt: new Date(entry.created_at).toLocaleString("ar-DZ", { dateStyle: "medium", timeStyle: "short" }) })));
+    setCustomerReports((customerReportsResult.data || []).map((report) => ({ id: report.id, customerId: report.customer_id, reason: report.reason, relatedOrderId: report.related_order_id, status: report.status, createdAt: report.created_at })));
+    setCustomerBlacklist((customerBlacklistResult.data || []).map((entry) => ({ customerId: entry.customer_id, reason: entry.reason, createdAt: entry.created_at, expiresAt: entry.expires_at, revokedAt: entry.revoked_at })));
+    if (pricingResult.data) setDeliveryPricing({ baseFee: Number(pricingResult.data.base_fee), feePerKm: Number(pricingResult.data.fee_per_km), feePerKg: Number(pricingResult.data.fee_per_kg), interwilayaSurcharge: Number(pricingResult.data.interwilaya_surcharge), minimumFee: Number(pricingResult.data.minimum_fee), averageSpeedKmh: Number(pricingResult.data.average_speed_kmh) });
     if (alertSettingsResult.data) {
       setArchiveAlertSettings({
         sensitiveOrderTotal: Number(alertSettingsResult.data.sensitive_order_total),
@@ -1781,6 +1858,35 @@ export default function App() {
     return true;
   }
 
+  async function runLifecycleAction(orderId, rpcName, successMessage) {
+    const { error } = await supabase.rpc(rpcName, { p_order_id: orderId });
+    if (error) { notify("تعذر تحديث مرحلة الطلب: " + error.message); return false; }
+    await refreshSupabaseData();
+    notify(successMessage);
+    return true;
+  }
+
+  async function courierConfirmPickup(orderId) { return runLifecycleAction(orderId, "courier_confirm_pickup", "تم تأكيد استلام الطلب من المحل."); }
+  async function courierStartDelivery(orderId) { return runLifecycleAction(orderId, "courier_start_delivery", "تم تسجيل بدء التوصيل."); }
+  async function courierConfirmDelivery(orderId) { return runLifecycleAction(orderId, "courier_confirm_delivery", "تم تأكيد التسليم؛ ينتظر الطلب تأكيد العميل."); }
+  async function customerConfirmDelivery(orderId) { return runLifecycleAction(orderId, "customer_confirm_delivery", "تم تأكيد الاستلام والدفع. شكراً لك."); }
+  async function courierConfirmRemittance(orderId) { return runLifecycleAction(orderId, "courier_confirm_remittance", "تم تأكيد تحويل مستحقات التاجر."); }
+  async function merchantConfirmSettlement(orderId) { return runLifecycleAction(orderId, "merchant_confirm_settlement", "تم تأكيد استلام المستحقات وإغلاق الطلب."); }
+
+  async function quoteDelivery(merchantId, destination, weightKg = 0) {
+    const { data, error } = await supabase.rpc("quote_delivery", { p_merchant_id: merchantId, p_destination_json: destination, p_weight_kg: weightKg });
+    if (error) return { ok: false, message: error.message };
+    const quote = Array.isArray(data) ? data[0] : data;
+    return { ok: Boolean(quote), quote: quote ? { fee: Number(quote.fee || 0), distanceKm: Number(quote.distance_km || 0), etaMinutes: quote.eta_minutes, isInterwilaya: Boolean(quote.is_interwilaya) } : null };
+  }
+
+  async function confirmCustomerPhoneVerification(phone, method = "mock_otp") {
+    const { error } = await supabase.rpc("confirm_customer_phone_verification", { p_phone: phone, p_method: method });
+    if (error) { notify("تعذر حفظ التحقق التجريبي: " + error.message); return false; }
+    notify("تم تسجيل التحقق في الوضع التجريبي؛ لم يُرسل OTP فعلي.");
+    return true;
+  }
+
   async function archiveOrderForCurrentUser(orderId) {
     if (!auth || !["merchant", "courier"].includes(auth.type)) { notify("ميزة الحذف متاحة للتاجر والموصل فقط."); return false; }
     const { error } = await supabase.rpc("archive_order_for_user", { p_order_id: orderId });
@@ -1870,6 +1976,35 @@ export default function App() {
     if (error) { notify("تعذر حفظ إعدادات الأرشيف: " + error.message); return false; }
     await refreshSupabaseData();
     notify("تم حفظ معيار الأرشفة الحساسة.");
+    return true;
+  }
+
+  async function setCustomerBlacklistStatus(customerId, reason, isBlocked) {
+    if (auth?.type !== "admin") { notify("لا تملك صلاحية إدارة قائمة الحظر."); return false; }
+    const { error } = await supabase.rpc("admin_set_customer_blacklist", { p_customer_id: customerId, p_reason: reason, p_is_blocked: isBlocked, p_expires_at: null });
+    if (error) { notify("تعذر تحديث قائمة الحظر: " + error.message); return false; }
+    await refreshSupabaseData("admin");
+    notify(isBlocked ? "تم حظر الحساب بعد مراجعة البلاغ." : "تم رفع الحظر عن الحساب.");
+    return true;
+  }
+
+  async function saveDeliveryPricingConfig(nextPricing) {
+    if (auth?.type !== "admin") { notify("لا تملك صلاحية تعديل تسعير التوصيل."); return false; }
+    const fields = [nextPricing.baseFee, nextPricing.feePerKm, nextPricing.feePerKg, nextPricing.interwilayaSurcharge, nextPricing.minimumFee, nextPricing.averageSpeedKmh];
+    if (fields.some((value) => !Number.isFinite(Number(value)) || Number(value) < 0) || Number(nextPricing.averageSpeedKmh) <= 0) { notify("تحقق من القيم الرقمية لإعدادات التسعير."); return false; }
+    const { error } = await supabase.from("delivery_pricing_config").upsert({ id: true, base_fee: Number(nextPricing.baseFee), fee_per_km: Number(nextPricing.feePerKm), fee_per_kg: Number(nextPricing.feePerKg), interwilaya_surcharge: Number(nextPricing.interwilayaSurcharge), minimum_fee: Number(nextPricing.minimumFee), average_speed_kmh: Number(nextPricing.averageSpeedKmh), updated_at: new Date().toISOString(), updated_by: auth.id });
+    if (error) { notify("تعذر حفظ إعدادات التسعير: " + error.message); return false; }
+    await refreshSupabaseData("admin");
+    notify("تم حفظ إعدادات التسعير الجديدة.");
+    return true;
+  }
+
+  async function reportCustomerAccount(customerId, reason, orderId) {
+    if (auth?.type !== "merchant") { notify("الإبلاغ متاح للتاجر صاحب الطلب فقط."); return false; }
+    if (!reason || reason.trim().length < 5) { notify("اكتب سبباً واضحاً من خمسة أحرف على الأقل."); return false; }
+    const { error } = await supabase.rpc("report_customer_account", { p_customer_id: customerId, p_reason: reason.trim(), p_order_id: orderId });
+    if (error) { notify("تعذر إرسال البلاغ: " + error.message); return false; }
+    notify("تم إرسال البلاغ للمراجعة الإدارية.");
     return true;
   }
 
@@ -2068,10 +2203,10 @@ export default function App() {
         {role !== "admin" && <p className="text-xs mt-3 mb-1 flex items-center gap-1.5 font-medium" style={{ color: C.inkSoft }}><PackageCheck size={13} color={C.sage} /> تُحفَظ بياناتك تلقائياً وتبقى الخصوصية تحت تحكمك.</p>}
 
         <div className="mt-4">
-          {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else { setAdminLoginRequested(false); setShowAuth(true); } }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} />)}
-          {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} registerMerchant={registerMerchant} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
-          {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} messages={messages} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} completeDelivery={completeDelivery} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
-          {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} orderNotifications={adminOrderNotifications} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} markOrderNotificationRead={markOrderNotificationRead} markAllOrderNotificationsRead={markAllOrderNotificationsRead} saveArchiveAlertSettings={saveArchiveAlertSettings} />}
+          {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else { setAdminLoginRequested(false); setShowAuth(true); } }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} confirmCustomerPhoneVerification={confirmCustomerPhoneVerification} />)}
+          {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} registerMerchant={registerMerchant} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} merchantConfirmSettlement={merchantConfirmSettlement} reportCustomerAccount={reportCustomerAccount} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
+          {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} messages={messages} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} courierConfirmPickup={courierConfirmPickup} courierStartDelivery={courierStartDelivery} courierConfirmDelivery={courierConfirmDelivery} courierConfirmRemittance={courierConfirmRemittance} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
+          {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} orderNotifications={adminOrderNotifications} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} customerReports={customerReports} customerBlacklist={customerBlacklist} deliveryPricing={deliveryPricing} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} markOrderNotificationRead={markOrderNotificationRead} markAllOrderNotificationsRead={markAllOrderNotificationsRead} saveArchiveAlertSettings={saveArchiveAlertSettings} setCustomerBlacklist={setCustomerBlacklistStatus} saveDeliveryPricing={saveDeliveryPricingConfig} />}
         </div>
 
         {role === "customer" && !showRoleGuide && (

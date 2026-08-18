@@ -1051,3 +1051,8 @@ begin
   end if;
 end;
 $$;
+
+-- Advanced verification, inter-wilaya delivery and closed-loop delivery protocol.
+-- The authoritative executable migration is kept in:
+-- supabase/migrations/20260822_advanced_order_lifecycle.sql
+-- Run that file after this schema when upgrading an existing Supabase project.
