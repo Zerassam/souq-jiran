@@ -136,6 +136,8 @@ describe("Souq Jiran Supabase integration", () => {
   it("keeps test-account review restricted to explicit qa accounts with a confirmed admin deletion path", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
     const migration = readFileSync(resolve(projectRoot, "supabase/migrations/20260819_test_account_review.sql"), "utf8");
+    const activityMigration = readFileSync(resolve(projectRoot, "supabase/migrations/20260820_test_account_review_last_activity.sql"), "utf8");
+    const schema = readFileSync(resolve(projectRoot, "supabase/schema.sql"), "utf8");
 
     expect(appSource).toContain('data-testid="test-account-review-panel"');
     expect(appSource).toContain('supabase.rpc("admin_list_test_accounts")');
@@ -144,8 +146,29 @@ describe("Souq Jiran Supabase integration", () => {
     expect(migration).toContain("test_account_review_audit_logs");
     expect(migration).toContain("admin_list_test_accounts");
     expect(migration).toContain("admin_delete_test_account");
+    expect(migration).toContain("drop function if exists public.admin_list_test_accounts()");
+    expect(migration).toContain("public.is_app_admin()");
+    expect(migration).toContain("u.email::text");
+    expect(migration).toContain("p.role::text");
+    expect(migration).not.toContain("public.is_admin(auth.uid())");
     expect(migration).toContain("^qa-(merchant|courier)");
     expect(migration).toContain("not exists (");
+    expect(appSource).toContain('data-testid="test-account-review-search"');
+    expect(appSource).toContain('data-testid="test-account-review-audit"');
+    expect(appSource).toContain('data-testid="test-account-review-csv-export"');
+    expect(appSource).toContain("exportTestAccountReviewCSV");
+    expect(appSource).toContain("escapeCSVCell");
+    expect(appSource).toContain('supabase.from("test_account_review_audit_logs")');
+    expect(appSource).toContain("formatRelativeActivity");
+    expect(appSource).toContain("lastActivityLabel");
+    expect(activityMigration).toContain("last_sign_in_at");
+    expect(activityMigration).toContain("u.email::text");
+    expect(activityMigration).toContain("p.role::text");
+    expect(schema).toContain("u.email::text");
+    expect(schema).toContain("p.role::text");
+    expect(activityMigration).toContain("public.is_app_admin()");
+    expect(activityMigration).not.toContain("public.is_admin(auth.uid())");
+    expect(activityMigration).toContain("admin access required");
   });
 
   it("defines protected audit and notification flows for archive management", () => {

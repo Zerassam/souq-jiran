@@ -14,9 +14,12 @@ create table if not exists public.test_account_review_audit_logs (
 alter table public.test_account_review_audit_logs enable row level security;
 drop policy if exists test_account_review_audit_admin_read on public.test_account_review_audit_logs;
 create policy test_account_review_audit_admin_read on public.test_account_review_audit_logs
-  for select to authenticated using (public.is_admin(auth.uid()));
+  for select to authenticated using (public.is_app_admin());
 
-create or replace function public.admin_list_test_accounts()
+-- إعادة التطبيق آمنة حتى إذا كانت دالة القائمة موجودة بإخراج أقدم.
+drop function if exists public.admin_list_test_accounts();
+
+create function public.admin_list_test_accounts()
 returns table (
   user_id uuid,
   email text,
@@ -29,12 +32,12 @@ security definer
 set search_path = public, auth
 as $$
 begin
-  if not public.is_admin(auth.uid()) then
+  if not public.is_app_admin() then
     raise exception 'admin access required';
   end if;
 
   return query
-  select p.id, u.email, p.role, p.name, p.created_at
+  select p.id, u.email::text, p.role::text, p.name::text, p.created_at
   from public.profiles p
   join auth.users u on u.id = p.id
   left join public.merchants m on m.id = p.id
@@ -60,7 +63,7 @@ as $$
 declare
   v_email text;
 begin
-  if not public.is_admin(auth.uid()) then
+  if not public.is_app_admin() then
     raise exception 'admin access required';
   end if;
 

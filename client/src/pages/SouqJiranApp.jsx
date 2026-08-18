@@ -120,6 +120,23 @@ const AVAILABILITY_SLOTS = [
   { id: "evening", label: "ليلاً", icon: Moon },
 ];
 const money = (n) => `${Number(n || 0).toLocaleString("ar-DZ")} دج`;
+function formatRelativeActivity(isoTimestamp) {
+  const elapsedMinutes = Math.max(0, Math.floor((Date.now() - new Date(isoTimestamp).getTime()) / 60000));
+  const formatter = new Intl.RelativeTimeFormat("ar-DZ", { numeric: "auto" });
+  if (elapsedMinutes < 60) return formatter.format(-elapsedMinutes, "minute");
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 24) return formatter.format(-elapsedHours, "hour");
+  const elapsedDays = Math.floor(elapsedHours / 24);
+  if (elapsedDays < 30) return formatter.format(-elapsedDays, "day");
+  const elapsedMonths = Math.floor(elapsedDays / 30);
+  if (elapsedMonths < 12) return formatter.format(-elapsedMonths, "month");
+  return formatter.format(-Math.floor(elapsedMonths / 12), "year");
+}
+function escapeCSVCell(value) {
+  const normalized = String(value ?? "");
+  const formulaSafe = /^[=+\-@]/.test(normalized) ? `'${normalized}` : normalized;
+  return `"${formulaSafe.replaceAll('"', '""')}"`;
+}
 
 const STORE_STATUS = {
   pending_review: { label: "قيد المراجعة الأولية", color: C.ochre },
@@ -1277,7 +1294,7 @@ function CourierHoursEditor({ courier, onSave }) {
 /* ===========================================================
    ADMIN VIEW
 =========================================================== */
-function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], archiveNotifications = [], archiveAlertSettings, testAccountCandidates = [], notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently, deleteTestAccount, markArchiveNotificationRead, saveArchiveAlertSettings }) {
+function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], archiveNotifications = [], archiveAlertSettings, testAccountCandidates = [], testAccountReviewAuditLogs = [], notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently, deleteTestAccount, markArchiveNotificationRead, saveArchiveAlertSettings }) {
   const pendingReview = stores.filter((s) => s.status === "pending_review");
   const awaitingProfile = stores.filter((s) => s.status === "awaiting_profile");
   const approved = stores.filter((s) => s.status === "approved");
@@ -1288,6 +1305,7 @@ function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], 
   const [archiveStatus, setArchiveStatus] = useState("all");
   const [auditAction, setAuditAction] = useState("all");
   const [onlyUnreadAlerts, setOnlyUnreadAlerts] = useState(false);
+  const [testAccountQuery, setTestAccountQuery] = useState("");
   const [settingsDraft, setSettingsDraft] = useState(() => ({ ...archiveAlertSettings }));
   useEffect(() => setSettingsDraft({ ...archiveAlertSettings }), [archiveAlertSettings]);
 
@@ -1307,6 +1325,27 @@ function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], 
   const visibleAuditLogs = archiveAuditLogs.filter((entry) => auditAction === "all" || entry.action === auditAction);
   const visibleNotifications = archiveNotifications.filter((entry) => !onlyUnreadAlerts || !entry.isRead);
   const unreadAlertsCount = archiveNotifications.filter((entry) => !entry.isRead).length;
+  const normalizedTestAccountQuery = testAccountQuery.trim().toLocaleLowerCase("ar-DZ");
+  const filteredTestAccounts = testAccountCandidates.filter((account) => !normalizedTestAccountQuery || [account.name, account.email, account.roleLabel].some((value) => String(value || "").toLocaleLowerCase("ar-DZ").includes(normalizedTestAccountQuery)));
+
+  function exportTestAccountReviewCSV() {
+    if (testAccountReviewAuditLogs.length === 0) { notify("لا توجد عمليات مراجعة لتصديرها بعد."); return; }
+    const rows = [
+      ["الإجراء", "بريد الحساب المستهدف", "تاريخ ووقت المراجعة"],
+      ...testAccountReviewAuditLogs.map((entry) => [entry.actionLabel, entry.targetEmail, entry.createdAt]),
+    ];
+    const csv = rows.map((row) => row.map(escapeCSVCell).join(",")).join("\r\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "test-account-review-audit.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    notify("تم تصدير سجل مراجعة حسابات الاختبار بصيغة CSV.");
+  }
 
   const totalDues = approved.filter((s) => s.commissionType === "percentage").reduce((a, s) => a + storeCommissionDue(s), 0);
   const stats = [
@@ -1367,7 +1406,12 @@ function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], 
 
       <div className="p-4 rounded-2xl space-y-3" style={{ background: "#fff", border: `1px solid ${C.line}` }} data-testid="test-account-review-panel">
         <div className="flex items-center justify-between gap-2 flex-wrap"><div><h3 className="font-black flex items-center gap-2" style={{ color: C.ink }}><ShieldCheck size={17} color={C.teal} /> مراجعة حسابات الاختبار</h3><p className="text-xs mt-1" style={{ color: C.inkSoft }}>تظهر الحسابات الموسومة كاختبار فقط. لا يمكن حذف أي حساب لديه طلبات أو حالة تشغيلية معتمدة.</p></div><span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: testAccountCandidates.length ? C.ochre + "1A" : C.sage + "20", color: testAccountCandidates.length ? C.ochre : C.tealDark }}>{testAccountCandidates.length} مرشح</span></div>
-        <div className="space-y-2">{testAccountCandidates.length === 0 && <p className="text-xs py-2" style={{ color: C.inkSoft }}>لا توجد حسابات اختبار مؤهلة للمراجعة حالياً.</p>}{testAccountCandidates.map((account) => (<div key={account.id} className="p-3 rounded-xl flex items-center justify-between gap-3 flex-wrap" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}><div><div className="text-sm font-black" style={{ color: C.ink }}>{account.name || "حساب اختبار"} <span className="font-normal" style={{ color: C.inkSoft }}>· {account.role === "merchant" ? "تاجر" : "موصل"}</span></div><div className="text-xs mt-1" style={{ color: C.inkSoft }}>{account.email} · أُنشئ {account.createdAt}</div><div className="text-[10px] mt-1" style={{ color: C.tealDark }}>موسوم كاختبار · لا توجد طلبات مرتبطة</div></div><button onClick={() => deleteTestAccount(account)} className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A", border: "1px solid #8B3A2A33" }}><Trash2 size={12} /> حذف بعد التأكيد</button></div>))}</div>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white" style={{ border: `1px solid ${C.line}` }}><Search size={15} color={C.inkSoft} /><input data-testid="test-account-review-search" aria-label="بحث في حسابات الاختبار" value={testAccountQuery} onChange={(event) => setTestAccountQuery(event.target.value)} placeholder="ابحث بالاسم أو البريد أو الدور" className="flex-1 text-sm outline-none bg-transparent" /></div>
+        <div className="space-y-2">{testAccountCandidates.length === 0 && <p className="text-xs py-2" style={{ color: C.inkSoft }}>لا توجد حسابات اختبار مؤهلة للمراجعة حالياً.</p>}{testAccountCandidates.length > 0 && filteredTestAccounts.length === 0 && <p className="text-xs py-2" style={{ color: C.inkSoft }}>لا توجد حسابات مطابقة للبحث.</p>}{filteredTestAccounts.map((account) => (<div key={account.id} className="p-3 rounded-xl flex items-center justify-between gap-3 flex-wrap" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}><div><div className="text-sm font-black" style={{ color: C.ink }}>{account.name || "حساب اختبار"} <span className="font-normal" style={{ color: C.inkSoft }}>· {account.roleLabel}</span></div><div className="text-xs mt-1" style={{ color: C.inkSoft }}>{account.email} · أُنشئ {account.createdAt}</div><div className="text-[10px] mt-1" style={{ color: C.tealDark }}>آخر نشاط: {account.lastActivityLabel}</div><div className="text-[10px] mt-1" style={{ color: C.tealDark }}>موسوم كاختبار · لا توجد طلبات مرتبطة</div></div><button onClick={() => deleteTestAccount(account)} className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A", border: "1px solid #8B3A2A33" }}><Trash2 size={12} /> حذف بعد التأكيد</button></div>))}</div>
+        <div className="pt-3" style={{ borderTop: `1px solid ${C.line}` }} data-testid="test-account-review-audit">
+          <div className="flex items-center justify-between gap-2 flex-wrap"><div><h4 className="text-sm font-black" style={{ color: C.ink }}>سجل المراجعة</h4><p className="text-[10px] mt-1" style={{ color: C.inkSoft }}>يشمل الحذف المؤكد فقط، ويُصدّر الإجراء والبريد المستهدف والتاريخ دون بيانات إضافية.</p></div><button data-testid="test-account-review-csv-export" onClick={exportTestAccountReviewCSV} disabled={testAccountReviewAuditLogs.length === 0} className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full disabled:opacity-50 disabled:cursor-not-allowed" style={{ background: C.teal + "12", color: C.teal, border: `1px solid ${C.teal}38` }}><Download size={13} /> تصدير CSV</button></div>
+          <div className="space-y-1.5 mt-3">{testAccountReviewAuditLogs.length === 0 && <p className="text-xs py-1" style={{ color: C.inkSoft }}>لا توجد عمليات مراجعة مسجلة بعد.</p>}{testAccountReviewAuditLogs.slice(0, 3).map((entry) => <div key={entry.id} className="text-[11px] p-2 rounded-lg" style={{ background: C.paperDark, color: C.inkSoft }}><b style={{ color: C.ink }}>{entry.actionLabel}</b> · {entry.targetEmail} · {entry.createdAt}</div>)}</div>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
@@ -1479,6 +1523,7 @@ export default function App() {
   const [archiveAuditLogs, setArchiveAuditLogs] = useState([]);
   const [archiveNotifications, setArchiveNotifications] = useState([]);
   const [testAccountCandidates, setTestAccountCandidates] = useState([]);
+  const [testAccountReviewAuditLogs, setTestAccountReviewAuditLogs] = useState([]);
   const [archiveAlertSettings, setArchiveAlertSettings] = useState({ sensitiveOrderTotal: 5000, sensitiveStatuses: ["ready", "delivering", "delivered"], notifyOnMessageArchive: false });
   const [couriers, setCouriers] = useState([]);
   const [accounts, setAccounts] = useState([]);
@@ -1506,7 +1551,7 @@ export default function App() {
         loadKey(STORAGE.cart, { storeId: null, items: [], address: null }), loadKey(STORAGE.myStoreId, null), loadKey(STORAGE.notifications, []),
       ]);
       if (cancelled) return;
-      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setTestAccountCandidates([]); setCouriers([]);
+      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCouriers([]);
       setAccounts([]); setAuth(null);
       setCart(loadedCart); setMyStoreId(loadedMyStoreId); setNotifications(loadedNotifications);
       setLoading(false);
@@ -1537,7 +1582,7 @@ export default function App() {
       setAuth(null);
       setMyStoreId(null);
       setRole("customer");
-      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setTestAccountCandidates([]); setCouriers([]);
+      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCouriers([]);
       return;
     }
     const nextAuth = await resolveSupabaseUser(session.user);
@@ -1564,7 +1609,12 @@ export default function App() {
       notify("طبّق امتداد التجارة في supabase/schema.sql لتفعيل المنتجات والطلبات السحابية.");
       return;
     }
-    const testAccountsResult = activeRole === "admin" ? await supabase.rpc("admin_list_test_accounts") : { data: [] };
+    const [testAccountsResult, testAccountAuditResult] = activeRole === "admin"
+      ? await Promise.all([
+        supabase.rpc("admin_list_test_accounts"),
+        supabase.from("test_account_review_audit_logs").select("id, target_email, action, created_at").order("created_at", { ascending: false }).limit(100),
+      ])
+      : [{ data: [] }, { data: [] }];
     const productRows = productsResult.data || [];
     const merchantRows = merchantsResult.data || [];
     const courierRows = couriersResult.data || [];
@@ -1602,7 +1652,14 @@ export default function App() {
       body: entry.body, metadata: entry.metadata || {}, isRead: entry.is_read, createdAt: new Date(entry.created_at).toLocaleString("ar-DZ", { dateStyle: "short", timeStyle: "short" }),
     })));
     if (testAccountsResult.error && testAccountsResult.error.code !== "42883") notify("تعذر تحميل قائمة مراجعة حسابات الاختبار: " + testAccountsResult.error.message);
-    setTestAccountCandidates((testAccountsResult.data || []).map((account) => ({ id: account.user_id, email: account.email, role: account.role, name: account.name, createdAt: new Date(account.created_at).toLocaleDateString("ar-DZ", { dateStyle: "medium" }) })));
+    if (testAccountAuditResult.error) notify("تعذر تحميل سجل مراجعة حسابات الاختبار: " + testAccountAuditResult.error.message);
+    setTestAccountCandidates((testAccountsResult.data || []).map((account) => {
+      const lastActivityAt = account.last_sign_in_at || null;
+      const lastActivityDate = lastActivityAt ? new Date(lastActivityAt).toLocaleString("ar-DZ", { dateStyle: "medium", timeStyle: "short" }) : "لم يسجل دخولاً بعد";
+      const lastActivityLabel = lastActivityAt ? `${lastActivityDate} · ${formatRelativeActivity(lastActivityAt)}` : lastActivityDate;
+      return { id: account.user_id, email: account.email, role: account.role, roleLabel: account.role === "merchant" ? "تاجر" : "موصل", name: account.name, createdAt: new Date(account.created_at).toLocaleDateString("ar-DZ", { dateStyle: "medium" }), lastActivityAt, lastActivityDate, lastActivityLabel };
+    }));
+    setTestAccountReviewAuditLogs((testAccountAuditResult.data || []).map((entry) => ({ id: entry.id, targetEmail: entry.target_email, action: entry.action, actionLabel: entry.action === "delete_confirmed" ? "حذف مؤكد" : entry.action, createdAt: new Date(entry.created_at).toLocaleString("ar-DZ", { dateStyle: "medium", timeStyle: "short" }) })));
     if (alertSettingsResult.data) {
       setArchiveAlertSettings({
         sensitiveOrderTotal: Number(alertSettingsResult.data.sensitive_order_total),
@@ -1966,7 +2023,7 @@ export default function App() {
           {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else { setAdminLoginRequested(false); setShowAuth(true); } }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} />)}
           {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} registerMerchant={registerMerchant} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} messages={messages} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} completeDelivery={completeDelivery} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
-          {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} saveArchiveAlertSettings={saveArchiveAlertSettings} />}
+          {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} saveArchiveAlertSettings={saveArchiveAlertSettings} />}
         </div>
 
         {role === "customer" && !showRoleGuide && (
