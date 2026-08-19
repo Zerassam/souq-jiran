@@ -358,4 +358,18 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain("finally {");
     expect(appSource).toContain("setIsSubmitting(false);");
   });
+
+  it("accepts an Algerian mobile number or email as a unified registration identifier", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(appSource).toContain("function normalizeAlgerianMobile");
+    expect(appSource).toContain("function parseLoginIdentifier");
+    expect(appSource).toContain("/^0[567]\\d{8}$/");
+    expect(appSource).toContain("/^\\+213[567]\\d{8}$/");
+    expect(appSource).toContain('data-testid="auth-identifier-input"');
+    expect(appSource).toContain('data-testid="merchant-identifier-input"');
+    expect(appSource).toContain('data-testid="courier-identifier-input"');
+    expect(appSource).toContain("رمز OTP التجريبي 123456");
+    expect(appSource).toContain("phone.souqjiran.local");
+  });
 });

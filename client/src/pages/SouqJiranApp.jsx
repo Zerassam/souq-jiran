@@ -122,6 +122,29 @@ const AVAILABILITY_SLOTS = [
   { id: "evening", label: "ليلاً", icon: Moon },
 ];
 const money = (n) => `${Number(n || 0).toLocaleString("ar-DZ")} دج`;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function normalizeAlgerianMobile(value = "") {
+  const compact = String(value).trim().replace(/[\s().-]/g, "");
+  if (/^0[567]\d{8}$/.test(compact)) return `+213${compact.slice(1)}`;
+  if (/^\+213[567]\d{8}$/.test(compact)) return compact;
+  if (/^00213[567]\d{8}$/.test(compact)) return `+${compact.slice(2)}`;
+  return "";
+}
+
+function parseLoginIdentifier(value = "") {
+  const identifier = String(value).trim();
+  if (EMAIL_PATTERN.test(identifier)) {
+    const email = identifier.toLowerCase();
+    return { kind: "email", value: email, email, authEmail: email };
+  }
+  const phone = normalizeAlgerianMobile(identifier);
+  if (!phone) return null;
+  // يبقى OTP تجريبياً حالياً؛ يستعمل هذا الاسم الداخلي فقط لربط كلمة المرور
+  // بحساب Supabase إلى أن يهيئ المشرف مزود هاتف/WhatsApp فعلياً.
+  return { kind: "phone", value: phone, phone, authEmail: `phone-${phone.replace(/\D/g, "")}@phone.souqjiran.local` };
+}
+
 function formatRelativeActivity(isoTimestamp) {
   const elapsedMinutes = Math.max(0, Math.floor((Date.now() - new Date(isoTimestamp).getTime()) / 60000));
   const formatter = new Intl.RelativeTimeFormat("ar-DZ", { numeric: "auto" });
@@ -487,7 +510,7 @@ function BulkImportModal({ onConfirm, onClose }) {
    تسجيل موصّل — مواقيت، نطاق تغطية، اختيار المحلات
 --------------------------------------------------------- */
 function CourierRegisterModal({ stores, onSubmit, onClose }) {
-  const [form, setForm] = useState({ name: "", phone: "", email: "", password: "", vehicle: VEHICLES[0], wilaya: "", commune: "", communes: [], availability: [], useCustomHours: false, hoursFrom: "08:00", hoursTo: "18:00", storeMode: "all", selectedStoreIds: [] });
+  const [form, setForm] = useState({ name: "", contact: "", phone: "", password: "", mockOtpCode: "", vehicle: VEHICLES[0], wilaya: "", commune: "", communes: [], availability: [], useCustomHours: false, hoursFrom: "08:00", hoursTo: "18:00", storeMode: "all", selectedStoreIds: [] });
   const [step, setStep] = useState(1);
   const [authError, setAuthError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -504,15 +527,19 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
   const coverageLabel = form.communes.length > 0
     ? form.communes.join("، ")
     : form.wilaya ? "كل بلديات وأحياء الولاية" : "—";
+  const contactIdentity = parseLoginIdentifier(form.contact);
+  const usesPhoneIdentity = contactIdentity?.kind === "phone";
 
   async function submit() {
-    if (!form.name || !form.phone || !form.wilaya) return;
-    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email);
-    if (!emailValid) { setAuthError("أدخل بريدًا إلكترونيًا صالحًا (مثال: name@example.com)"); setStep(1); return; }
+    if (!form.name || !form.wilaya) return;
+    if (!contactIdentity) { setAuthError("أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07."); setStep(1); return; }
+    const operationalPhone = contactIdentity.phone || normalizeAlgerianMobile(form.phone);
+    if (!operationalPhone) { setAuthError("أدخل رقم هاتف محمول جزائرياً للتواصل يبدأ بـ 05 أو 06 أو 07."); setStep(1); return; }
     if (form.password.length < 6) { setAuthError("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); setStep(1); return; }
+    if (usesPhoneIdentity && form.mockOtpCode !== "123456") { setAuthError("أدخل رمز OTP التجريبي 123456 لتأكيد رقم الهاتف."); setStep(1); return; }
     setAuthError("");
     setIsSubmitting(true);
-    const result = await onSubmit({ ...form, coverageLabel, timeLabel });
+    const result = await onSubmit({ ...form, phone: operationalPhone, phoneMockVerified: usesPhoneIdentity, coverageLabel, timeLabel });
     setIsSubmitting(false);
     if (result?.error) { setAuthError(result.error); setStep(1); }
   }
@@ -529,13 +556,14 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
         {step === 1 && (
           <div className="space-y-3">
             <input placeholder="الاسم الكامل" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
-            <input placeholder="رقم الهاتف" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Mail size={15} color={C.inkSoft} /><input placeholder="البريد الإلكتروني (اسم المستخدم للدخول)" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="flex-1 outline-none text-sm bg-transparent dir-ltr" dir="ltr" /></div>
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input data-testid="courier-identifier-input" placeholder="رقم الهاتف أو البريد الإلكتروني" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value, mockOtpCode: "" })} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode={form.contact.includes("@") ? "email" : "tel"} /></div>
+            {!usesPhoneIdentity && <input placeholder="رقم الهاتف للتواصل (05/06/07)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} inputMode="tel" />}
+            {usesPhoneIdentity && <div className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-[11px] font-bold" style={{ color: C.ink }}>تأكيد الهاتف في وضع OTP التجريبي. الرمز: 123456</p><input aria-label="رمز OTP التجريبي للموصل" value={form.mockOtpCode} onChange={(e) => setForm({ ...form, mockOtpCode: e.target.value.replace(/\D/g, "").slice(0, 6) })} placeholder="رمز OTP التجريبي" inputMode="numeric" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /></div>}
             <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Lock size={15} color={C.inkSoft} /><input type="password" placeholder="كلمة المرور (4 أحرف على الأقل)" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>
             <select value={form.vehicle} onChange={(e) => setForm({ ...form, vehicle: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }}>{VEHICLES.map((v) => <option key={v} value={v}>{v}</option>)}</select>
             {authError && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{authError}</p>}
-            <button onClick={() => setStep(2)} disabled={!form.name || !form.phone} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.teal, color: "#fff" }}>التالي: التواقيت ونطاق التغطية</button>
-            <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>سيُستخدم بريدك الإلكتروني وكلمة المرور للدخول إلى لوحة الموصل مباشرةً.</p>
+            <button onClick={() => setStep(2)} disabled={!form.name || !contactIdentity} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.teal, color: "#fff" }}>التالي: التواقيت ونطاق التغطية</button>
+            <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>يمكنك الدخول برقم الهاتف أو البريد الإلكتروني؛ يستمر OTP التجريبي حتى تهيئة مزود رسائل فعلي.</p>
           </div>
         )}
 
@@ -591,7 +619,7 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
           <p className="text-[11px]" style={{ color: C.inkSoft }}>التواقيت: <b style={{ color: C.ink }}>{timeLabel}</b></p>
           <p className="text-[11px]" style={{ color: C.inkSoft }}>نطاق التغطية: <b style={{ color: C.ink }}>{form.wilaya} — {coverageLabel}</b></p>
           <p className="text-[11px]" style={{ color: C.inkSoft }}>المحلات: <b style={{ color: C.ink }}>{form.storeMode === "all" ? "التوصيل لجميع محلات المنطقة" : `${form.selectedStoreIds.length} محل محدد`}</b></p>
-          <p className="text-[11px]" style={{ color: C.inkSoft }}>الدخول لاحقًا: <b dir="ltr" style={{ color: C.ink }}>{form.email}</b></p>
+          <p className="text-[11px]" style={{ color: C.inkSoft }}>الدخول لاحقًا: <b dir="ltr" style={{ color: C.ink }}>{form.contact || "—"}</b></p>
         </div>
 
         <div className="flex gap-2">
@@ -609,20 +637,23 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
 function AuthModal({ authenticate, onClose, adminOnly = false }) {
   const [mode, setMode] = useState("login");
   const [type, setType] = useState(adminOnly ? "admin" : "merchant");
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [mockOtpCode, setMockOtpCode] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const parsedIdentifier = parseLoginIdentifier(identifier);
+  const phoneRegistration = mode === "register" && parsedIdentifier?.kind === "phone";
 
   async function submit() {
-    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    if (!emailValid) { setError("أدخل بريدًا إلكترونيًا صالحًا"); return; }
+    if (!parsedIdentifier) { setError("أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07."); return; }
     if (password.length < 6) { setError("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); return; }
+    if (phoneRegistration && mockOtpCode !== "123456") { setError("أدخل رمز OTP التجريبي 123456 لتأكيد رقم الهاتف."); return; }
     setError("");
     setIsSubmitting(true);
     let result;
     try {
-      result = await authenticate({ mode, type, email, password });
+      result = await authenticate({ mode, type, identifier: parsedIdentifier.value, password, phoneMockVerified: phoneRegistration });
     } catch (submissionError) {
       result = { error: submissionError?.message || "تعذر إكمال العملية. حاول مرة أخرى." };
     } finally {
@@ -646,12 +677,13 @@ function AuthModal({ authenticate, onClose, adminOnly = false }) {
           <button onClick={() => { setMode("login"); setError(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "login" ? C.ink : "transparent", color: mode === "login" ? "#fff" : C.inkSoft }}>دخول</button>
           <button onClick={() => { setMode("register"); setError(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "register" ? C.ink : "transparent", color: mode === "register" ? "#fff" : C.inkSoft }}>حساب جديد</button>
         </div></>}
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Mail size={15} color={C.inkSoft} /><input placeholder="البريد الإلكتروني" value={email} onChange={(e) => setEmail(e.target.value)} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input data-testid="auth-identifier-input" placeholder="رقم الهاتف أو البريد الإلكتروني" value={identifier} onChange={(e) => { setIdentifier(e.target.value); setMockOtpCode(""); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode={identifier.includes("@") ? "email" : "tel"} /></div>
+        {phoneRegistration && <div data-testid="mock-phone-otp" className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-xs leading-5 font-bold" style={{ color: C.ink }}>تم التعرف على رقم الهاتف <span dir="ltr">{parsedIdentifier.phone}</span>. وضع OTP التجريبي مفعّل حالياً ولا تُرسل رسالة فعلية.</p><input aria-label="رمز OTP التجريبي" value={mockOtpCode} onChange={(e) => setMockOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="أدخل الرمز التجريبي 123456" inputMode="numeric" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /></div>}
         <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Lock size={15} color={C.inkSoft} /><input type="password" placeholder="كلمة المرور" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>
         {error && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{error}</p>}
         <button disabled={isSubmitting} onClick={submit} className="w-full py-3 rounded-xl font-black flex items-center justify-center gap-1.5 disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ المعالجة..." : mode === "login" ? <><LogIn size={16} /> تسجيل الدخول</> : <><UserPlus size={16} /> إنشاء حساب</>}</button>
         {adminOnly && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>لا تتاح لوحة الإدارة إلا للحسابات المصرح لها في قاعدة البيانات.</p>}
-        {!adminOnly && mode === "register" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>{type === "merchant" ? "سيُنشأ حساب محلك فورًا، ثم تكمل بيانات محلك" : type === "courier" ? "بعد الموافقة على انضمامك من المشرف، تدخل لوحتك مباشرةً" : "يُستخدم حسابك لإرسال الطلبات ومتابعتها بأمان."}</p>}
+        {!adminOnly && mode === "register" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>{type === "merchant" ? "يمكنك البدء برقم الهاتف أو البريد، ثم تكمل بيانات محلك." : type === "courier" ? "يمكنك البدء برقم الهاتف أو البريد؛ بعد الموافقة تدخل لوحتك مباشرةً." : "يمكنك المتابعة برقم الهاتف أو البريد لإرسال الطلبات ومتابعتها بأمان."}</p>}
       </div>
     </div>
   );
@@ -1035,7 +1067,7 @@ function MerchantQrPoster({ store, notify }) {
 function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId, setMyStoreId, notify, registerMerchant, createProduct, createBulkProducts, removeProductRemote, setProductAvailability, setMerchantOrderStatus, merchantConfirmSettlement, reportCustomerAccount, archiveOrder, archiveMessage, userId }) {
   const myStore = stores.find((s) => s.id === myStoreId);
   const [merchantMode, setMerchantMode] = useState("select");
-  const [form, setForm] = useState({ name: "", phone: "", email: "", password: "", wilaya: "", commune: "", lat: 50, lng: 50 });
+  const [form, setForm] = useState({ name: "", contact: "", phone: "", password: "", mockOtpCode: "", wilaya: "", commune: "", lat: 50, lng: 50 });
   const [stage2, setStage2] = useState({ open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: true, deliveryCommunes: [], logoText: "", logoColor: C.teal, ccp: "", idDocName: "" });
   const [authError, setAuthError] = useState("");
   const [tab, setTab] = useState("products");
@@ -1044,17 +1076,21 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
   const [invoiceOrder, setInvoiceOrder] = useState(null);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const contactIdentity = parseLoginIdentifier(form.contact);
+  const usesPhoneIdentity = contactIdentity?.kind === "phone";
 
   function updateStore(patch) { setStores((prev) => prev.map((s) => (s.id === myStoreId ? { ...s, ...patch } : s))); }
 
   async function registerStore() {
-    if (!form.name || !form.phone || !form.wilaya || !form.commune) { notify("يرجى إدخال اسم المحل والهاتف والولاية والبلدية"); return; }
-    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email);
-    if (!emailValid) { setAuthError("أدخل بريدًا إلكترونيًا صالحًا (مثال: shop@example.com)"); return; }
+    if (!form.name || !form.wilaya || !form.commune) { notify("يرجى إدخال اسم المحل والولاية والبلدية"); return; }
+    if (!contactIdentity) { setAuthError("أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07."); return; }
+    const operationalPhone = contactIdentity.phone || normalizeAlgerianMobile(form.phone);
+    if (!operationalPhone) { setAuthError("أدخل رقم هاتف محمول جزائرياً للتواصل يبدأ بـ 05 أو 06 أو 07."); return; }
     if (form.password.length < 6) { setAuthError("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); return; }
+    if (usesPhoneIdentity && form.mockOtpCode !== "123456") { setAuthError("أدخل رمز OTP التجريبي 123456 لتأكيد رقم الهاتف."); return; }
     setAuthError("");
     setIsSubmitting(true);
-    const result = await registerMerchant(form);
+    const result = await registerMerchant({ ...form, phone: operationalPhone, phoneMockVerified: usesPhoneIdentity });
     setIsSubmitting(false);
     if (result?.error) { setAuthError(result.error); return; }
     setMyStoreId(result.id);
@@ -1100,14 +1136,15 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
           <div className="p-6 rounded-2xl space-y-4" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
             <h3 className="font-black text-lg" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>سجّل محلك — المرحلة 1</h3>
             <input placeholder="اسم السوبر ماركت" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input placeholder="رقم الهاتف" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="flex-1 outline-none text-sm bg-transparent" /></div>
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Mail size={15} color={C.inkSoft} /><input placeholder="البريد الإلكتروني (اسم المستخدم للدخول)" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input data-testid="merchant-identifier-input" placeholder="رقم الهاتف أو البريد الإلكتروني" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value, mockOtpCode: "" })} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode={form.contact.includes("@") ? "email" : "tel"} /></div>
+            {!usesPhoneIdentity && <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input placeholder="رقم الهاتف للتواصل (05/06/07)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="flex-1 outline-none text-sm bg-transparent" inputMode="tel" /></div>}
+            {usesPhoneIdentity && <div className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-[11px] font-bold" style={{ color: C.ink }}>تأكيد الهاتف في وضع OTP التجريبي. الرمز: 123456</p><input aria-label="رمز OTP التجريبي للتاجر" value={form.mockOtpCode} onChange={(e) => setForm({ ...form, mockOtpCode: e.target.value.replace(/\D/g, "").slice(0, 6) })} placeholder="رمز OTP التجريبي" inputMode="numeric" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /></div>}
             <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Lock size={15} color={C.inkSoft} /><input type="password" placeholder="كلمة المرور (4 أحرف على الأقل)" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>
             <WilayaCommuneSelect wilaya={form.wilaya} commune={form.commune} onChange={({ wilaya, commune }) => setForm({ ...form, wilaya, commune })} />
             <div><div className="flex items-center justify-between mb-1.5"><span className="text-xs font-bold flex items-center gap-1" style={{ color: C.ink }}><MapPin size={13} /> موقع المحل</span><button type="button" onClick={() => setShowMapPicker(true)} className="text-xs font-bold" style={{ color: C.teal }}>تحديد / تعديل</button></div><MapPreview x={form.lng} y={form.lat} height={70} /></div>
             {authError && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{authError}</p>}
             <button disabled={isSubmitting} onClick={registerStore} className="w-full py-3 rounded-xl font-black disabled:opacity-50" style={{ background: C.teal, color: "#fff" }}>{isSubmitting ? "جارٍ إنشاء الحساب..." : "إرسال طلب التسجيل"}</button>
-            <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>سيُستخدم بريدك الإلكتروني وكلمة المرور للدخول إلى منصة محلك مباشرةً.</p>
+            <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>يمكنك الدخول برقم الهاتف أو البريد الإلكتروني؛ OTP تجريبي حتى تهيئة خدمة رسائل فعلية.</p>
             {showMapPicker && <MapPicker title="حدد موقع محلك" initial={{ x: form.lng, y: form.lat }} onConfirm={(pos) => setForm((f) => ({ ...f, lat: pos.y, lng: pos.x }))} onClose={() => setShowMapPicker(false)} />}
           </div>
         )}
@@ -1724,7 +1761,7 @@ function RoleBenefitsPage({ onBack, onMerchant, onCourier }) {
         <button onClick={onBack} className="flex items-center gap-1.5 text-xs font-bold mb-5 opacity-90 hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 rounded-md"><ChevronRight size={15} /> العودة للتسوّق</button>
         <span className="text-[11px] font-black px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,.14)" }}>مسار واضح قبل التسجيل</span>
         <h1 className="font-black text-2xl mt-3 tracking-tight" style={{ fontFamily: "'IBM Plex Sans Arabic', sans-serif" }}>انضم إلى شبكة الحيّ</h1>
-        <p className="text-sm leading-6 mt-2 max-w-2xl" style={{ color: "rgba(255,255,255,.82)" }}>اختر الدور الأنسب لك. ستسجّل بالبريد الإلكتروني، ثم تتابع أعمالك من لوحتك الخاصة بعد اكتمال المراجعة.</p>
+        <p className="text-sm leading-6 mt-2 max-w-2xl" style={{ color: "rgba(255,255,255,.82)" }}>اختر الدور الأنسب لك. ابدأ برقم هاتف محمول جزائري أو بريد إلكتروني، ثم تابع أعمالك من لوحتك الخاصة بعد اكتمال المراجعة.</p>
       </div>
       <div className="grid md:grid-cols-2 gap-4">
         {roles.map((roleInfo) => {
@@ -1814,11 +1851,15 @@ export default function App() {
       .maybeSingle();
     // The metadata fallback keeps sign-in usable while the user applies schema.sql manually.
     const type = profile?.role || metadata.role || "customer";
+    const phone = profile?.phone || metadata.phone || user.phone || "";
+    const email = metadata.contact_email || (user.email?.endsWith("@phone.souqjiran.local") ? "" : user.email) || "";
     return {
       type,
       id: user.id,
-      email: user.email || "",
-      name: profile?.name || metadata.name || user.email?.split("@")[0] || "مستخدم سوق الجيران",
+      email,
+      phone,
+      identity: phone || email,
+      name: profile?.name || metadata.name || email.split("@")[0] || phone || "مستخدم سوق الجيران",
       profileUnavailable: Boolean(error),
     };
   }
@@ -2259,22 +2300,25 @@ export default function App() {
     return true;
   }
 
-  async function createSupabaseAccount({ email, password, role: authRole, name, phone }) {
+  async function createSupabaseAccount({ identifier, password, role: authRole, name, phone }) {
+    const credential = parseLoginIdentifier(identifier);
+    if (!credential) return { error: "أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07." };
+    const normalizedPhone = normalizeAlgerianMobile(phone) || credential.phone || "";
     const { data: existing } = await supabase.auth.getSession();
     if (existing.session) {
-      if (existing.session.user.email?.toLowerCase() !== email.trim().toLowerCase()) {
+      if (existing.session.user.email?.toLowerCase() !== credential.authEmail.toLowerCase()) {
         return { error: "سجّل الخروج من حسابك الحالي قبل إنشاء حساب جديد." };
       }
       return { user: existing.session.user, session: existing.session, resumed: true };
     }
     const { data, error } = await supabase.auth.signUp({
-      email: email.trim().toLowerCase(),
+      email: credential.authEmail,
       password,
-      options: { data: { role: authRole, name, phone } },
+      options: { data: { role: authRole, name, phone: normalizedPhone, contact_email: credential.kind === "email" ? credential.email : "", login_identifier_type: credential.kind } },
     });
     if (error) return { error: error.message };
     if (!data.user) return { error: "تعذر إنشاء الحساب. حاول مجدداً." };
-    if (data.user.identities?.length === 0) return { error: "هذا البريد مسجل بالفعل. سجّل الدخول لإكمال ملفك." };
+    if (data.user.identities?.length === 0) return { error: "هذه الهوية مسجلة بالفعل. سجّل الدخول لإكمال ملفك." };
     if (!data.session) {
       return { user: data.user, notice: "تم إنشاء الحساب. تحقق من بريدك الإلكتروني لتأكيده، ثم سجّل الدخول." };
     }
@@ -2300,17 +2344,20 @@ export default function App() {
     return {};
   }
 
-  async function authenticate({ mode, type, email, password }) {
+  async function authenticate({ mode, type, identifier, password, phoneMockVerified = false }) {
+    const credential = parseLoginIdentifier(identifier);
+    if (!credential) return { error: "أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07." };
     if (mode === "register" && type === "admin") return { error: "إنشاء حسابات المشرفين متاح فقط عبر قاعدة البيانات." };
     if (mode === "register") {
-      const created = await createSupabaseAccount({ email, password, role: type, name: email.split("@")[0], phone: "" });
+      if (credential.kind === "phone" && !phoneMockVerified) return { error: "أكمل رمز OTP التجريبي قبل إنشاء حساب بالهاتف." };
+      const created = await createSupabaseAccount({ identifier: credential.value, password, role: type, name: credential.email?.split("@")[0] || credential.phone, phone: credential.phone || "" });
       if (created.error || created.notice) return created;
       await applySupabaseSession(created.session);
       notify("تم إنشاء الحساب عبر Supabase بنجاح.");
       return {};
     }
-    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
-    if (error || !data.session) return { error: "تعذر تسجيل الدخول. تحقق من بريدك الإلكتروني وكلمة المرور." };
+    const { data, error } = await supabase.auth.signInWithPassword({ email: credential.authEmail, password });
+    if (error || !data.session) return { error: "تعذر تسجيل الدخول. تحقق من رقم الهاتف أو البريد الإلكتروني وكلمة المرور." };
     const signedIn = await resolveSupabaseUser(data.session.user);
     if (signedIn.type !== type) {
       await supabase.auth.signOut();
@@ -2322,7 +2369,10 @@ export default function App() {
   }
 
   async function registerMerchant(form) {
-    const created = await createSupabaseAccount({ email: form.email, password: form.password, role: "merchant", name: form.name, phone: form.phone });
+    const credential = parseLoginIdentifier(form.contact);
+    if (!credential) return { error: "أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07." };
+    if (credential.kind === "phone" && !form.phoneMockVerified) return { error: "أكمل رمز OTP التجريبي قبل إرسال طلب المحل." };
+    const created = await createSupabaseAccount({ identifier: credential.value, password: form.password, role: "merchant", name: form.name, phone: form.phone });
     if (created.error || created.notice) return created;
     const profile = await ensureSupabaseProfile({ user: created.user, role: "merchant", name: form.name, phone: form.phone });
     if (profile.error) return profile;
@@ -2339,14 +2389,17 @@ export default function App() {
     if (error) {
       return { error: "تعذر حفظ ملف المحل. بقي حساب الدخول صالحاً؛ طبّق ملف supabase/schema.sql ثم أرسل النموذج مجدداً لإكمال الملف." };
     }
-    const store = { id: created.user.id, name: form.name, phone: form.phone, email: form.email, wilaya: form.wilaya, commune: form.commune, address: "", lat: form.lat, lng: form.lng, distance: "—", status: "pending_review", rating: 0, open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: true, deliveryCommunes: [], approvedCourierIds: [], commissionType: "percentage", commissionRate: 10, subscriptionFee: 3000, duesPaid: 0, logo: { text: form.name.slice(0, 2), color: C.teal }, ccp: "", idDocName: "", products: [], reviews: [] };
+    const store = { id: created.user.id, name: form.name, phone: form.phone, email: credential.email || "", wilaya: form.wilaya, commune: form.commune, address: "", lat: form.lat, lng: form.lng, distance: "—", status: "pending_review", rating: 0, open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: true, deliveryCommunes: [], approvedCourierIds: [], commissionType: "percentage", commissionRate: 10, subscriptionFee: 3000, duesPaid: 0, logo: { text: form.name.slice(0, 2), color: C.teal }, ccp: "", idDocName: "", products: [], reviews: [] };
     persistentSetStores((prev) => [...prev.filter((item) => item.id !== store.id), store]);
     await applySupabaseSession(created.session);
     return { id: created.user.id };
   }
 
   async function registerCourier(form) {
-    const created = await createSupabaseAccount({ email: form.email, password: form.password, role: "courier", name: form.name, phone: form.phone });
+    const credential = parseLoginIdentifier(form.contact);
+    if (!credential) return { error: "أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07." };
+    if (credential.kind === "phone" && !form.phoneMockVerified) return { error: "أكمل رمز OTP التجريبي قبل إرسال طلب الانضمام." };
+    const created = await createSupabaseAccount({ identifier: credential.value, password: form.password, role: "courier", name: form.name, phone: form.phone });
     if (created.error || created.notice) return created;
     const profile = await ensureSupabaseProfile({ user: created.user, role: "courier", name: form.name, phone: form.phone });
     if (profile.error) return profile;
@@ -2375,7 +2428,7 @@ export default function App() {
     if (courierError) {
       return { error: "تعذر حفظ ملف الموصل. بقي حساب الدخول صالحاً؛ طبّق ملف supabase/schema.sql ثم أرسل النموذج مجدداً لإكمال الملف." };
     }
-    const localCourier = { id: created.user.id, name: form.name, phone: form.phone, email: form.email, vehicle: form.vehicle, wilaya: form.wilaya, commune: form.commune || "", communes: form.communes, availability: form.useCustomHours ? [] : form.availability, customHours: form.useCustomHours ? { from: form.hoursFrom, to: form.hoursTo } : null, timeLabel: form.timeLabel || "", coverageLabel: form.coverageLabel || "", storeMode: form.storeMode, selectedStoreIds: form.selectedStoreIds, status: "pending" };
+    const localCourier = { id: created.user.id, name: form.name, phone: form.phone, email: credential.email || "", vehicle: form.vehicle, wilaya: form.wilaya, commune: form.commune || "", communes: form.communes, availability: form.useCustomHours ? [] : form.availability, customHours: form.useCustomHours ? { from: form.hoursFrom, to: form.hoursTo } : null, timeLabel: form.timeLabel || "", coverageLabel: form.coverageLabel || "", storeMode: form.storeMode, selectedStoreIds: form.selectedStoreIds, status: "pending" };
     persistentSetCouriers((prev) => [...prev.filter((item) => item.id !== localCourier.id), localCourier]);
     await applySupabaseSession(activeSession);
     setShowCourierForm(false);
