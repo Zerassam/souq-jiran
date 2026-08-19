@@ -139,6 +139,13 @@ function escapeCSVCell(value) {
   const formulaSafe = /^[=+\-@]/.test(normalized) ? `'${normalized}` : normalized;
   return `"${formulaSafe.replaceAll('"', '""')}"`;
 }
+function groupRowsBy(rows, keySelector) {
+  return rows.reduce((groups, row) => {
+    const key = keySelector(row);
+    (groups[key] ||= []).push(row);
+    return groups;
+  }, {});
+}
 
 const STORE_STATUS = {
   pending_review: { label: "قيد المراجعة الأولية", color: C.ochre },
@@ -613,8 +620,14 @@ function AuthModal({ authenticate, onClose, adminOnly = false }) {
     if (password.length < 6) { setError("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); return; }
     setError("");
     setIsSubmitting(true);
-    const result = await authenticate({ mode, type, email, password });
-    setIsSubmitting(false);
+    let result;
+    try {
+      result = await authenticate({ mode, type, email, password });
+    } catch (submissionError) {
+      result = { error: submissionError?.message || "تعذر إكمال العملية. حاول مرة أخرى." };
+    } finally {
+      setIsSubmitting(false);
+    }
     if (result?.error) { setError(result.error); return; }
     if (result?.notice) { setError(result.notice); return; }
     onClose();
@@ -1859,9 +1872,9 @@ export default function App() {
     const productRows = productsResult.data || [];
     const merchantRows = merchantsResult.data || [];
     const courierRows = couriersResult.data || [];
-    const productsByMerchant = Object.groupBy(productRows, ({ merchant_id }) => merchant_id);
+    const productsByMerchant = groupRowsBy(productRows, ({ merchant_id }) => merchant_id);
     const storesById = Object.fromEntries(merchantRows.map((merchant) => [merchant.id, merchant]));
-    const itemsByOrder = Object.groupBy(itemsResult.data || [], ({ order_id }) => order_id);
+    const itemsByOrder = groupRowsBy(itemsResult.data || [], ({ order_id }) => order_id);
     setStores(merchantRows.map((merchant) => ({
       id: merchant.id, name: merchant.store_name, phone: merchant.phone || "", wilaya: merchant.wilaya || "", commune: merchant.commune || "",
       status: merchant.status, deliveryCommunes: merchant.delivery_communes || [], approvedCourierIds: merchant.approved_courier_ids || [],

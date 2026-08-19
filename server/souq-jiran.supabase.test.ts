@@ -347,4 +347,15 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain("souq-jiran-coupon-redemption-threshold");
     expect(appSource).toContain("تنبيه إداري: معدل الاسترداد بلغ الحد أو تجاوزه");
   });
+
+  it("keeps merchant registration compatible with browsers that do not support Object.groupBy", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(appSource).toContain("function groupRowsBy(rows, keySelector)");
+    expect(appSource).toContain("const productsByMerchant = groupRowsBy(productRows");
+    expect(appSource).toContain("const itemsByOrder = groupRowsBy(itemsResult.data || []");
+    expect(appSource).not.toContain("Object.groupBy");
+    expect(appSource).toContain("finally {");
+    expect(appSource).toContain("setIsSubmitting(false);");
+  });
 });
