@@ -334,4 +334,17 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain('supabase.rpc("redeem_reward_coupon"');
     expect(appSource).toContain("recordMockMessage");
   });
+
+  it("provides monthly CSV export and configurable coupon redemption rate alert for admin", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(appSource).toContain("exportMonthlyReferralCSV");
+    expect(appSource).toContain("couponRedemptionThreshold");
+    expect(appSource).toContain("couponRateAlert");
+    expect(appSource).toContain('data-testid="coupon-redemption-alert"');
+    expect(appSource).toContain('aria-label="حد تنبيه معدل الاسترداد"');
+    expect(appSource).toContain("تنزيل تقرير CSV الشهري");
+    expect(appSource).toContain("souq-jiran-coupon-redemption-threshold");
+    expect(appSource).toContain("تنبيه إداري: معدل الاسترداد بلغ الحد أو تجاوزه");
+  });
 });

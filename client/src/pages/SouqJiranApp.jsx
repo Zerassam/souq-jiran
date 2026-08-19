@@ -1458,8 +1458,38 @@ function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], 
   const [testAccountQuery, setTestAccountQuery] = useState("");
   const [settingsDraft, setSettingsDraft] = useState(() => ({ ...archiveAlertSettings }));
   const [pricingDraft, setPricingDraft] = useState(() => ({ baseFee: deliveryPricing?.baseFee ?? 120, feePerKm: deliveryPricing?.feePerKm ?? 18, feePerKg: deliveryPricing?.feePerKg ?? 35, interwilayaSurcharge: deliveryPricing?.interwilayaSurcharge ?? 600, minimumFee: deliveryPricing?.minimumFee ?? 120, averageSpeedKmh: deliveryPricing?.averageSpeedKmh ?? 45 }));
+  const [couponRedemptionThreshold, setCouponRedemptionThreshold] = useState(() => Number(window.localStorage.getItem("souq-jiran-coupon-redemption-threshold") || 70));
   useEffect(() => setSettingsDraft({ ...archiveAlertSettings }), [archiveAlertSettings]);
   useEffect(() => { if (deliveryPricing) setPricingDraft(deliveryPricing); }, [deliveryPricing]);
+  const issuedCoupons = Number(referralAnalytics.issuedCoupons || 0);
+  const redeemedCoupons = Number(referralAnalytics.redeemedCoupons || 0);
+  const couponRedemptionRate = issuedCoupons > 0 ? Math.round((redeemedCoupons / issuedCoupons) * 100) : 0;
+  const couponRateAlert = issuedCoupons > 0 && couponRedemptionRate >= couponRedemptionThreshold;
+
+  function updateCouponRedemptionThreshold(value) {
+    const normalized = Math.min(100, Math.max(1, Number(value) || 1));
+    setCouponRedemptionThreshold(normalized);
+    window.localStorage.setItem("souq-jiran-coupon-redemption-threshold", String(normalized));
+  }
+
+  function exportMonthlyReferralCSV() {
+    const monthLabel = new Intl.DateTimeFormat("ar-DZ", { month: "long", year: "numeric" }).format(new Date());
+    const rows = [
+      ["الشهر", "الدعوات المسجلة", "الطلبات الأولى المؤهلة", "المكافآت الممنوحة", "القسائم الصادرة", "القسائم المستردة", "معدل الاسترداد", "قيمة الخصم المسترد"],
+      [monthLabel, referralAnalytics.totalReferrals || 0, referralAnalytics.qualifiedReferrals || 0, referralAnalytics.awardedReferrals || 0, issuedCoupons, redeemedCoupons, `${couponRedemptionRate}%`, referralAnalytics.redeemedValue || 0],
+    ];
+    const csv = rows.map((row) => row.map(escapeCSVCell).join(",")).join("\r\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `souq-jiran-referral-coupons-${new Date().toISOString().slice(0, 7)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    notify("تم تنزيل تقرير الإحالات والقسائم الشهري بصيغة CSV.");
+  }
 
   async function approveInitial(id) { if (await setProviderStatus("merchant", id, "approved")) notify("تم اعتماد التاجر."); }
   async function reject(id) { if (await setProviderStatus("merchant", id, "suspended")) notify("تم تعليق طلب التاجر."); }
@@ -1514,10 +1544,11 @@ function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{stats.map((s) => (<div key={s.label} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><s.icon size={18} color={s.color} /><div className="font-black text-lg mt-2" style={{ color: C.ink }}>{s.value}</div><div className="text-xs" style={{ color: C.inkSoft }}>{s.label}</div></div>))}</div>
 
       <section className="p-4 sm:p-5 rounded-2xl space-y-3" style={{ background: "linear-gradient(135deg, #FFFFFF 0%, #F3FAF8 100%)", border: `1px solid ${C.teal}33` }} data-testid="admin-referral-analytics">
-        <div><h3 className="font-black" style={{ color: C.ink }}>تحليلات الإحالات والقسائم</h3><p className="text-xs mt-1" style={{ color: C.inkSoft }}>مؤشرات مجمّعة فقط؛ لا تظهر أرقام الهواتف أو أكواد العملاء الشخصية.</p></div>
+        <div className="flex items-start justify-between gap-3 flex-wrap"><div><h3 className="font-black" style={{ color: C.ink }}>تحليلات الإحالات والقسائم</h3><p className="text-xs mt-1" style={{ color: C.inkSoft }}>مؤشرات مجمّعة فقط؛ لا تظهر أرقام الهواتف أو أكواد العملاء الشخصية.</p></div><button onClick={exportMonthlyReferralCSV} className="text-xs px-3 py-2 rounded-xl font-black" style={{ background: C.teal, color: "#fff" }}>تنزيل تقرير CSV الشهري</button></div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">{[
           ["دعوات مسجلة", referralAnalytics.totalReferrals, C.purple], ["أول طلب مؤهل", referralAnalytics.qualifiedReferrals, C.ochre], ["مكافآت ممنوحة", referralAnalytics.awardedReferrals, C.sage], ["قسائم صادرة", referralAnalytics.issuedCoupons, C.teal], ["قسائم مستردة", referralAnalytics.redeemedCoupons, C.rust], ["قيمة الخصم المسترد", money(referralAnalytics.redeemedValue), C.ink],
         ].map(([label, value, color]) => <div key={label} className="p-3 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><p className="font-black text-base" style={{ color }}>{value}</p><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>{label}</p></div>)}</div>
+        <div className="p-3 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3" style={{ background: couponRateAlert ? C.rust + "14" : "#fff", border: `1px solid ${couponRateAlert ? C.rust : C.line}` }} data-testid="coupon-redemption-alert"><div><p className="text-sm font-black" style={{ color: couponRateAlert ? C.rust : C.ink }}>معدل استرداد القسائم: {couponRedemptionRate}%</p><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>{couponRateAlert ? "تنبيه إداري: معدل الاسترداد بلغ الحد أو تجاوزه؛ راجع حملة القسائم قبل توسيعها." : "المعدل ضمن الحد الإداري المحدد."}</p></div><label className="text-[11px] font-bold shrink-0" style={{ color: C.inkSoft }}>حد التنبيه (%)<input aria-label="حد تنبيه معدل الاسترداد" type="number" min="1" max="100" value={couponRedemptionThreshold} onChange={(event) => updateCouponRedemptionThreshold(event.target.value)} className="block mt-1 w-24 px-2.5 py-2 rounded-lg outline-none" style={{ border: `1px solid ${C.line}`, color: C.ink, background: "#fff" }} /></label></div>
       </section>
 
       <section className="p-4 sm:p-5 rounded-2xl space-y-4" style={{ background: "#fff", border: `1px solid ${C.line}` }} data-testid="advanced-order-admin-panel">
