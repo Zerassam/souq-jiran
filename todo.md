@@ -183,4 +183,4 @@
 - [x] إجراء اختبار إعدادات البيئة ثم رفع ملف Android والتكامل المكتمل إلى GitHub.
 - [ ] تطبيق 20260827_firebase_fcm_columns.sql في Supabase وتفعيل Firebase Third-party Auth ومطالبة role=authenticated قبل استخدام عميل firebaseSupabase على البيانات الحية.
 - [ ] تفعيل Phone في Firebase Authentication وإضافة نطاق الويب وتوفير مفتاح VAPID عند الحاجة إلى FCM على الويب.
-- [ ] حفظ ورفع تكامل Firebase Phone Authentication وFCM وAndroid إلى الفرع الرئيسي في GitHub.
+- [x] حفظ ورفع تكامل Firebase Phone Authentication وFCM وAndroid إلى الفرع الرئيسي في GitHub.
