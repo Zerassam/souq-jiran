@@ -172,3 +172,15 @@
 - [x] تطبيق الترحيل 20260826_account_recovery_phone_change.sql يدوياً في Supabase قبل استعمال تغيير الهاتف مع الحسابات الحية.
 - [x] التحقق من مساري استعادة الحساب وتغيير الهاتف بعد تطبيق الترحيل 10 في Supabase.
 - [x] حفظ جميع التعديلات ورفع النسخة المكتملة إلى مستودع GitHub على الفرع الرئيسي.
+- [x] استبدال نافذة مصادقة الحساب الموحدة بمسار Firebase Phone Authentication عبر SMS مع إبقاء Supabase قاعدة البيانات الرئيسية وجلسات البريد القائمة.
+- [x] تجهيز Capacitor وAndroid باسم الحزمة com.souqjiran.app وإضافة مكتبات Firebase Authentication وFCM.
+- [x] إضافة مزامنة رقم الهاتف المؤكد ورمز FCM مع profiles دون عرضه في التقارير التحليلية.
+- [x] إعداد ترحيل وسياسات Supabase لتخزين رمز FCM وسجل تحديثه بصورة مقيدة بالصلاحيات.
+- [x] إضافة اختبارات Firebase وFCM والتحقق من بناء الإنتاج بنجاح.
+- [ ] ترحيل مساري تأكيد هاتف العميل وتغيير الرقم من OTP التجريبي السابق إلى Firebase SMS ضمن تحسين لاحق للواجهة.
+- [x] إنشاء بنية android/app واستيراد google-services.json المقدّم من المستخدم باسم الحزمة com.souqjiran.app.
+- [x] استخراج إعدادات Firebase العامة من ملف Android وإضافتها كمتغيرات VITE آمنة.
+- [x] إجراء اختبار إعدادات البيئة ثم رفع ملف Android والتكامل المكتمل إلى GitHub.
+- [ ] تطبيق 20260827_firebase_fcm_columns.sql في Supabase وتفعيل Firebase Third-party Auth ومطالبة role=authenticated قبل استخدام عميل firebaseSupabase على البيانات الحية.
+- [ ] تفعيل Phone في Firebase Authentication وإضافة نطاق الويب وتوفير مفتاح VAPID عند الحاجة إلى FCM على الويب.
+- [ ] حفظ ورفع تكامل Firebase Phone Authentication وFCM وAndroid إلى الفرع الرئيسي في GitHub.

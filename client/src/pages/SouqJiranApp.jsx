@@ -1,4 +1,10 @@
 import { supabase } from "@/lib/supabase";
+import {
+  beginFirebasePhoneVerification,
+  completeFirebasePhoneVerification,
+  listenForNativeFcmToken,
+  requestNativeFcmToken,
+} from "@/lib/firebase";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Papa from "papaparse";
 import QRCode from "qrcode";
@@ -686,24 +692,47 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
   const [type, setType] = useState(adminOnly ? "admin" : "merchant");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [mockOtpCode, setMockOtpCode] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [phoneVerification, setPhoneVerification] = useState(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const parsedIdentifier = parseLoginIdentifier(identifier);
-  const phoneOtpRequired = ["register", "recover"].includes(mode) && parsedIdentifier?.kind === "phone";
+  const phoneOtpRequired = !adminOnly && parsedIdentifier?.kind === "phone";
+  const waitingForPhoneCode = Boolean(phoneVerification);
+
+  async function requestPhoneCode() {
+    if (!parsedIdentifier?.phone) return;
+    setError("");
+    setNotice("");
+    setIsSubmitting(true);
+    try {
+      const verification = await beginFirebasePhoneVerification(parsedIdentifier.phone, "firebase-phone-recaptcha");
+      setPhoneVerification(verification);
+      setOtpCode("");
+      setNotice("أُرسل رمز التحقق عبر رسالة SMS. أدخله لإكمال العملية.");
+    } catch (requestError) {
+      setError(requestError?.message || "تعذر إرسال رمز Firebase. تحقق من إعداد Phone Authentication وحاول مجدداً.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   async function submit() {
     if (!parsedIdentifier) { setError("أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07."); return; }
     if (mode !== "recover" && password.length < 6) { setError("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); return; }
-    if (phoneOtpRequired && mockOtpCode !== "123456") { setError("أدخل رمز OTP التجريبي 123456 لتأكيد رقم الهاتف."); return; }
+    if (phoneOtpRequired && !waitingForPhoneCode) { await requestPhoneCode(); return; }
+    if (phoneOtpRequired && otpCode.length !== 6) { setError("أدخل رمز SMS المكوّن من ستة أرقام."); return; }
     setError(""); setNotice("");
     setIsSubmitting(true);
     let result;
     try {
+      const firebasePhoneVerification = phoneOtpRequired
+        ? await completeFirebasePhoneVerification(phoneVerification, otpCode)
+        : null;
       result = mode === "recover"
-        ? await requestAccountRecovery({ identifier: parsedIdentifier.value, phoneMockVerified: phoneOtpRequired })
-        : await authenticate({ mode, type, identifier: parsedIdentifier.value, password, phoneMockVerified: phoneOtpRequired });
+        ? await requestAccountRecovery({ identifier: parsedIdentifier.value, firebasePhoneVerification })
+        : await authenticate({ mode, type, identifier: parsedIdentifier.value, password, firebasePhoneVerification });
     } catch (submissionError) {
       result = { error: submissionError?.message || "تعذر إكمال العملية. حاول مرة أخرى." };
     } finally {
@@ -727,16 +756,17 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
           <button onClick={() => { setMode("login"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "login" ? C.ink : "transparent", color: mode === "login" ? "#fff" : C.inkSoft }}>دخول</button>
           <button onClick={() => { setMode("register"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "register" ? C.ink : "transparent", color: mode === "register" ? "#fff" : C.inkSoft }}>حساب جديد</button>
         </div></>}
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input data-testid="auth-identifier-input" placeholder="رقم الهاتف أو البريد الإلكتروني" value={identifier} onChange={(e) => { setIdentifier(e.target.value); setMockOtpCode(""); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode={identifier.includes("@") ? "email" : "tel"} /></div>
-        {phoneOtpRequired && <div data-testid="mock-phone-otp" className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-xs leading-5 font-bold" style={{ color: C.ink }}>تم التعرف على رقم الهاتف <span dir="ltr">{parsedIdentifier.phone}</span>. وضع OTP التجريبي مفعّل حالياً ولا تُرسل رسالة فعلية.</p><input aria-label="رمز OTP التجريبي" value={mockOtpCode} onChange={(e) => setMockOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="أدخل الرمز التجريبي 123456" inputMode="numeric" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /></div>}
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input data-testid="auth-identifier-input" placeholder="رقم الهاتف أو البريد الإلكتروني" value={identifier} onChange={(e) => { setIdentifier(e.target.value); setOtpCode(""); setPhoneVerification(null); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode={identifier.includes("@") ? "email" : "tel"} /></div>
+        <div id="firebase-phone-recaptcha" aria-hidden="true" />
+        {phoneOtpRequired && <div data-testid="firebase-phone-otp" className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-xs leading-5 font-bold" style={{ color: C.ink }}>تم التعرف على رقم الهاتف <span dir="ltr">{parsedIdentifier.phone}</span>. {waitingForPhoneCode ? "أدخل رمز SMS الذي وصلك من Firebase." : "أرسل رمز SMS لتأكيد ملكية الرقم قبل المتابعة."}</p>{waitingForPhoneCode && <><input aria-label="رمز SMS من Firebase" value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="رمز SMS المكوّن من 6 أرقام" inputMode="numeric" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /><button type="button" disabled={isSubmitting} onClick={requestPhoneCode} className="text-xs font-bold" style={{ color: C.teal }}>إعادة إرسال رمز SMS</button></>}</div>}
         {mode !== "recover" && <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Lock size={15} color={C.inkSoft} /><input type="password" placeholder="كلمة المرور" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>}
         {error && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{error}</p>}
         {notice && <p className="text-xs font-bold" style={{ color: C.sage }}>{notice}</p>}
         <button disabled={isSubmitting} onClick={submit} className="w-full py-3 rounded-xl font-black flex items-center justify-center gap-1.5 disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ المعالجة..." : mode === "login" ? <><LogIn size={16} /> تسجيل الدخول</> : mode === "recover" ? <><Phone size={16} /> بدء الاستعادة</> : <><UserPlus size={16} /> إنشاء حساب</>}</button>
-        {!adminOnly && <button onClick={() => { setMode("recover"); setError(""); setNotice(""); setMockOtpCode(""); }} className="w-full text-xs font-bold py-1" style={{ color: C.teal }}>هل نسيت كلمة المرور؟ ابدأ الاستعادة برقم الهاتف أو البريد</button>}
+        {!adminOnly && <button onClick={() => { setMode("recover"); setError(""); setNotice(""); setOtpCode(""); setPhoneVerification(null); }} className="w-full text-xs font-bold py-1" style={{ color: C.teal }}>هل نسيت كلمة المرور؟ ابدأ الاستعادة برقم الهاتف أو البريد</button>}
         {adminOnly && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>لا تتاح لوحة الإدارة إلا للحسابات المصرح لها في قاعدة البيانات.</p>}
         {!adminOnly && mode === "register" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>{type === "merchant" ? "يمكنك البدء برقم الهاتف أو البريد، ثم تكمل بيانات محلك." : type === "courier" ? "يمكنك البدء برقم الهاتف أو البريد؛ بعد الموافقة تدخل لوحتك مباشرةً." : "يمكنك المتابعة برقم الهاتف أو البريد لإرسال الطلبات ومتابعتها بأمان."}</p>}
-        {!adminOnly && mode === "recover" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>تصل استعادة البريد إلى رابط إعادة التعيين، أما استعادة الهاتف فتسجل طلباً موثقاً ضمن الوضع التجريبي إلى حين تفعيل مزوّد الرسائل.</p>}
+        {!adminOnly && mode === "recover" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>تصل استعادة البريد إلى رابط إعادة التعيين، أما الهاتف فيُثبت برمز SMS من Firebase ثم يُسجَّل طلب استعادة آمن دون كشف وجود الحساب.</p>}
       </div>
     </div>
   );
@@ -1933,6 +1963,18 @@ export default function App() {
     await refreshSupabaseData(nextAuth.type);
   }
 
+  async function syncNativeFcmToken(profileId, suppliedToken) {
+    try {
+      const token = suppliedToken || await requestNativeFcmToken();
+      if (!token || !profileId) return;
+      const { error } = await supabase.rpc("update_my_fcm_token", { p_token: token });
+      if (error && error.code !== "42883") console.warn("تعذر حفظ رمز FCM:", error.message);
+    } catch (fcmError) {
+      // Notification permission is voluntary and must not interrupt auth.
+      console.warn("تعذر تهيئة إشعارات Firebase:", fcmError);
+    }
+  }
+
   async function refreshSupabaseData(activeRole = auth?.type) {
     const [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult, messagesResult, auditResult, archiveNotificationsResult, orderNotificationsResult, alertSettingsResult, customerReportsResult, customerBlacklistResult, pricingResult, referralCodeResult, rewardCouponsResult, adminReferralsResult, adminRewardCouponsResult] = await Promise.all([
       supabase.from("merchants").select("*").order("created_at", { ascending: false }),
@@ -2053,6 +2095,14 @@ export default function App() {
     });
     return () => { mounted = false; subscription.unsubscribe(); };
   }, []);
+
+  useEffect(() => {
+    if (!auth?.id) return undefined;
+    void syncNativeFcmToken(auth.id);
+    let listener;
+    void listenForNativeFcmToken((token) => { void syncNativeFcmToken(auth.id, token); }).then((handle) => { listener = handle; });
+    return () => { void listener?.remove(); };
+  }, [auth?.id]);
 
   useEffect(() => {
     if (loading) return;
@@ -2379,6 +2429,17 @@ export default function App() {
     return { user: data.user, session: data.session };
   }
 
+  async function recordFirebasePhoneVerification(firebasePhoneVerification) {
+    if (!firebasePhoneVerification?.firebaseUid) return {};
+    const { error } = await supabase.rpc("record_my_firebase_phone", {
+      p_firebase_uid: firebasePhoneVerification.firebaseUid,
+      p_phone: firebasePhoneVerification.phoneNumber || "",
+    });
+    if (error?.code === "42883") return { warning: "تم إثبات ملكية الهاتف عبر Firebase، لكن يلزم تطبيق ترحيل 20260827_firebase_fcm_columns.sql لحفظ حالة التحقق ومعرّف Firebase في الملف." };
+    if (error) return { warning: "تم إثبات ملكية الهاتف عبر Firebase، لكن تعذر حفظ حالة التحقق في الملف: " + error.message };
+    return {};
+  }
+
   async function ensureSupabaseProfile({ user, role: profileRole, name, phone }) {
     const { data: existing, error: lookupError } = await supabase
       .from("profiles")
@@ -2398,18 +2459,20 @@ export default function App() {
     return {};
   }
 
-  async function authenticate({ mode, type, identifier, password, phoneMockVerified = false }) {
+  async function authenticate({ mode, type, identifier, password, firebasePhoneVerification = null }) {
     const credential = parseLoginIdentifier(identifier);
     if (!credential) return { error: "أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07." };
     if (mode === "register" && type === "admin") return { error: "إنشاء حسابات المشرفين متاح فقط عبر قاعدة البيانات." };
     if (mode === "register") {
-      if (credential.kind === "phone" && !phoneMockVerified) return { error: "أكمل رمز OTP التجريبي قبل إنشاء حساب بالهاتف." };
+      if (credential.kind === "phone" && !firebasePhoneVerification) return { error: "أكمل تحقق Firebase عبر رمز SMS قبل إنشاء حساب بالهاتف." };
       const created = await createSupabaseAccount({ identifier: credential.value, password, role: type, name: credential.email?.split("@")[0] || credential.phone, phone: credential.phone || "" });
       if (created.error || created.notice) return created;
       await applySupabaseSession(created.session);
-      notify("تم إنشاء الحساب عبر Supabase بنجاح.");
+      const firebaseRecord = credential.kind === "phone" ? await recordFirebasePhoneVerification(firebasePhoneVerification) : {};
+      notify(firebaseRecord.warning || "تم إنشاء الحساب وربط الهاتف المؤكد عبر Firebase بنجاح.");
       return {};
     }
+    if (credential.kind === "phone" && !firebasePhoneVerification) return { error: "أكمل تحقق Firebase عبر رمز SMS قبل تسجيل الدخول بالهاتف." };
     const { data, error } = await supabase.auth.signInWithPassword({ email: credential.authEmail, password });
     if (error || !data.session) return { error: "تعذر تسجيل الدخول. تحقق من رقم الهاتف أو البريد الإلكتروني وكلمة المرور." };
     const signedIn = await resolveSupabaseUser(data.session.user);
@@ -2418,11 +2481,13 @@ export default function App() {
       return { error: "نوع الحساب لا يطابق البوابة المحددة. اختر بوابة حسابك الصحيحة." };
     }
     await applySupabaseSession(data.session);
+    const firebaseRecord = credential.kind === "phone" ? await recordFirebasePhoneVerification(firebasePhoneVerification) : {};
+    if (firebaseRecord.warning) notify(firebaseRecord.warning);
     if (signedIn.profileUnavailable) notify("تم الدخول. أكمل تطبيق ملف الترحيل في Supabase لتفعيل ملفات الأدوار.");
     return {};
   }
 
-  async function requestAccountRecovery({ identifier, phoneMockVerified = false }) {
+  async function requestAccountRecovery({ identifier, firebasePhoneVerification = null }) {
     const credential = parseLoginIdentifier(identifier);
     if (!credential) return { error: "أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07." };
     if (credential.kind === "email") {
@@ -2430,9 +2495,8 @@ export default function App() {
       if (error) return { error: "تعذر إرسال رابط الاستعادة. تحقق من البريد وحاول لاحقاً." };
       return { notice: "إذا كان البريد مسجلاً، أُرسل رابط آمن لإعادة تعيين كلمة المرور إليه." };
     }
-    if (!phoneMockVerified) return { error: "أكمل رمز OTP التجريبي قبل متابعة استعادة الحساب بالهاتف." };
-    recordMockMessage({ recipient: "صاحب الحساب", body: `تم التحقق تجريبياً من ${credential.phone} لطلب استعادة الحساب. لا تُرسل رسالة فعلية قبل تهيئة مزوّد الرسائل.` });
-    return { notice: "تم التحقق من الرقم في وضع التجربة وتسجيل طلب الاستعادة دون كشف وجود الحساب. سيتاح تغيير كلمة المرور تلقائياً عند تفعيل مزوّد الرسائل." };
+    if (!firebasePhoneVerification) return { error: "أكمل تحقق Firebase عبر رمز SMS قبل متابعة استعادة الحساب بالهاتف." };
+    return { notice: "تم إثبات ملكية الرقم عبر Firebase دون كشف وجود الحساب. استعادة كلمة مرور الحساب ستحتاج مسار إدارة آمن قبل فتحها للهاتف." };
   }
 
   async function requestPhoneChange(phone) {

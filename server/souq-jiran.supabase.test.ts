@@ -5,6 +5,48 @@ import { describe, expect, it } from "vitest";
 const projectRoot = resolve(import.meta.dirname, "..");
 
 describe("Souq Jiran Supabase integration", () => {
+  it("uses Firebase SMS verification in the unified authentication modal instead of its former demo code", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const authModalStart = appSource.indexOf("function AuthModal");
+    const authModalEnd = appSource.indexOf("\nfunction ", authModalStart + 1);
+    const authModalSource = appSource.slice(authModalStart, authModalEnd);
+    const firebaseSource = readFileSync(resolve(projectRoot, "client/src/lib/firebase.ts"), "utf8");
+    const supabaseSource = readFileSync(resolve(projectRoot, "client/src/lib/supabase.ts"), "utf8");
+
+    expect(authModalSource).toContain("beginFirebasePhoneVerification");
+    expect(authModalSource).toContain("completeFirebasePhoneVerification");
+    expect(authModalSource).toContain("رمز SMS");
+    expect(authModalSource).not.toContain("mockOtpCode");
+    expect(authModalSource).not.toContain('"123456"');
+    expect(firebaseSource).toContain("FirebaseAuthentication.signInWithPhoneNumber");
+    expect(firebaseSource).toContain("RecaptchaVerifier");
+    expect(firebaseSource).toContain("FirebaseAuthentication.confirmVerificationCode");
+    expect(supabaseSource).toContain("firebaseSupabase");
+    expect(supabaseSource).toContain("accessToken: async () => getFirebaseIdToken(false)");
+  });
+
+  it("keeps FCM tokens restricted to the active Supabase profile and configures Android permission support", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const firebaseSource = readFileSync(resolve(projectRoot, "client/src/lib/firebase.ts"), "utf8");
+    const migration = readFileSync(resolve(projectRoot, "supabase/migrations/20260827_firebase_fcm_columns.sql"), "utf8");
+    const capacitorConfig = readFileSync(resolve(projectRoot, "capacitor.config.ts"), "utf8");
+    const manifest = readFileSync(resolve(projectRoot, "android/app/src/main/AndroidManifest.xml"), "utf8");
+
+    expect(appSource).toContain('supabase.rpc("update_my_fcm_token"');
+    expect(appSource).toContain("listenForNativeFcmToken");
+    expect(firebaseSource).toContain("FirebaseMessaging.requestPermissions");
+    expect(firebaseSource).toContain("FirebaseMessaging.getToken");
+    expect(migration).toContain("phone_verified_at timestamptz");
+    expect(migration).toContain("fcm_token text");
+    expect(migration).toContain("record_my_firebase_phone");
+    expect(migration).toContain("update_my_fcm_token");
+    expect(migration).toContain("if auth.uid() is null then");
+    expect(migration).toContain("raise exception 'Authentication required';");
+    expect(capacitorConfig).toContain("FirebaseAuthentication");
+    expect(capacitorConfig).toContain("FirebaseMessaging");
+    expect(manifest).toContain('android.permission.POST_NOTIFICATIONS');
+  });
+
   it("documents the required role tables and row-level access policies", () => {
     const schema = readFileSync(resolve(projectRoot, "supabase/schema.sql"), "utf8").toLowerCase();
 
@@ -389,5 +431,23 @@ describe("Souq Jiran Supabase integration", () => {
     expect(migration).toContain("create or replace function public.confirm_my_phone_change");
     expect(migration).toContain("Phone number is already linked to another account");
     expect(migration).toContain("grant execute on function public.confirm_my_phone_change(text, text) to authenticated");
+  });
+
+  it("validates the supplied Firebase Auth API key without creating an account", async () => {
+    const apiKey = process.env.VITE_FIREBASE_API_KEY;
+    const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+
+    expect(apiKey).toBeTruthy();
+    expect(projectId).toBe("souq-jiran");
+
+    const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(JSON.stringify(payload)).toContain("MISSING_ID_TOKEN");
   });
 });

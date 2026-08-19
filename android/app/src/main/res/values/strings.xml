@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">سوق الجيران</string>
+    <string name="title_activity_main">سوق الجيران</string>
+    <string name="package_name">com.souqjiran.app</string>
+    <string name="custom_url_scheme">com.souqjiran.app</string>
+</resources>

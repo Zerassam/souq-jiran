@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "751850487896",
+    "project_id": "souq-jiran",
+    "storage_bucket": "souq-jiran.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:751850487896:android:c4f513cd478e069a14ca2d",
+        "android_client_info": {
+          "package_name": "com.souqjiran.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCafjbPZhv6fENLQCnVdqR7lHHRRLSVNVY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
