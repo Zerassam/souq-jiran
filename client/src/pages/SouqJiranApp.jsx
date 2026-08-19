@@ -632,35 +632,85 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
 }
 
 /* ---------------------------------------------------------
-   شاشة تسجيل الدخول / إنشاء حساب (إيميل + كلمة مرور)
+   استعادة الحساب / تغيير رقم الهاتف
 --------------------------------------------------------- */
-function AuthModal({ authenticate, onClose, adminOnly = false }) {
+function PhoneChangeModal({ currentPhone, onRequest, onConfirm, onClose }) {
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [requested, setRequested] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const normalizedPhone = normalizeAlgerianMobile(phone);
+
+  async function requestCode() {
+    if (!normalizedPhone) { setError("أدخل رقم هاتف محمول جزائرياً يبدأ بـ 05 أو 06 أو 07."); return; }
+    setError(""); setFeedback(""); setIsSubmitting(true);
+    try {
+      const result = await onRequest(normalizedPhone);
+      if (result?.error) { setError(result.error); return; }
+      setRequested(true);
+      setFeedback("تم فتح طلب التحقق في الوضع التجريبي. أدخل الرمز 123456 للمتابعة.");
+    } finally { setIsSubmitting(false); }
+  }
+
+  async function confirmChange() {
+    if (otp !== "123456") { setError("أدخل رمز OTP التجريبي 123456 لتأكيد الرقم."); return; }
+    setError(""); setIsSubmitting(true);
+    try {
+      const result = await onConfirm({ phone: normalizedPhone, mockOtpCode: otp });
+      if (result?.error) { setError(result.error); return; }
+      onClose();
+    } finally { setIsSubmitting(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(35,32,27,0.55)" }} onClick={onClose}>
+      <div onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl p-5 space-y-3" style={{ background: C.paper }}>
+        <div className="flex items-center justify-between gap-3"><div><h3 className="font-black flex items-center gap-1.5" style={{ color: C.ink }}><Phone size={18} color={C.teal} /> تغيير رقم الهاتف</h3><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>رقمك الحالي: <span dir="ltr">{currentPhone || "غير مضاف"}</span></p></div><button onClick={onClose} aria-label="إغلاق"><X size={18} color={C.inkSoft} /></button></div>
+        <p className="text-xs leading-5 p-3 rounded-xl" style={{ background: C.ochre + "12", color: C.ink, border: `1px solid ${C.ochre}42` }}>ستتحقق من الرقم الجديد أولاً. التطبيق يعمل حالياً بوضع OTP التجريبي ولا يرسل رسالة فعلية.</p>
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input aria-label="رقم الهاتف الجديد" placeholder="0551234567 أو +213551234567" value={phone} onChange={(event) => { setPhone(event.target.value); setRequested(false); setOtp(""); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="tel" /></div>
+        {!requested ? <button disabled={isSubmitting} onClick={requestCode} className="w-full py-3 rounded-xl font-black text-sm disabled:opacity-50" style={{ background: C.teal, color: "#fff" }}>{isSubmitting ? "جارٍ فتح التحقق..." : "متابعة التحقق"}</button> : <><input aria-label="رمز تأكيد تغيير الهاتف" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="رمز OTP التجريبي 123456" inputMode="numeric" className="w-full px-3 py-2.5 rounded-xl text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /><button disabled={isSubmitting} onClick={confirmChange} className="w-full py-3 rounded-xl font-black text-sm disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ حفظ الرقم..." : "تأكيد الرقم الجديد"}</button></>}
+        {feedback && <p className="text-xs font-bold" style={{ color: C.sage }}>{feedback}</p>}
+        {error && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------
+   شاشة تسجيل الدخول / إنشاء حساب / استعادة حساب
+--------------------------------------------------------- */
+function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = false }) {
   const [mode, setMode] = useState("login");
   const [type, setType] = useState(adminOnly ? "admin" : "merchant");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [mockOtpCode, setMockOtpCode] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const parsedIdentifier = parseLoginIdentifier(identifier);
-  const phoneRegistration = mode === "register" && parsedIdentifier?.kind === "phone";
+  const phoneOtpRequired = ["register", "recover"].includes(mode) && parsedIdentifier?.kind === "phone";
 
   async function submit() {
     if (!parsedIdentifier) { setError("أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07."); return; }
-    if (password.length < 6) { setError("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); return; }
-    if (phoneRegistration && mockOtpCode !== "123456") { setError("أدخل رمز OTP التجريبي 123456 لتأكيد رقم الهاتف."); return; }
-    setError("");
+    if (mode !== "recover" && password.length < 6) { setError("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); return; }
+    if (phoneOtpRequired && mockOtpCode !== "123456") { setError("أدخل رمز OTP التجريبي 123456 لتأكيد رقم الهاتف."); return; }
+    setError(""); setNotice("");
     setIsSubmitting(true);
     let result;
     try {
-      result = await authenticate({ mode, type, identifier: parsedIdentifier.value, password, phoneMockVerified: phoneRegistration });
+      result = mode === "recover"
+        ? await requestAccountRecovery({ identifier: parsedIdentifier.value, phoneMockVerified: phoneOtpRequired })
+        : await authenticate({ mode, type, identifier: parsedIdentifier.value, password, phoneMockVerified: phoneOtpRequired });
     } catch (submissionError) {
       result = { error: submissionError?.message || "تعذر إكمال العملية. حاول مرة أخرى." };
     } finally {
       setIsSubmitting(false);
     }
     if (result?.error) { setError(result.error); return; }
-    if (result?.notice) { setError(result.notice); return; }
+    if (result?.notice) { setNotice(result.notice); return; }
     onClose();
   }
 
@@ -674,16 +724,19 @@ function AuthModal({ authenticate, onClose, adminOnly = false }) {
           <button onClick={() => setType("customer")} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: type === "customer" ? C.teal : "transparent", color: type === "customer" ? "#fff" : C.inkSoft }}><User size={15} /> عميل</button>
         </div>
         <div className="flex gap-2 p-1 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
-          <button onClick={() => { setMode("login"); setError(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "login" ? C.ink : "transparent", color: mode === "login" ? "#fff" : C.inkSoft }}>دخول</button>
-          <button onClick={() => { setMode("register"); setError(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "register" ? C.ink : "transparent", color: mode === "register" ? "#fff" : C.inkSoft }}>حساب جديد</button>
+          <button onClick={() => { setMode("login"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "login" ? C.ink : "transparent", color: mode === "login" ? "#fff" : C.inkSoft }}>دخول</button>
+          <button onClick={() => { setMode("register"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "register" ? C.ink : "transparent", color: mode === "register" ? "#fff" : C.inkSoft }}>حساب جديد</button>
         </div></>}
         <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input data-testid="auth-identifier-input" placeholder="رقم الهاتف أو البريد الإلكتروني" value={identifier} onChange={(e) => { setIdentifier(e.target.value); setMockOtpCode(""); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode={identifier.includes("@") ? "email" : "tel"} /></div>
-        {phoneRegistration && <div data-testid="mock-phone-otp" className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-xs leading-5 font-bold" style={{ color: C.ink }}>تم التعرف على رقم الهاتف <span dir="ltr">{parsedIdentifier.phone}</span>. وضع OTP التجريبي مفعّل حالياً ولا تُرسل رسالة فعلية.</p><input aria-label="رمز OTP التجريبي" value={mockOtpCode} onChange={(e) => setMockOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="أدخل الرمز التجريبي 123456" inputMode="numeric" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /></div>}
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Lock size={15} color={C.inkSoft} /><input type="password" placeholder="كلمة المرور" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>
+        {phoneOtpRequired && <div data-testid="mock-phone-otp" className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-xs leading-5 font-bold" style={{ color: C.ink }}>تم التعرف على رقم الهاتف <span dir="ltr">{parsedIdentifier.phone}</span>. وضع OTP التجريبي مفعّل حالياً ولا تُرسل رسالة فعلية.</p><input aria-label="رمز OTP التجريبي" value={mockOtpCode} onChange={(e) => setMockOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="أدخل الرمز التجريبي 123456" inputMode="numeric" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /></div>}
+        {mode !== "recover" && <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Lock size={15} color={C.inkSoft} /><input type="password" placeholder="كلمة المرور" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>}
         {error && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{error}</p>}
-        <button disabled={isSubmitting} onClick={submit} className="w-full py-3 rounded-xl font-black flex items-center justify-center gap-1.5 disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ المعالجة..." : mode === "login" ? <><LogIn size={16} /> تسجيل الدخول</> : <><UserPlus size={16} /> إنشاء حساب</>}</button>
+        {notice && <p className="text-xs font-bold" style={{ color: C.sage }}>{notice}</p>}
+        <button disabled={isSubmitting} onClick={submit} className="w-full py-3 rounded-xl font-black flex items-center justify-center gap-1.5 disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ المعالجة..." : mode === "login" ? <><LogIn size={16} /> تسجيل الدخول</> : mode === "recover" ? <><Phone size={16} /> بدء الاستعادة</> : <><UserPlus size={16} /> إنشاء حساب</>}</button>
+        {!adminOnly && <button onClick={() => { setMode("recover"); setError(""); setNotice(""); setMockOtpCode(""); }} className="w-full text-xs font-bold py-1" style={{ color: C.teal }}>هل نسيت كلمة المرور؟ ابدأ الاستعادة برقم الهاتف أو البريد</button>}
         {adminOnly && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>لا تتاح لوحة الإدارة إلا للحسابات المصرح لها في قاعدة البيانات.</p>}
         {!adminOnly && mode === "register" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>{type === "merchant" ? "يمكنك البدء برقم الهاتف أو البريد، ثم تكمل بيانات محلك." : type === "courier" ? "يمكنك البدء برقم الهاتف أو البريد؛ بعد الموافقة تدخل لوحتك مباشرةً." : "يمكنك المتابعة برقم الهاتف أو البريد لإرسال الطلبات ومتابعتها بأمان."}</p>}
+        {!adminOnly && mode === "recover" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>تصل استعادة البريد إلى رابط إعادة التعيين، أما استعادة الهاتف فتسجل طلباً موثقاً ضمن الوضع التجريبي إلى حين تفعيل مزوّد الرسائل.</p>}
       </div>
     </div>
   );
@@ -1814,6 +1867,7 @@ export default function App() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showCourierForm, setShowCourierForm] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
+  const [showPhoneChange, setShowPhoneChange] = useState(false);
   const [adminLoginRequested, setAdminLoginRequested] = useState(false);
   const [showRoleGuide, setShowRoleGuide] = useState(false);
   const prevOrdersRef = useRef(null);
@@ -2368,6 +2422,43 @@ export default function App() {
     return {};
   }
 
+  async function requestAccountRecovery({ identifier, phoneMockVerified = false }) {
+    const credential = parseLoginIdentifier(identifier);
+    if (!credential) return { error: "أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07." };
+    if (credential.kind === "email") {
+      const { error } = await supabase.auth.resetPasswordForEmail(credential.email, { redirectTo: window.location.origin });
+      if (error) return { error: "تعذر إرسال رابط الاستعادة. تحقق من البريد وحاول لاحقاً." };
+      return { notice: "إذا كان البريد مسجلاً، أُرسل رابط آمن لإعادة تعيين كلمة المرور إليه." };
+    }
+    if (!phoneMockVerified) return { error: "أكمل رمز OTP التجريبي قبل متابعة استعادة الحساب بالهاتف." };
+    recordMockMessage({ recipient: "صاحب الحساب", body: `تم التحقق تجريبياً من ${credential.phone} لطلب استعادة الحساب. لا تُرسل رسالة فعلية قبل تهيئة مزوّد الرسائل.` });
+    return { notice: "تم التحقق من الرقم في وضع التجربة وتسجيل طلب الاستعادة دون كشف وجود الحساب. سيتاح تغيير كلمة المرور تلقائياً عند تفعيل مزوّد الرسائل." };
+  }
+
+  async function requestPhoneChange(phone) {
+    if (!auth?.id) return { error: "سجّل الدخول أولاً لتغيير رقم الهاتف." };
+    const normalizedPhone = normalizeAlgerianMobile(phone);
+    if (!normalizedPhone) return { error: "أدخل رقم هاتف محمول جزائرياً صحيحاً." };
+    const { error } = await supabase.rpc("request_my_phone_change", { p_phone: normalizedPhone, p_channel: "mock" });
+    if (error) return { error: "تعذر فتح تحقق الرقم. طبّق ترحيل 20260826_account_recovery_phone_change.sql في Supabase أولاً." };
+    recordMockMessage({ recipient: "صاحب الحساب", body: `طلب تغيير رقم الهاتف إلى ${normalizedPhone}. رمز OTP التجريبي هو 123456.` });
+    return {};
+  }
+
+  async function confirmPhoneChange({ phone, mockOtpCode }) {
+    if (!auth?.id) return { error: "سجّل الدخول أولاً لتغيير رقم الهاتف." };
+    const normalizedPhone = normalizeAlgerianMobile(phone);
+    if (!normalizedPhone || mockOtpCode !== "123456") return { error: "أكمل التحقق من رقم الهاتف بالرمز التجريبي الصحيح." };
+    const { error } = await supabase.rpc("confirm_my_phone_change", { p_phone: normalizedPhone, p_method: "mock" });
+    if (error) return { error: "تعذر تأكيد الرقم. تحقق من طلب التغيير أو طبّق الترحيل المطلوب." };
+    const { error: metadataError } = await supabase.auth.updateUser({ data: { phone: normalizedPhone } });
+    if (metadataError) return { error: "تم تحديث الرقم في الملف، لكن تعذر مزامنة بيانات الجلسة. سجّل الخروج ثم ادخل مجدداً." };
+    setAuth((current) => current ? { ...current, phone: normalizedPhone, identity: normalizedPhone } : current);
+    recordMockMessage({ recipient: "صاحب الحساب", body: `تم تأكيد تغيير رقم الهاتف إلى ${normalizedPhone} في وضع OTP التجريبي.` });
+    notify("تم تغيير رقم الهاتف بعد التحقق التجريبي.");
+    return {};
+  }
+
   async function registerMerchant(form) {
     const credential = parseLoginIdentifier(form.contact);
     if (!credential) return { error: "أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07." };
@@ -2492,7 +2583,7 @@ export default function App() {
           </div>
           {role === "admin" ? (
             <button onClick={signOut} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-sm" style={{ background: C.ink, color: "#fff" }}><LogOut size={15} /> خروج من لوحة الإدارة</button>
-          ) : auth && <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl" style={{ background: C.sage + "16", color: C.sage, border: `1px solid ${C.sage}2A` }}><span style={{ width: 7, height: 7, borderRadius: 999, background: C.sage }} />{auth.name}<button onClick={signOut} className="flex items-center gap-1 mr-1" style={{ color: C.inkSoft, fontSize: 10 }}><LogOut size={12} /> خروج</button></div>}
+          ) : auth && <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl" style={{ background: C.sage + "16", color: C.sage, border: `1px solid ${C.sage}2A` }}><span style={{ width: 7, height: 7, borderRadius: 999, background: C.sage }} />{auth.name}<button onClick={() => setShowPhoneChange(true)} className="flex items-center gap-1 mr-1" style={{ color: C.teal, fontSize: 10 }}><Phone size={12} /> الهاتف</button><button onClick={signOut} className="flex items-center gap-1 mr-1" style={{ color: C.inkSoft, fontSize: 10 }}><LogOut size={12} /> خروج</button></div>}
         </header>
 
         <StripeDivider />
@@ -2507,7 +2598,7 @@ export default function App() {
 
         {role === "customer" && !showRoleGuide && (
           <section className="mt-10 p-5 sm:p-6 rounded-[28px]" style={{ background: "rgba(238,240,255,.7)", border: `1px solid ${C.line}` }} data-testid="role-join-cards">
-            <div className="flex items-center justify-between gap-3 mb-4"><div><h2 className="font-black text-lg tracking-tight" style={{ color: C.ink }}>ابنِ حضورك على المنصة</h2><p className="text-xs mt-1" style={{ color: C.inkSoft }}>اختر مساحة العمل المناسبة لك، وابدأ من بريدك الإلكتروني.</p></div><div className="flex items-center gap-2"><button data-testid="role-benefits-link" onClick={() => setShowRoleGuide(true)} className="text-xs font-black px-3 py-2 rounded-xl" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}2B` }}>استكشف المسارات</button></div></div>
+            <div className="flex items-center justify-between gap-3 mb-4"><div><h2 className="font-black text-lg tracking-tight" style={{ color: C.ink }}>ابنِ حضورك على المنصة</h2><p className="text-xs mt-1" style={{ color: C.inkSoft }}>اختر مساحة العمل المناسبة لك، وابدأ برقم هاتفك أو بريدك الإلكتروني.</p></div><div className="flex items-center gap-2"><button data-testid="role-benefits-link" onClick={() => setShowRoleGuide(true)} className="text-xs font-black px-3 py-2 rounded-xl" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}2B` }}>استكشف المسارات</button></div></div>
             <div data-testid="provider-role-switches" className="grid sm:grid-cols-2 gap-3">
               <button data-testid="merchant-role-button" onClick={() => (auth?.type === "merchant" ? (setRole("merchant"), persistentSetMyStoreId(auth.id)) : (setAdminLoginRequested(false), setShowAuth(true)))} className="role-join-card group text-right p-5 rounded-[22px]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(51,59,120,.06)", "--role-accent": C.rust }}>
                 <div className="flex items-start justify-between gap-3"><div className="flex items-center justify-center rounded-2xl" style={{ width: 46, height: 46, background: C.rust + "16", color: C.rust }}><Store size={22} /></div><span className="flex items-center justify-center rounded-xl" style={{ width: 30, height: 30, background: C.paperDark, color: C.inkSoft }}><ChevronLeft size={17} className="transition-transform group-hover:-translate-x-0.5" /></span></div>
@@ -2526,7 +2617,8 @@ export default function App() {
 
       {showResetConfirm && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(35,32,27,0.5)" }} onClick={() => setShowResetConfirm(false)}><div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-2xl p-5" style={{ background: C.paper }}><div className="flex items-center gap-2 mb-2"><AlertCircle size={20} color={C.rust} /><h3 className="font-black" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>تأكيد إعادة الضبط</h3></div><p className="text-sm mb-5" style={{ color: C.inkSoft }}>سيتم إرجاع كل البيانات إلى حالتها الافتراضية.</p><div className="flex gap-2"><button onClick={() => setShowResetConfirm(false)} className="flex-1 py-2.5 rounded-xl font-bold text-sm" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}>إلغاء</button><button onClick={resetDemoData} className="flex-1 py-2.5 rounded-xl font-black text-sm" style={{ background: C.rust, color: "#fff" }}>نعم، إعادة الضبط</button></div></div></div>)}
       {showCourierForm && <CourierRegisterModal stores={stores} onSubmit={registerCourier} onClose={() => setShowCourierForm(false)} />}
-      {showAuth && <AuthModal authenticate={authenticate} adminOnly={adminLoginRequested} onClose={() => { setShowAuth(false); setAdminLoginRequested(false); }} />}
+      {showAuth && <AuthModal authenticate={authenticate} requestAccountRecovery={requestAccountRecovery} adminOnly={adminLoginRequested} onClose={() => { setShowAuth(false); setAdminLoginRequested(false); }} />}
+      {showPhoneChange && <PhoneChangeModal currentPhone={auth?.phone} onRequest={requestPhoneChange} onConfirm={confirmPhoneChange} onClose={() => setShowPhoneChange(false)} />}
       {role !== "admin" && <button aria-label="دخول الإدارة" onClick={() => { setAdminLoginRequested(true); setShowAuth(true); }} className="fixed top-1 right-1 h-2 w-2 rounded-full opacity-15 transition-opacity hover:opacity-70 focus:opacity-100" style={{ background: C.ink }} />}
     </div>
   );
