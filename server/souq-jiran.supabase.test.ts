@@ -266,12 +266,14 @@ describe("Souq Jiran Supabase integration", () => {
     const customerView = appSource.match(/function CustomerView[\s\S]*?(?=function OrderTracker)/)?.[0] ?? "";
 
     expect(customerView).toContain("تسعير محسوب من الخادم");
-    expect(customerView).toContain("هذا وضع تجريبي معلن");
-    expect(customerView).toContain("فتح WhatsApp");
-    expect(customerView).toContain("فتح Viber");
+    expect(customerView).toContain("سيصلك رمز التحقق عبر تطبيق واتساب/فايبر");
+    expect(customerView).toContain("إعادة الإرسال بعد");
+    expect(customerView).toContain("التحويل إلى Viber");
+    expect(customerView).toContain("تواصل مع الدعم");
     expect(customerView).toContain("customerConfirmDelivery");
     expect(appSource).toContain('supabase.rpc("quote_delivery"');
     expect(appSource).toContain('supabase.rpc("confirm_customer_phone_verification"');
+    expect(appSource).toContain('supabase.rpc("request_customer_phone_verification"');
     expect(appSource).toContain('"courier_confirm_pickup"');
     expect(appSource).toContain('"courier_start_delivery"');
     expect(appSource).toContain('"courier_confirm_delivery"');

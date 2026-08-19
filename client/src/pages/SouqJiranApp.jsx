@@ -691,7 +691,7 @@ function ReferralRewardsPanel({ referralCode, rewardCoupons, notify, claimReferr
 /* ===========================================================
    CUSTOMER VIEW
 =========================================================== */
-function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, couriers, placeOrder, notify, customerId, customerConfirmDelivery, quoteDelivery, confirmCustomerPhoneVerification, referralCode = "", rewardCoupons = [], claimReferralCode }) {
+function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, couriers, placeOrder, notify, customerId, customerConfirmDelivery, quoteDelivery, confirmCustomerPhoneVerification, requestCustomerPhoneVerification, referralCode = "", rewardCoupons = [], claimReferralCode }) {
   const [tab, setTab] = useState("browse");
   const [browseMode, setBrowseMode] = useState("list");
   const [query, setQuery] = useState("");
@@ -711,6 +711,9 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [mockPhone, setMockPhone] = useState("");
   const [phoneVerified, setPhoneVerified] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpCooldown, setOtpCooldown] = useState(0);
+  const [otpStatus, setOtpStatus] = useState("");
   const [rewardCouponInput, setRewardCouponInput] = useState("");
   const [appliedReward, setAppliedReward] = useState(null);
 
@@ -759,6 +762,12 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
     return () => { cancelled = true; };
   }, [deliveryChoice, cartStore?.id, cart.address?.wilaya, cart.address?.commune, cart.address?.label, cart.items, quoteDelivery]);
 
+  useEffect(() => {
+    if (otpCooldown <= 0) return undefined;
+    const timer = window.setInterval(() => setOtpCooldown((remaining) => Math.max(0, remaining - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [otpCooldown]);
+
   function addToCart(store, product) {
     setCart((prev) => {
       const sameStore = prev.storeId === store.id || prev.items.length === 0;
@@ -786,6 +795,15 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
     if (!mockPhone.trim()) { notify("أدخل رقم هاتفك أولاً."); return; }
     const ok = await confirmCustomerPhoneVerification(mockPhone.trim(), method);
     if (ok) setPhoneVerified(true);
+  }
+  async function requestOtp(channel) {
+    if (!mockPhone.trim()) { notify("أدخل رقم هاتفك أولاً قبل طلب الرمز."); return; }
+    setOtpSending(true);
+    const result = await requestCustomerPhoneVerification(mockPhone.trim(), channel);
+    setOtpSending(false);
+    if (!result?.ok) { setOtpStatus(result?.message || "تعذر طلب رمز التحقق."); setOtpCooldown(Number(result?.retryAfter || 0)); return; }
+    setOtpCooldown(Number(result.cooldownSeconds || 60));
+    setOtpStatus(result.message || "تم تجهيز مسار التحقق التجريبي.");
   }
   function submitReview(order, stars, comment) {
     setStores((prev) => prev.map((s) => { if (s.id !== order.storeId) return s; const reviews = [...(s.reviews || []), { id: "r" + Math.random().toString(36).slice(2, 7), customer: "أنت", stars, comment, date: "الآن" }]; const avg = reviews.reduce((a, r) => a + r.stars, 0) / reviews.length; return { ...s, reviews, rating: Math.round(avg * 10) / 10 }; }));
@@ -918,7 +936,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                 {deliveryChoice === "courier" && quoteLoading && <p className="text-xs mb-3" style={{ color: C.inkSoft }}>جارٍ احتساب رسوم التوصيل من الخادم…</p>}
                 {deliveryChoice === "courier" && deliveryQuote && <div className="mb-3 p-3 rounded-xl text-xs" style={{ background: C.teal + "0F", border: `1px solid ${C.teal}30`, color: C.ink }}><div className="font-bold" style={{ color: C.teal }}>تسعير محسوب من الخادم</div><div className="mt-1">المسافة التقديرية: {Number(deliveryQuote.distanceKm || 0).toFixed(1)} كم · الوصول المتوقع: {deliveryQuote.etaMinutes || "—"} دقيقة{deliveryQuote.isInterwilaya ? " · توصيل بين الولايات" : ""}</div></div>}
                 {deliveryChoice === "courier" && quoteError && <p className="text-xs font-bold mb-3" style={{ color: "#8B3A2A" }}>{quoteError}</p>}
-                {requiresPhoneVerification && <div className="mb-3 p-3 rounded-xl" style={{ background: C.ochre + "16", border: `1px solid ${C.ochre}40` }}><div className="text-xs font-black" style={{ color: "#8A6318" }}>تحقق الهاتف مطلوب لهذا الطلب</div><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>هذا وضع تجريبي معلن: لن نرسل رمز OTP فعلياً. سيُسجل تأكيدك لاختبار تدفق الطلبات الكبيرة أو بين الولايات.</p><div className="flex gap-2 mt-2"><input value={mockPhone} onChange={(e) => { setMockPhone(e.target.value); setPhoneVerified(false); }} inputMode="tel" placeholder="رقم الهاتف" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /><button onClick={() => verifyMockPhone("mock_otp")} className="px-3 py-2 rounded-xl text-xs font-bold" style={{ background: C.ochre, color: "#fff" }}>{phoneVerified ? "تم التحقق" : "تأكيد تجريبي"}</button></div><div className="flex gap-3 mt-2"><a href={`https://wa.me/?text=${encodeURIComponent("طلب تأكيد لسوق الجيران")}`} target="_blank" rel="noreferrer" className="text-[11px] font-bold" style={{ color: C.teal }}>فتح WhatsApp</a><a href={`viber://forward?text=${encodeURIComponent("طلب تأكيد لسوق الجيران")}`} className="text-[11px] font-bold" style={{ color: C.teal }}>فتح Viber</a></div></div>}
+                {requiresPhoneVerification && <div className="mb-3 p-3 rounded-xl" style={{ background: C.ochre + "16", border: `1px solid ${C.ochre}40` }}><div className="flex items-center justify-between gap-2"><div className="text-xs font-black" style={{ color: "#8A6318" }}>تحقق الهاتف مطلوب لهذا الطلب</div><span className="text-[10px] font-black px-2 py-1 rounded-full" style={{ background: "#fff", color: C.ochre }}>وضع تجريبي</span></div><p className="text-[11px] mt-1 leading-5" style={{ color: C.inkSoft }}>سيصلك رمز التحقق عبر تطبيق واتساب/فايبر عند تفعيل القنوات لاحقاً. حالياً لا يُرسل رمز حقيقي؛ نستعمل تأكيداً تجريبياً واضحاً كي لا يتعطل طلبك.</p><div className="flex gap-2 mt-2"><input value={mockPhone} onChange={(e) => { setMockPhone(e.target.value); setPhoneVerified(false); setOtpStatus(""); }} inputMode="tel" placeholder="رقم الهاتف" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /><button disabled={phoneVerified} onClick={() => verifyMockPhone("mock_otp")} className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-50" style={{ background: C.ochre, color: "#fff" }}>{phoneVerified ? "تم التحقق" : "تأكيد الرمز التجريبي"}</button></div><div className="flex flex-wrap gap-2 mt-2"><button disabled={otpSending || otpCooldown > 0} onClick={() => requestOtp("whatsapp")} className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg disabled:opacity-50" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}55` }}>{otpSending ? "جارٍ تجهيز التحقق…" : otpCooldown ? `إعادة الإرسال بعد ${otpCooldown}ث` : "إرسال عبر WhatsApp"}</button><button disabled={otpSending || otpCooldown > 0} onClick={() => requestOtp("viber")} className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg disabled:opacity-50" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}55` }}>التحويل إلى Viber</button><a href="mailto:support@souqjiran.dz?subject=OTP%20support" className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.line}` }}>لم يصلك الرمز؟ تواصل مع الدعم</a></div>{otpStatus && <p className="text-[11px] mt-2" role="status" style={{ color: C.inkSoft }}>{otpStatus}</p>}</div>}
 
                 <div className="flex gap-2 mb-3"><input value={promoInput} onChange={(e) => setPromoInput(e.target.value)} placeholder="أدخل كود الخصم" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /><button onClick={applyPromo} className="px-4 py-2 rounded-xl text-xs font-bold" style={{ background: C.ochre, color: "#fff" }}>تطبيق</button></div>
                 {appliedPromo && <p className="text-xs font-bold mb-3 flex items-center gap-1" style={{ color: C.sage }}><Tag size={12} /> تم تطبيق خصم {appliedPromo.discount}% ({appliedPromo.code})</p>}
@@ -1691,6 +1709,7 @@ export default function App() {
   const [deliveryPricing, setDeliveryPricing] = useState(null);
   const [mockMessages, setMockMessages] = useState([]);
   const [referralCode, setReferralCode] = useState("");
+  const [pendingReferralCode, setPendingReferralCode] = useState(() => new URLSearchParams(window.location.search).get("ref")?.trim().toUpperCase() || "");
   const [rewardCoupons, setRewardCoupons] = useState([]);
   const [archiveAlertSettings, setArchiveAlertSettings] = useState({ sensitiveOrderTotal: 5000, sensitiveStatuses: ["ready", "delivering", "delivered"], notifyOnMessageArchive: false });
   const [couriers, setCouriers] = useState([]);
@@ -1915,15 +1934,15 @@ export default function App() {
     return true;
   }
 
-  async function claimCustomerReferral(code) {
-    if (!auth || auth.type !== "customer") { notify("سجّل الدخول كعميل لاستخدام كود الدعوة."); return false; }
+  async function claimCustomerReferral(code, silent = false) {
+    if (!auth || auth.type !== "customer") { if (!silent) notify("سجّل الدخول كعميل لاستخدام كود الدعوة."); return false; }
     const normalized = String(code || "").trim().toUpperCase();
-    if (!normalized) { notify("أدخل كود دعوة صحيحاً."); return false; }
+    if (!normalized) { if (!silent) notify("أدخل كود دعوة صحيحاً."); return false; }
     const { error } = await supabase.rpc("claim_customer_referral", { p_referral_code: normalized });
-    if (error) { notify("تعذر تفعيل الدعوة: " + error.message); return false; }
+    if (error) { if (!silent) notify(error.message?.includes("PHONE_VERIFICATION_REQUIRED") ? "أكّد رقم هاتفك أولاً؛ سنربط الدعوة تلقائياً فور نجاح التحقق." : "تعذر تفعيل الدعوة: " + error.message); return false; }
     recordMockMessage({ recipient: "العميل", body: `تم تفعيل كود الدعوة ${normalized}. ستُمنح المكافآت بعد أول طلب مكتمل.` });
     await refreshSupabaseData("customer");
-    notify("تم تفعيل الدعوة بنجاح.");
+    if (!silent) notify("تم تفعيل الدعوة بنجاح.");
     return true;
   }
 
@@ -2024,8 +2043,23 @@ export default function App() {
     const { error } = await supabase.rpc("confirm_customer_phone_verification", { p_phone: phone, p_method: method });
     if (error) { notify("تعذر حفظ التحقق التجريبي: " + error.message); return false; }
     recordMockMessage({ recipient: "العميل", channel: "OTP تجريبي", body: `تم تسجيل تأكيد الرقم عبر ${method}. لم يُرسل رمز فعلي.` });
+    if (pendingReferralCode) {
+      const joined = await claimCustomerReferral(pendingReferralCode, true);
+      if (joined) setPendingReferralCode("");
+    }
     notify("تم تسجيل التحقق في الوضع التجريبي؛ لم يُرسل OTP فعلي.");
     return true;
+  }
+
+  async function requestCustomerPhoneVerification(phone, channel = "whatsapp") {
+    const { data, error } = await supabase.rpc("request_customer_phone_verification", { p_phone: phone, p_channel: channel });
+    if (error) {
+      const cooldown = /OTP_RESEND_COOLDOWN:(\d+)/.exec(error.message || "")?.[1];
+      return { ok: false, message: cooldown ? `انتظر ${cooldown} ثانية قبل إعادة الإرسال.` : error.message || "تعذر تجهيز التحقق.", retryAfter: cooldown ? Number(cooldown) : 0 };
+    }
+    const result = Array.isArray(data) ? data[0] : data;
+    recordMockMessage({ recipient: "العميل", channel: "OTP تجريبي", body: `طُلب التحقق عبر ${channel === "whatsapp" ? "WhatsApp" : channel === "viber" ? "Viber" : "وضع الاختبار"}. تم تفعيل المسار البديل التجريبي دون إرسال خارجي.` });
+    return { ok: true, cooldownSeconds: Number(result?.cooldown_seconds || 60), message: result?.message || "تم تجهيز التحقق في وضع الاختبار." };
   }
 
   async function archiveOrderForCurrentUser(orderId) {
@@ -2344,7 +2378,7 @@ export default function App() {
         {role !== "admin" && <p className="text-xs mt-3 mb-1 flex items-center gap-1.5 font-medium" style={{ color: C.inkSoft }}><PackageCheck size={13} color={C.sage} /> تُحفَظ بياناتك تلقائياً وتبقى الخصوصية تحت تحكمك.</p>}
 
         <div className="mt-4">
-          {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else { setAdminLoginRequested(false); setShowAuth(true); } }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} confirmCustomerPhoneVerification={confirmCustomerPhoneVerification} referralCode={referralCode} rewardCoupons={rewardCoupons} claimReferralCode={claimCustomerReferral} />)}
+          {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else { setAdminLoginRequested(false); setShowAuth(true); } }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} confirmCustomerPhoneVerification={confirmCustomerPhoneVerification} requestCustomerPhoneVerification={requestCustomerPhoneVerification} referralCode={referralCode} rewardCoupons={rewardCoupons} claimReferralCode={claimCustomerReferral} />)}
           {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} registerMerchant={registerMerchant} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} merchantConfirmSettlement={merchantConfirmSettlement} reportCustomerAccount={reportCustomerAccount} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} messages={messages} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} courierConfirmPickup={courierConfirmPickup} courierStartDelivery={courierStartDelivery} courierConfirmDelivery={courierConfirmDelivery} courierConfirmRemittance={courierConfirmRemittance} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} orderNotifications={adminOrderNotifications} mockMessages={mockMessages} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} customerReports={customerReports} customerBlacklist={customerBlacklist} deliveryPricing={deliveryPricing} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} markOrderNotificationRead={markOrderNotificationRead} markAllOrderNotificationsRead={markAllOrderNotificationsRead} saveArchiveAlertSettings={saveArchiveAlertSettings} setCustomerBlacklist={setCustomerBlacklistStatus} saveDeliveryPricing={saveDeliveryPricingConfig} />}
