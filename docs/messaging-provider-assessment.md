@@ -14,8 +14,13 @@
 
 عندما يقرر المشرف التفعيل، تُضاف بيانات المزود من إعدادات أسرار المنصة بدلاً من إدخالها في الواجهة أو تخزينها في قاعدة البيانات. يحتاج WhatsApp Business عادةً إلى رمز وصول ورقم هاتف الأعمال ومعرّف الرقم، ويحتاج Viber إلى رمز البوت، بينما لا يصلح CallMeBot كقناة إنتاج عامة بموجب نطاق استخدامه المعلن. بعد إضافة بيانات اعتماد واحدة معتمدة، يُراجع الإعداد، ثم يُفعّل المزود صراحةً ويُجرى اختبار داخلي على رقم مخصص قبل توجيه الرسائل للعملاء.
 
+## WhatsApp Business Cloud API التجريبي
+
+تتطلب بيئة Meta التجريبية حساب مطوّر وتطبيقاً يحمل حالة استخدام WhatsApp، ثم ربط حساب WhatsApp Business ورقم اختبار. يظهر معرّف حساب WhatsApp Business ومعرّف رقم الهاتف في صفحة إعداد API؛ أما رمز الوصول فيبقى سراً خادمياً ولا يجوز تضمينه في واجهة العميل أو سجلات الرسائل. لذلك لا يتغير وضع `mock` تلقائياً: لا ينتقل التطبيق إلى إرسال فعلي إلا بعد إضافة الأسرار من إعدادات المنصة الآمنة وإجراء تجربة محدودة على رقم مصرح به.
+
 ## المراجع
 
 - [WhatsApp Business Platform — Webhooks](https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/overview)
 - [Viber Bot API — REST API](https://developers.viber.com/docs/api/rest-bot-api/)
 - [CallMeBot — WhatsApp messages API](https://www.callmebot.com/blog/free-api-whatsapp-messages/)
+- [WhatsApp Cloud API — Get Started](https://developers.facebook.com/documentation/business-messaging/whatsapp/get-started)

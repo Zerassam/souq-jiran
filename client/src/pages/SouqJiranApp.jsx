@@ -670,6 +670,7 @@ function MessagesInbox({ messages, orders, userId, admin = false, onArchiveMessa
 function ReferralRewardsPanel({ referralCode, rewardCoupons, notify, claimReferralCode }) {
   const [claimCode, setClaimCode] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState("");
+  const [showTerms, setShowTerms] = useState(false);
   const inviteLink = referralCode ? `${window.location.origin}${window.location.pathname}?ref=${encodeURIComponent(referralCode)}` : "";
   useEffect(() => {
     let active = true;
@@ -685,6 +686,7 @@ function ReferralRewardsPanel({ referralCode, rewardCoupons, notify, claimReferr
       {referralCode ? <div className="grid sm:grid-cols-[150px_1fr] gap-4 items-center mt-4"><div className="bg-white p-2 rounded-xl mx-auto" style={{ border: `1px solid ${C.line}` }}>{qrDataUrl && <img src={qrDataUrl} alt="QR رابط دعوتك" className="w-32 h-32" />}</div><div><p className="text-xs font-bold" style={{ color: C.ink }}>كود دعوتك: <span dir="ltr" className="font-black">{referralCode}</span></p><input readOnly value={inviteLink} dir="ltr" className="w-full mt-2 px-3 py-2 rounded-xl text-xs bg-white outline-none" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }} /><div className="flex flex-wrap gap-2 mt-2"><button onClick={copyInvite} className="px-3 py-2 rounded-xl text-xs font-bold" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}66` }}>نسخ الرابط</button><a href={`https://wa.me/?text=${encodeURIComponent(`انضم إلى سوق الجيران عبر رابط دعوتي: ${inviteLink}`)}`} target="_blank" rel="noreferrer" className="px-3 py-2 rounded-xl text-xs font-bold" style={{ background: C.teal, color: "#fff" }}>مشاركة WhatsApp</a></div></div></div> : <p className="text-xs mt-3" style={{ color: C.inkSoft }}>يجري تجهيز كود دعوتك الآمن…</p>}</div>
     <div className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><h4 className="font-black text-sm" style={{ color: C.ink }}>لديك كود دعوة؟</h4><p className="text-xs mt-1" style={{ color: C.inkSoft }}>يمكن إدخاله قبل أول طلب غير ملغى فقط.</p><div className="flex gap-2 mt-3"><input value={claimCode} onChange={(event) => setClaimCode(event.target.value.toUpperCase())} placeholder="كود الدعوة" dir="ltr" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /><button data-testid="claim-referral-code" onClick={claim} className="px-4 py-2 rounded-xl text-xs font-black" style={{ background: C.ochre, color: "#fff" }}>تفعيل الدعوة</button></div></div>
     <div className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="flex items-center justify-between"><h4 className="font-black text-sm" style={{ color: C.ink }}>محفظة القسائم</h4><span className="text-xs font-bold" style={{ color: C.sage }}>{available.length} متاحة</span></div>{available.length ? <div className="space-y-2 mt-3">{available.map((coupon) => <div key={coupon.id} className="flex items-center justify-between gap-2 p-3 rounded-xl" style={{ background: C.paperDark }}><div><div className="text-xs font-black" style={{ color: C.ink }}>{money(coupon.amount)} خصم</div><div className="text-[11px]" style={{ color: C.inkSoft }}>الكود: <span dir="ltr">{coupon.code}</span> · حد أدنى {money(coupon.minimumOrderTotal)}</div></div><span className="text-[11px] font-bold" style={{ color: C.teal }}>استخدمه في السلة</span></div>)}</div> : <p className="text-xs py-4 text-center" style={{ color: C.inkSoft }}>لا توجد قسائم متاحة بعد. تكتمل المكافأة بعد تسوية أول طلب للصديق المدعو.</p>}</div>
+    <div className="p-4 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}><button type="button" onClick={() => setShowTerms((value) => !value)} className="w-full flex items-center justify-between text-right"><span className="font-black text-sm" style={{ color: C.ink }}>شروط برنامج الإحالة وحدود القسائم</span><span className="text-xs font-bold" style={{ color: C.teal }}>{showTerms ? "إخفاء" : "عرض"}</span></button>{showTerms && <div className="mt-3 text-xs leading-6 space-y-2" style={{ color: C.inkSoft }}><p>يُستخدم كود الدعوة مرة واحدة قبل أول طلب غير ملغى، ولا يرتبط بالحساب إلا بعد توثيق رقم الهاتف.</p><p>تُمنح القسائم للطرفين بعد تسوية أول طلب ناجح للصديق المدعو، ولا تُستبدل نقداً أو تُنقل بين الحسابات.</p><p>يظهر مبلغ الخصم والحد الأدنى وتاريخ الصلاحية على كل قسيمة. لا يمكن جمع قسيمتين في الطلب نفسه، وقد تُلغى القسيمة عند إساءة الاستخدام.</p></div>}</div>
   </section>;
 }
 
@@ -1441,7 +1443,7 @@ function CourierHoursEditor({ courier, onSave }) {
 /* ===========================================================
    ADMIN VIEW
 =========================================================== */
-function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], archiveNotifications = [], orderNotifications = [], mockMessages = [], archiveAlertSettings, testAccountCandidates = [], testAccountReviewAuditLogs = [], customerReports = [], customerBlacklist = [], deliveryPricing, notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently, deleteTestAccount, markArchiveNotificationRead, markOrderNotificationRead, markAllOrderNotificationsRead, saveArchiveAlertSettings, setCustomerBlacklist, saveDeliveryPricing }) {
+function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], archiveNotifications = [], orderNotifications = [], mockMessages = [], archiveAlertSettings, testAccountCandidates = [], testAccountReviewAuditLogs = [], customerReports = [], customerBlacklist = [], deliveryPricing, referralAnalytics = { totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0, redeemedValue: 0 }, notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently, deleteTestAccount, markArchiveNotificationRead, markOrderNotificationRead, markAllOrderNotificationsRead, saveArchiveAlertSettings, setCustomerBlacklist, saveDeliveryPricing }) {
   const pendingReview = stores.filter((s) => s.status === "pending_review");
   const awaitingProfile = stores.filter((s) => s.status === "awaiting_profile");
   const approved = stores.filter((s) => s.status === "approved");
@@ -1510,6 +1512,13 @@ function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], 
   return (
     <div className="dashboard-shell space-y-6">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{stats.map((s) => (<div key={s.label} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><s.icon size={18} color={s.color} /><div className="font-black text-lg mt-2" style={{ color: C.ink }}>{s.value}</div><div className="text-xs" style={{ color: C.inkSoft }}>{s.label}</div></div>))}</div>
+
+      <section className="p-4 sm:p-5 rounded-2xl space-y-3" style={{ background: "linear-gradient(135deg, #FFFFFF 0%, #F3FAF8 100%)", border: `1px solid ${C.teal}33` }} data-testid="admin-referral-analytics">
+        <div><h3 className="font-black" style={{ color: C.ink }}>تحليلات الإحالات والقسائم</h3><p className="text-xs mt-1" style={{ color: C.inkSoft }}>مؤشرات مجمّعة فقط؛ لا تظهر أرقام الهواتف أو أكواد العملاء الشخصية.</p></div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">{[
+          ["دعوات مسجلة", referralAnalytics.totalReferrals, C.purple], ["أول طلب مؤهل", referralAnalytics.qualifiedReferrals, C.ochre], ["مكافآت ممنوحة", referralAnalytics.awardedReferrals, C.sage], ["قسائم صادرة", referralAnalytics.issuedCoupons, C.teal], ["قسائم مستردة", referralAnalytics.redeemedCoupons, C.rust], ["قيمة الخصم المسترد", money(referralAnalytics.redeemedValue), C.ink],
+        ].map(([label, value, color]) => <div key={label} className="p-3 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><p className="font-black text-base" style={{ color }}>{value}</p><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>{label}</p></div>)}</div>
+      </section>
 
       <section className="p-4 sm:p-5 rounded-2xl space-y-4" style={{ background: "#fff", border: `1px solid ${C.line}` }} data-testid="advanced-order-admin-panel">
         <div><h3 className="font-black" style={{ color: C.ink }}>ضبط جدية العملاء وتسعير التوصيل</h3><p className="text-xs mt-1" style={{ color: C.inkSoft }}>المبالغ التالية تستخدمها خدمة التسعير في الخادم؛ لا تُعدّل رسوم طلب قائم.</p></div>
@@ -1711,6 +1720,7 @@ export default function App() {
   const [referralCode, setReferralCode] = useState("");
   const [pendingReferralCode, setPendingReferralCode] = useState(() => new URLSearchParams(window.location.search).get("ref")?.trim().toUpperCase() || "");
   const [rewardCoupons, setRewardCoupons] = useState([]);
+  const [referralAnalytics, setReferralAnalytics] = useState({ totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0, redeemedValue: 0 });
   const [archiveAlertSettings, setArchiveAlertSettings] = useState({ sensitiveOrderTotal: 5000, sensitiveStatuses: ["ready", "delivering", "delivered"], notifyOnMessageArchive: false });
   const [couriers, setCouriers] = useState([]);
   const [accounts, setAccounts] = useState([]);
@@ -1744,7 +1754,7 @@ export default function App() {
       ]);
       if (cancelled) return;
       setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]);
-      setAccounts([]); setAuth(null); setReferralCode(""); setRewardCoupons([]);
+      setAccounts([]); setAuth(null); setReferralCode(""); setRewardCoupons([]); setReferralAnalytics({ totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0, redeemedValue: 0 });
       setCart(loadedCart); setMyStoreId(loadedMyStoreId); setNotifications(loadedNotifications); setMockMessages(loadedMockMessages);
       setLoading(false);
     })();
@@ -1774,7 +1784,7 @@ export default function App() {
       setAuth(null);
       setMyStoreId(null);
       setRole("customer");
-      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]); setReferralCode(""); setRewardCoupons([]);
+      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]); setReferralCode(""); setRewardCoupons([]); setReferralAnalytics({ totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0, redeemedValue: 0 });
       return;
     }
     const nextAuth = await resolveSupabaseUser(session.user);
@@ -1785,7 +1795,7 @@ export default function App() {
   }
 
   async function refreshSupabaseData(activeRole = auth?.type) {
-    const [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult, messagesResult, auditResult, archiveNotificationsResult, orderNotificationsResult, alertSettingsResult, customerReportsResult, customerBlacklistResult, pricingResult, referralCodeResult, rewardCouponsResult] = await Promise.all([
+    const [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult, messagesResult, auditResult, archiveNotificationsResult, orderNotificationsResult, alertSettingsResult, customerReportsResult, customerBlacklistResult, pricingResult, referralCodeResult, rewardCouponsResult, adminReferralsResult, adminRewardCouponsResult] = await Promise.all([
       supabase.from("merchants").select("*").order("created_at", { ascending: false }),
       supabase.from("products").select("*").order("created_at", { ascending: false }),
       supabase.from("couriers").select("*").order("created_at", { ascending: false }),
@@ -1801,6 +1811,8 @@ export default function App() {
       supabase.from("delivery_pricing_config").select("*").eq("id", true).maybeSingle(),
       activeRole === "customer" ? supabase.rpc("ensure_my_referral_code") : Promise.resolve({ data: "" }),
       activeRole === "customer" ? supabase.from("reward_coupons").select("*").order("issued_at", { ascending: false }) : Promise.resolve({ data: [] }),
+      activeRole === "admin" ? supabase.from("customer_referrals").select("status") : Promise.resolve({ data: [] }),
+      activeRole === "admin" ? supabase.from("reward_coupons").select("status, amount") : Promise.resolve({ data: [] }),
     ]);
     const migrationMissing = [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult].some((result) => result.error?.code === "42P01");
     if (migrationMissing) {
@@ -1866,6 +1878,18 @@ export default function App() {
     setTestAccountReviewAuditLogs((testAccountAuditResult.data || []).map((entry) => ({ id: entry.id, targetEmail: entry.target_email, action: entry.action, actionLabel: entry.action === "delete_confirmed" ? "حذف مؤكد" : entry.action, createdAt: new Date(entry.created_at).toLocaleString("ar-DZ", { dateStyle: "medium", timeStyle: "short" }) })));
     setCustomerReports((customerReportsResult.data || []).map((report) => ({ id: report.id, customerId: report.customer_id, reason: report.reason, relatedOrderId: report.related_order_id, status: report.status, createdAt: report.created_at })));
     setCustomerBlacklist((customerBlacklistResult.data || []).map((entry) => ({ customerId: entry.customer_id, reason: entry.reason, createdAt: entry.created_at, expiresAt: entry.expires_at, revokedAt: entry.revoked_at })));
+    if (activeRole === "admin") {
+      const referrals = adminReferralsResult.data || [];
+      const coupons = adminRewardCouponsResult.data || [];
+      setReferralAnalytics({
+        totalReferrals: referrals.length,
+        qualifiedReferrals: referrals.filter((entry) => ["qualified", "rewarded"].includes(entry.status)).length,
+        awardedReferrals: referrals.filter((entry) => entry.status === "rewarded").length,
+        issuedCoupons: coupons.length,
+        redeemedCoupons: coupons.filter((entry) => entry.status === "redeemed").length,
+        redeemedValue: coupons.filter((entry) => entry.status === "redeemed").reduce((sum, entry) => sum + Number(entry.amount || 0), 0),
+      });
+    }
     if (pricingResult.data) setDeliveryPricing({ baseFee: Number(pricingResult.data.base_fee), feePerKm: Number(pricingResult.data.fee_per_km), feePerKg: Number(pricingResult.data.fee_per_kg), interwilayaSurcharge: Number(pricingResult.data.interwilaya_surcharge), minimumFee: Number(pricingResult.data.minimum_fee), averageSpeedKmh: Number(pricingResult.data.average_speed_kmh) });
     if (activeRole === "customer") {
       if (!referralCodeResult.error && referralCodeResult.data) setReferralCode(referralCodeResult.data);
@@ -2381,7 +2405,7 @@ export default function App() {
           {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else { setAdminLoginRequested(false); setShowAuth(true); } }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} confirmCustomerPhoneVerification={confirmCustomerPhoneVerification} requestCustomerPhoneVerification={requestCustomerPhoneVerification} referralCode={referralCode} rewardCoupons={rewardCoupons} claimReferralCode={claimCustomerReferral} />)}
           {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} registerMerchant={registerMerchant} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} merchantConfirmSettlement={merchantConfirmSettlement} reportCustomerAccount={reportCustomerAccount} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} messages={messages} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} courierConfirmPickup={courierConfirmPickup} courierStartDelivery={courierStartDelivery} courierConfirmDelivery={courierConfirmDelivery} courierConfirmRemittance={courierConfirmRemittance} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
-          {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} orderNotifications={adminOrderNotifications} mockMessages={mockMessages} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} customerReports={customerReports} customerBlacklist={customerBlacklist} deliveryPricing={deliveryPricing} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} markOrderNotificationRead={markOrderNotificationRead} markAllOrderNotificationsRead={markAllOrderNotificationsRead} saveArchiveAlertSettings={saveArchiveAlertSettings} setCustomerBlacklist={setCustomerBlacklistStatus} saveDeliveryPricing={saveDeliveryPricingConfig} />}
+          {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} orderNotifications={adminOrderNotifications} mockMessages={mockMessages} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} customerReports={customerReports} customerBlacklist={customerBlacklist} deliveryPricing={deliveryPricing} referralAnalytics={referralAnalytics} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} markOrderNotificationRead={markOrderNotificationRead} markAllOrderNotificationsRead={markAllOrderNotificationsRead} saveArchiveAlertSettings={saveArchiveAlertSettings} setCustomerBlacklist={setCustomerBlacklistStatus} saveDeliveryPricing={saveDeliveryPricingConfig} />}
         </div>
 
         {role === "customer" && !showRoleGuide && (
