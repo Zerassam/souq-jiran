@@ -311,4 +311,25 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain("merchant_confirm_settlement");
     expect(appSource).toContain("رمز OTP تجريبي: 123456");
   });
+
+  it("defines privacy-preserving QR, referral, and reward flows tied to a settled first order", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const migration = readFileSync(resolve(projectRoot, "supabase/migrations/20260823_qr_referrals_rewards.sql"), "utf8");
+
+    expect(migration).toContain("create table if not exists public.customer_referrals");
+    expect(migration).toContain("create table if not exists public.reward_coupons");
+    expect(migration).toContain("create or replace function public.ensure_my_referral_code()");
+    expect(migration).toContain("create or replace function public.claim_customer_referral(p_referral_code text)");
+    expect(migration).toContain("create or replace function public.redeem_reward_coupon(p_order_id uuid, p_coupon_code text)");
+    expect(migration).toContain("create or replace function public.award_referral_for_settled_order(p_order_id uuid)");
+    expect(migration).toContain("perform public.award_referral_for_settled_order(v.id)");
+    expect(migration).toContain("referrer_id <> referred_customer_id");
+    expect(migration).toContain("لا يخزن هذا الامتداد أرقام الهواتف");
+    expect(appSource).toContain("MerchantQrPoster");
+    expect(appSource).toContain("jsPDF");
+    expect(appSource).toContain("ReferralRewardsPanel");
+    expect(appSource).toContain('supabase.rpc("claim_customer_referral"');
+    expect(appSource).toContain('supabase.rpc("redeem_reward_coupon"');
+    expect(appSource).toContain("recordMockMessage");
+  });
 });

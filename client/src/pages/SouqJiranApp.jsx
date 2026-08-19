@@ -1,6 +1,8 @@
 import { supabase } from "@/lib/supabase";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Papa from "papaparse";
+import QRCode from "qrcode";
+import { jsPDF } from "jspdf";
 import {
   Store, ShoppingCart, ShoppingBag, ShoppingBasket, Search, MapPin, Clock,
   Plus, Minus, Trash2, Check, X, CheckCircle2, ClipboardList,
@@ -665,10 +667,31 @@ function MessagesInbox({ messages, orders, userId, admin = false, onArchiveMessa
   );
 }
 
+function ReferralRewardsPanel({ referralCode, rewardCoupons, notify, claimReferralCode }) {
+  const [claimCode, setClaimCode] = useState("");
+  const [qrDataUrl, setQrDataUrl] = useState("");
+  const inviteLink = referralCode ? `${window.location.origin}${window.location.pathname}?ref=${encodeURIComponent(referralCode)}` : "";
+  useEffect(() => {
+    let active = true;
+    if (!inviteLink) { setQrDataUrl(""); return undefined; }
+    QRCode.toDataURL(inviteLink, { errorCorrectionLevel: "H", width: 600, margin: 2, color: { dark: C.ink, light: "#FFFFFF" } }).then((value) => { if (active) setQrDataUrl(value); }).catch(() => notify("تعذر إنشاء رمز الدعوة."));
+    return () => { active = false; };
+  }, [inviteLink, notify]);
+  const available = rewardCoupons.filter((coupon) => coupon.status === "available");
+  async function claim() { if (!claimCode.trim()) { notify("أدخل كود الدعوة أولاً."); return; } await claimReferralCode(claimCode.trim()); setClaimCode(""); }
+  async function copyInvite() { try { await navigator.clipboard.writeText(inviteLink); notify("تم نسخ رابط دعوتك للمشاركة."); } catch { notify("استخدم زر WhatsApp أو امسح رمز QR للمشاركة."); } }
+  return <section data-testid="customer-rewards-panel" className="space-y-4">
+    <div className="p-4 rounded-2xl" style={{ background: C.teal + "10", border: `1px solid ${C.teal}33` }}><div className="flex items-start justify-between gap-3 flex-wrap"><div><h3 className="font-black text-lg" style={{ color: C.ink }}>دعوات ومكافآت الجيران</h3><p className="text-xs leading-5 mt-1" style={{ color: C.inkSoft }}>ادعُ صديقاً برابط خاص؛ تُمنح القسائم للطرفين عند تسوية أول طلب ناجح للصديق.</p></div><span className="px-3 py-1.5 rounded-full text-xs font-black" style={{ background: C.teal, color: "#fff" }}>مكافأة للطرفين</span></div>
+      {referralCode ? <div className="grid sm:grid-cols-[150px_1fr] gap-4 items-center mt-4"><div className="bg-white p-2 rounded-xl mx-auto" style={{ border: `1px solid ${C.line}` }}>{qrDataUrl && <img src={qrDataUrl} alt="QR رابط دعوتك" className="w-32 h-32" />}</div><div><p className="text-xs font-bold" style={{ color: C.ink }}>كود دعوتك: <span dir="ltr" className="font-black">{referralCode}</span></p><input readOnly value={inviteLink} dir="ltr" className="w-full mt-2 px-3 py-2 rounded-xl text-xs bg-white outline-none" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }} /><div className="flex flex-wrap gap-2 mt-2"><button onClick={copyInvite} className="px-3 py-2 rounded-xl text-xs font-bold" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}66` }}>نسخ الرابط</button><a href={`https://wa.me/?text=${encodeURIComponent(`انضم إلى سوق الجيران عبر رابط دعوتي: ${inviteLink}`)}`} target="_blank" rel="noreferrer" className="px-3 py-2 rounded-xl text-xs font-bold" style={{ background: C.teal, color: "#fff" }}>مشاركة WhatsApp</a></div></div></div> : <p className="text-xs mt-3" style={{ color: C.inkSoft }}>يجري تجهيز كود دعوتك الآمن…</p>}</div>
+    <div className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><h4 className="font-black text-sm" style={{ color: C.ink }}>لديك كود دعوة؟</h4><p className="text-xs mt-1" style={{ color: C.inkSoft }}>يمكن إدخاله قبل أول طلب غير ملغى فقط.</p><div className="flex gap-2 mt-3"><input value={claimCode} onChange={(event) => setClaimCode(event.target.value.toUpperCase())} placeholder="كود الدعوة" dir="ltr" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /><button data-testid="claim-referral-code" onClick={claim} className="px-4 py-2 rounded-xl text-xs font-black" style={{ background: C.ochre, color: "#fff" }}>تفعيل الدعوة</button></div></div>
+    <div className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="flex items-center justify-between"><h4 className="font-black text-sm" style={{ color: C.ink }}>محفظة القسائم</h4><span className="text-xs font-bold" style={{ color: C.sage }}>{available.length} متاحة</span></div>{available.length ? <div className="space-y-2 mt-3">{available.map((coupon) => <div key={coupon.id} className="flex items-center justify-between gap-2 p-3 rounded-xl" style={{ background: C.paperDark }}><div><div className="text-xs font-black" style={{ color: C.ink }}>{money(coupon.amount)} خصم</div><div className="text-[11px]" style={{ color: C.inkSoft }}>الكود: <span dir="ltr">{coupon.code}</span> · حد أدنى {money(coupon.minimumOrderTotal)}</div></div><span className="text-[11px] font-bold" style={{ color: C.teal }}>استخدمه في السلة</span></div>)}</div> : <p className="text-xs py-4 text-center" style={{ color: C.inkSoft }}>لا توجد قسائم متاحة بعد. تكتمل المكافأة بعد تسوية أول طلب للصديق المدعو.</p>}</div>
+  </section>;
+}
+
 /* ===========================================================
    CUSTOMER VIEW
 =========================================================== */
-function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, couriers, placeOrder, notify, customerId, customerConfirmDelivery, quoteDelivery, confirmCustomerPhoneVerification }) {
+function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, couriers, placeOrder, notify, customerId, customerConfirmDelivery, quoteDelivery, confirmCustomerPhoneVerification, referralCode = "", rewardCoupons = [], claimReferralCode }) {
   const [tab, setTab] = useState("browse");
   const [browseMode, setBrowseMode] = useState("list");
   const [query, setQuery] = useState("");
@@ -688,6 +711,8 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [mockPhone, setMockPhone] = useState("");
   const [phoneVerified, setPhoneVerified] = useState(false);
+  const [rewardCouponInput, setRewardCouponInput] = useState("");
+  const [appliedReward, setAppliedReward] = useState(null);
 
   const approvedStores = stores.filter((s) => s.status === "approved");
   const visibleStores = useMemo(() => {
@@ -706,7 +731,9 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const cartStore = stores.find((s) => s.id === cart.storeId);
   const cartCount = cart.items.reduce((a, i) => a + i.qty, 0);
   const cartSubtotal = cart.items.reduce((a, i) => a + i.qty * i.price, 0);
-  const discountAmount = appliedPromo ? Math.round((cartSubtotal * appliedPromo.discount) / 100) : 0;
+  const promoDiscountAmount = appliedPromo ? Math.round((cartSubtotal * appliedPromo.discount) / 100) : 0;
+  const rewardDiscountAmount = appliedReward ? Math.min(Number(appliedReward.amount || 0), cartSubtotal) : 0;
+  const discountAmount = promoDiscountAmount + rewardDiscountAmount;
   const deliveryFee = deliveryChoice === "store" ? (cartStore?.deliveryFee || 0) : deliveryChoice === "courier" ? Number(deliveryQuote?.fee || 0) : 0;
   const finalTotal = Math.max(0, cartSubtotal - discountAmount + deliveryFee);
   const belowMinOrder = cartStore && cartStore.minOrder && cartSubtotal < cartStore.minOrder;
@@ -745,6 +772,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   }
   function changeQty(id, delta) { setCart((prev) => ({ ...prev, items: prev.items.map((i) => (i.id === id ? { ...i, qty: i.qty + delta } : i)).filter((i) => i.qty > 0) })); }
   function applyPromo() { const match = PROMOS.find((p) => p.code.toLowerCase() === promoInput.trim().toLowerCase()); if (!match) { notify("كود الخصم غير صالح"); return; } setAppliedPromo(match); notify(`تم تطبيق خصم ${match.discount}%`); }
+  function applyRewardCoupon() { const coupon = rewardCoupons.find((item) => item.status === "available" && item.code.toUpperCase() === rewardCouponInput.trim().toUpperCase()); if (!coupon) { notify("قسيمة المكافأة غير متاحة أو غير صالحة."); return; } if (cartSubtotal < Number(coupon.minimumOrderTotal || 0)) { notify(`هذه القسيمة تتطلب طلباً بقيمة ${money(coupon.minimumOrderTotal)} على الأقل.`); return; } setAppliedReward(coupon); notify(`تم حجز خصم المكافأة بقيمة ${money(coupon.amount)} للطلب.`); }
   function updateAddress(values) { setCart((prev) => ({ ...prev, address: { ...(prev.address || {}), ...values } })); setPhoneVerified(false); }
   function requestCurrentLocation() {
     if (!navigator.geolocation) { notify("لا يدعم متصفحك تحديد الموقع الجغرافي."); return; }
@@ -780,9 +808,12 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
         <div className="flex gap-2">
           <button onClick={() => setTab("browse")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "browse" ? C.teal : "transparent", color: tab === "browse" ? C.paper : C.inkSoft, border: `1px solid ${tab === "browse" ? C.teal : C.line}` }}>المحلات القريبة</button>
           <button onClick={() => setTab("orders")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "orders" ? C.teal : "transparent", color: tab === "orders" ? C.paper : C.inkSoft, border: `1px solid ${tab === "orders" ? C.teal : C.line}` }}>طلباتي {myOrders.length > 0 && `(${myOrders.length})`}</button>
+          <button data-testid="customer-rewards-tab" onClick={() => setTab("rewards")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "rewards" ? C.teal : "transparent", color: tab === "rewards" ? C.paper : C.inkSoft, border: `1px solid ${tab === "rewards" ? C.teal : C.line}` }}>دعوات ومكافآت</button>
         </div>
         <button onClick={() => setShowCart(true)} className="relative flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm" style={{ background: C.rust, color: C.paper }}><ShoppingCart size={17} /> السلة{cartCount > 0 && <span className="absolute -top-2 -right-2 flex items-center justify-center text-xs font-black rounded-full" style={{ width: 20, height: 20, background: C.ink, color: C.paper }}>{cartCount}</span>}</button>
       </div>
+
+      {tab === "rewards" && <ReferralRewardsPanel referralCode={referralCode} rewardCoupons={rewardCoupons} notify={notify} claimReferralCode={claimReferralCode} />}
 
       {tab === "browse" && !openStore && (
         <>
@@ -891,6 +922,8 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
 
                 <div className="flex gap-2 mb-3"><input value={promoInput} onChange={(e) => setPromoInput(e.target.value)} placeholder="أدخل كود الخصم" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /><button onClick={applyPromo} className="px-4 py-2 rounded-xl text-xs font-bold" style={{ background: C.ochre, color: "#fff" }}>تطبيق</button></div>
                 {appliedPromo && <p className="text-xs font-bold mb-3 flex items-center gap-1" style={{ color: C.sage }}><Tag size={12} /> تم تطبيق خصم {appliedPromo.discount}% ({appliedPromo.code})</p>}
+                <div className="flex gap-2 mb-3"><input value={rewardCouponInput} onChange={(e) => setRewardCouponInput(e.target.value.toUpperCase())} placeholder="قسيمة مكافأة الإحالة" dir="ltr" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /><button onClick={applyRewardCoupon} className="px-4 py-2 rounded-xl text-xs font-bold" style={{ background: C.teal, color: "#fff" }}>استخدام القسيمة</button></div>
+                {appliedReward && <p className="text-xs font-bold mb-3 flex items-center gap-1" style={{ color: C.sage }}><Tag size={12} /> تم حجز خصم مكافأة {money(appliedReward.amount)} ({appliedReward.code})</p>}
 
                 <StripeDivider />
                 <div className="my-4 space-y-1.5">
@@ -901,7 +934,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                   <div className="flex items-center justify-between pt-1"><span className="font-bold text-sm" style={{ color: C.ink }}>يُدفع نقداً عند الاستلام</span><PriceTag amount={finalTotal} size="lg" /></div>
                 </div>
                 {belowMinOrder && <p className="text-xs font-bold mb-3" style={{ color: "#8B3A2A" }}>الحد الأدنى للطلب من هذا المحل هو {money(cartStore.minOrder)}.</p>}
-                <button disabled={belowMinOrder || quoteLoading || (deliveryChoice === "courier" && (!cart.address?.wilaya || !cart.address?.commune || !cart.address?.label || !deliveryQuote || (requiresPhoneVerification && !phoneVerified)))} onClick={async () => { const ok = await placeOrder(cartStore, appliedPromo, discountAmount, cart.address, deliveryChoice, deliveryFee); if (!ok) return; setAppliedPromo(null); setPromoInput(""); setShowCart(false); setTab("orders"); setDeliveryChoice("pickup"); setDeliveryQuote(null); setPhoneVerified(false); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>تأكيد الطلب (دفع نقدي)</button>
+                <button disabled={belowMinOrder || quoteLoading || (deliveryChoice === "courier" && (!cart.address?.wilaya || !cart.address?.commune || !cart.address?.label || !deliveryQuote || (requiresPhoneVerification && !phoneVerified)))} onClick={async () => { const ok = await placeOrder(cartStore, appliedPromo, discountAmount, cart.address, deliveryChoice, deliveryFee, appliedReward?.code); if (!ok) return; setAppliedPromo(null); setAppliedReward(null); setPromoInput(""); setRewardCouponInput(""); setShowCart(false); setTab("orders"); setDeliveryChoice("pickup"); setDeliveryChoice("pickup"); setDeliveryQuote(null); setPhoneVerified(false); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>تأكيد الطلب (دفع نقدي)</button>
               </>
             )}
           </div>
@@ -925,6 +958,47 @@ function OrderTracker({ status }) {
 /* ===========================================================
    MERCHANT VIEW
 =========================================================== */
+function MerchantQrPoster({ store, notify }) {
+  const [qrDataUrl, setQrDataUrl] = useState("");
+  const deepLink = useMemo(() => `${window.location.origin}${window.location.pathname}?store=${encodeURIComponent(store.id)}`, [store.id]);
+
+  useEffect(() => {
+    let active = true;
+    QRCode.toDataURL(deepLink, { errorCorrectionLevel: "H", width: 900, margin: 2, color: { dark: C.ink, light: "#FFFFFF" } })
+      .then((value) => { if (active) setQrDataUrl(value); })
+      .catch(() => notify("تعذر إنشاء رمز QR لهذا المحل."));
+    return () => { active = false; };
+  }, [deepLink, notify]);
+
+  async function copyDeepLink() {
+    try { await navigator.clipboard.writeText(deepLink); notify("تم نسخ رابط المحل للمشاركة."); }
+    catch { notify("انسخ الرابط يدوياً من الحقل الظاهر."); }
+  }
+
+  function downloadPoster() {
+    if (!qrDataUrl) { notify("جارٍ تجهيز الملصق، حاول بعد لحظات."); return; }
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    pdf.setFillColor(247, 248, 252); pdf.rect(0, 0, 210, 297, "F");
+    pdf.setFillColor(91, 91, 247); pdf.roundedRect(18, 18, 174, 20, 5, 5, "F");
+    pdf.setTextColor(255, 255, 255); pdf.setFontSize(19); pdf.text("SOUQ JIRAN · اطلب من المنزل", 105, 31, { align: "center" });
+    pdf.setTextColor(23, 32, 51); pdf.setFontSize(22); pdf.text(store.name, 105, 57, { align: "center" });
+    pdf.setFontSize(12); pdf.setTextColor(105, 115, 134); pdf.text(`${store.commune} · ${store.wilaya}`, 105, 66, { align: "center" });
+    pdf.addImage(qrDataUrl, "PNG", 47, 76, 116, 116);
+    pdf.setTextColor(23, 32, 51); pdf.setFontSize(15); pdf.text("امسح الرمز لتطلب مباشرة من محلك", 105, 210, { align: "center" });
+    pdf.setFontSize(10); pdf.setTextColor(105, 115, 134); pdf.text("سوق الجيران · طلبات محلية وتوصيل منظم", 105, 220, { align: "center" });
+    pdf.save(`souq-jiran-${store.name.replace(/[^\w\u0600-\u06FF]+/g, "-")}-qr.pdf`);
+    notify("تم تنزيل ملصق PDF جاهز للطباعة.");
+  }
+
+  return <section data-testid="merchant-qr-poster" className="p-5 rounded-2xl space-y-4" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+    <div className="flex items-start justify-between gap-3 flex-wrap"><div><h3 className="font-black text-lg" style={{ color: C.ink }}>ملصق QR للمحل</h3><p className="text-xs mt-1 leading-5" style={{ color: C.inkSoft }}>يمسح العميل الرمز للوصول إلى متجر <b>{store.name}</b> مباشرةً داخل سوق الجيران.</p></div><span className="px-3 py-1.5 rounded-full text-xs font-black" style={{ background: C.teal + "18", color: C.teal }}>رابط خاص بالمحل</span></div>
+    <div className="grid md:grid-cols-[220px_1fr] gap-5 items-center rounded-2xl p-4" style={{ background: C.paperDark }}>
+      <div className="bg-white rounded-2xl p-3 mx-auto" style={{ border: `1px solid ${C.line}` }}>{qrDataUrl ? <img src={qrDataUrl} alt={`رمز QR لمحل ${store.name}`} className="w-44 h-44" /> : <div className="w-44 h-44 flex items-center justify-center text-xs" style={{ color: C.inkSoft }}>جارٍ إنشاء الرمز…</div>}</div>
+      <div className="space-y-3"><label className="block text-xs font-bold" style={{ color: C.ink }}>الرابط العميق للمشاركة<input aria-label="رابط المتجر" readOnly value={deepLink} dir="ltr" className="w-full mt-1.5 px-3 py-2.5 rounded-xl text-xs bg-white outline-none" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }} /></label><div className="flex flex-wrap gap-2"><button data-testid="merchant-copy-deep-link" onClick={copyDeepLink} className="px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-1.5" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}55` }}><Copy size={15} /> نسخ الرابط</button><button data-testid="merchant-download-qr-pdf" onClick={downloadPoster} className="px-4 py-2.5 rounded-xl text-sm font-black flex items-center gap-1.5" style={{ background: C.teal, color: "#fff" }}><Download size={15} /> تنزيل ملصق PDF</button></div><p className="text-[11px] leading-5" style={{ color: C.inkSoft }}>اطبع الملصق بحجم A4 وضعه قرب صندوق الدفع أو عند مدخل المحل.</p></div>
+    </div>
+  </section>;
+}
+
 function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId, setMyStoreId, notify, registerMerchant, createProduct, createBulkProducts, removeProductRemote, setProductAvailability, setMerchantOrderStatus, merchantConfirmSettlement, reportCustomerAccount, archiveOrder, archiveMessage, userId }) {
   const myStore = stores.find((s) => s.id === myStoreId);
   const [merchantMode, setMerchantMode] = useState("select");
@@ -1060,8 +1134,11 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
         <button onClick={() => setTab("products")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "products" ? C.teal : "transparent", color: tab === "products" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "products" ? C.teal : C.line}` }}>المنتجات</button>
         <button onClick={() => setTab("orders")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "orders" ? C.teal : "transparent", color: tab === "orders" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "orders" ? C.teal : C.line}` }}>الطلبات الواردة {newMerchantOrders.length > 0 && `(${newMerchantOrders.length})`}</button>
         <button onClick={() => setTab("delivery")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "delivery" ? C.teal : "transparent", color: tab === "delivery" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "delivery" ? C.teal : C.line}` }}>إعدادات التوصيل</button>
+        <button data-testid="merchant-qr-tab" onClick={() => setTab("qr")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "qr" ? C.teal : "transparent", color: tab === "qr" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "qr" ? C.teal : C.line}` }}>QR المحل</button>
         <button onClick={() => setTab("messages")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "messages" ? C.teal : "transparent", color: tab === "messages" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "messages" ? C.teal : C.line}` }}>الرسائل</button>
       </div>
+
+      {tab === "qr" && <MerchantQrPoster store={myStore} notify={notify} />}
 
       {tab === "products" && (
         <div className="space-y-4">
@@ -1613,6 +1690,8 @@ export default function App() {
   const [customerBlacklist, setCustomerBlacklist] = useState([]);
   const [deliveryPricing, setDeliveryPricing] = useState(null);
   const [mockMessages, setMockMessages] = useState([]);
+  const [referralCode, setReferralCode] = useState("");
+  const [rewardCoupons, setRewardCoupons] = useState([]);
   const [archiveAlertSettings, setArchiveAlertSettings] = useState({ sensitiveOrderTotal: 5000, sensitiveStatuses: ["ready", "delivering", "delivered"], notifyOnMessageArchive: false });
   const [couriers, setCouriers] = useState([]);
   const [accounts, setAccounts] = useState([]);
@@ -1646,7 +1725,7 @@ export default function App() {
       ]);
       if (cancelled) return;
       setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]);
-      setAccounts([]); setAuth(null);
+      setAccounts([]); setAuth(null); setReferralCode(""); setRewardCoupons([]);
       setCart(loadedCart); setMyStoreId(loadedMyStoreId); setNotifications(loadedNotifications); setMockMessages(loadedMockMessages);
       setLoading(false);
     })();
@@ -1676,7 +1755,7 @@ export default function App() {
       setAuth(null);
       setMyStoreId(null);
       setRole("customer");
-      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]);
+      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]); setReferralCode(""); setRewardCoupons([]);
       return;
     }
     const nextAuth = await resolveSupabaseUser(session.user);
@@ -1687,7 +1766,7 @@ export default function App() {
   }
 
   async function refreshSupabaseData(activeRole = auth?.type) {
-    const [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult, messagesResult, auditResult, archiveNotificationsResult, orderNotificationsResult, alertSettingsResult, customerReportsResult, customerBlacklistResult, pricingResult] = await Promise.all([
+    const [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult, messagesResult, auditResult, archiveNotificationsResult, orderNotificationsResult, alertSettingsResult, customerReportsResult, customerBlacklistResult, pricingResult, referralCodeResult, rewardCouponsResult] = await Promise.all([
       supabase.from("merchants").select("*").order("created_at", { ascending: false }),
       supabase.from("products").select("*").order("created_at", { ascending: false }),
       supabase.from("couriers").select("*").order("created_at", { ascending: false }),
@@ -1701,6 +1780,8 @@ export default function App() {
       activeRole === "admin" ? supabase.from("customer_behavior_reports").select("*").order("created_at", { ascending: false }).limit(100) : Promise.resolve({ data: [] }),
       activeRole === "admin" ? supabase.from("customer_blacklist").select("*").order("created_at", { ascending: false }).limit(100) : Promise.resolve({ data: [] }),
       supabase.from("delivery_pricing_config").select("*").eq("id", true).maybeSingle(),
+      activeRole === "customer" ? supabase.rpc("ensure_my_referral_code") : Promise.resolve({ data: "" }),
+      activeRole === "customer" ? supabase.from("reward_coupons").select("*").order("issued_at", { ascending: false }) : Promise.resolve({ data: [] }),
     ]);
     const migrationMissing = [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult].some((result) => result.error?.code === "42P01");
     if (migrationMissing) {
@@ -1767,6 +1848,10 @@ export default function App() {
     setCustomerReports((customerReportsResult.data || []).map((report) => ({ id: report.id, customerId: report.customer_id, reason: report.reason, relatedOrderId: report.related_order_id, status: report.status, createdAt: report.created_at })));
     setCustomerBlacklist((customerBlacklistResult.data || []).map((entry) => ({ customerId: entry.customer_id, reason: entry.reason, createdAt: entry.created_at, expiresAt: entry.expires_at, revokedAt: entry.revoked_at })));
     if (pricingResult.data) setDeliveryPricing({ baseFee: Number(pricingResult.data.base_fee), feePerKm: Number(pricingResult.data.fee_per_km), feePerKg: Number(pricingResult.data.fee_per_kg), interwilayaSurcharge: Number(pricingResult.data.interwilaya_surcharge), minimumFee: Number(pricingResult.data.minimum_fee), averageSpeedKmh: Number(pricingResult.data.average_speed_kmh) });
+    if (activeRole === "customer") {
+      if (!referralCodeResult.error && referralCodeResult.data) setReferralCode(referralCodeResult.data);
+      if (!rewardCouponsResult.error) setRewardCoupons((rewardCouponsResult.data || []).map((coupon) => ({ id: coupon.id, code: coupon.code, amount: Number(coupon.amount || 0), minimumOrderTotal: Number(coupon.minimum_order_total || 0), status: coupon.status, kind: coupon.kind, expiresAt: coupon.expires_at })));
+    }
     if (alertSettingsResult.data) {
       setArchiveAlertSettings({
         sensitiveOrderTotal: Number(alertSettingsResult.data.sensitive_order_total),
@@ -1801,7 +1886,7 @@ export default function App() {
   function persistentSetCart(updater) { setCart((prev) => { const next = typeof updater === "function" ? updater(prev) : updater; saveKey(STORAGE.cart, next); return next; }); }
   function persistentSetMyStoreId(id) { setMyStoreId(id); saveKey(STORAGE.myStoreId, id); }
 
-  async function placeOrder(store, _promo, _discountAmount = 0, address = null, deliveryType = "pickup", deliveryFee = 0) {
+  async function placeOrder(store, _promo, _discountAmount = 0, address = null, deliveryType = "pickup", deliveryFee = 0, rewardCouponCode = null) {
     if (!auth || auth.type !== "customer") { notify("سجّل الدخول كعميل لإرسال طلبك."); return false; }
     if (!store || cart.items.length === 0) return false;
     const { error } = await supabase.rpc("create_customer_order", {
@@ -1812,12 +1897,33 @@ export default function App() {
       p_delivery_fee: deliveryFee,
     });
     if (error) { notify("تعذر إرسال الطلب: " + error.message); return false; }
+    if (rewardCouponCode) {
+      const createdOrder = await supabase.from("orders").select("id").eq("customer_id", auth.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (createdOrder.error || !createdOrder.data?.id) { notify("تم إنشاء الطلب، لكن تعذر ربط قسيمة المكافأة الآن."); }
+      else {
+        const { error: couponError } = await supabase.rpc("redeem_reward_coupon", { p_order_id: createdOrder.data.id, p_coupon_code: rewardCouponCode });
+        if (couponError) { notify("تم إنشاء الطلب، لكن لم تُطبّق القسيمة: " + couponError.message); }
+        else recordMockMessage({ recipient: "العميل", orderId: createdOrder.data.id, body: `تم تطبيق قسيمة المكافأة ${rewardCouponCode} على طلبك التجريبي.` });
+      }
+    }
     persistentSetCart({ storeId: null, items: [], address: null });
     await refreshSupabaseData();
     recordMockMessage({ recipient: "التاجر", body: `طلب جديد من العميل بانتظار المراجعة لدى ${store.name}.` });
     const needsMockOtp = deliveryType === "courier" && (cart.items.reduce((total, item) => total + Number(item.price || 0) * Number(item.qty || 0), 0) >= 10000 || Boolean(address?.wilaya && store.wilaya && address.wilaya !== store.wilaya));
     if (needsMockOtp) recordMockMessage({ recipient: "العميل", body: "رمز OTP تجريبي: 123456 لتأكيد طلب التوصيل. لا تُرسل رسالة فعلية في وضع الاختبار." });
     notify("تم إرسال طلبك — الدفع نقداً عند الاستلام");
+    return true;
+  }
+
+  async function claimCustomerReferral(code) {
+    if (!auth || auth.type !== "customer") { notify("سجّل الدخول كعميل لاستخدام كود الدعوة."); return false; }
+    const normalized = String(code || "").trim().toUpperCase();
+    if (!normalized) { notify("أدخل كود دعوة صحيحاً."); return false; }
+    const { error } = await supabase.rpc("claim_customer_referral", { p_referral_code: normalized });
+    if (error) { notify("تعذر تفعيل الدعوة: " + error.message); return false; }
+    recordMockMessage({ recipient: "العميل", body: `تم تفعيل كود الدعوة ${normalized}. ستُمنح المكافآت بعد أول طلب مكتمل.` });
+    await refreshSupabaseData("customer");
+    notify("تم تفعيل الدعوة بنجاح.");
     return true;
   }
 
@@ -2238,7 +2344,7 @@ export default function App() {
         {role !== "admin" && <p className="text-xs mt-3 mb-1 flex items-center gap-1.5 font-medium" style={{ color: C.inkSoft }}><PackageCheck size={13} color={C.sage} /> تُحفَظ بياناتك تلقائياً وتبقى الخصوصية تحت تحكمك.</p>}
 
         <div className="mt-4">
-          {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else { setAdminLoginRequested(false); setShowAuth(true); } }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} confirmCustomerPhoneVerification={confirmCustomerPhoneVerification} />)}
+          {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else { setAdminLoginRequested(false); setShowAuth(true); } }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} confirmCustomerPhoneVerification={confirmCustomerPhoneVerification} referralCode={referralCode} rewardCoupons={rewardCoupons} claimReferralCode={claimCustomerReferral} />)}
           {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} registerMerchant={registerMerchant} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} merchantConfirmSettlement={merchantConfirmSettlement} reportCustomerAccount={reportCustomerAccount} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} messages={messages} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} courierConfirmPickup={courierConfirmPickup} courierStartDelivery={courierStartDelivery} courierConfirmDelivery={courierConfirmDelivery} courierConfirmRemittance={courierConfirmRemittance} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} orderNotifications={adminOrderNotifications} mockMessages={mockMessages} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} customerReports={customerReports} customerBlacklist={customerBlacklist} deliveryPricing={deliveryPricing} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} markOrderNotificationRead={markOrderNotificationRead} markAllOrderNotificationsRead={markAllOrderNotificationsRead} saveArchiveAlertSettings={saveArchiveAlertSettings} setCustomerBlacklist={setCustomerBlacklistStatus} saveDeliveryPricing={saveDeliveryPricingConfig} />}
