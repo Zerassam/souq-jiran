@@ -182,7 +182,7 @@
 - [x] إنشاء بنية android/app واستيراد google-services.json المقدّم من المستخدم باسم الحزمة com.souqjiran.app.
 - [x] استخراج إعدادات Firebase العامة من ملف Android وإضافتها كمتغيرات VITE آمنة.
 - [x] إجراء اختبار إعدادات البيئة ثم رفع ملف Android والتكامل المكتمل إلى GitHub.
-- [ ] تطبيق 20260827_firebase_fcm_columns.sql في Supabase وتفعيل Firebase Third-party Auth ومطالبة role=authenticated قبل استخدام عميل firebaseSupabase على البيانات الحية.
+- [x] تطبيق 20260827_firebase_fcm_columns.sql في Supabase وتفعيل Firebase Third-party Auth؛ أُسندت مطالبة `role=authenticated` لأول مستخدم حي ويعتمد المستخدمون الجدد مسار Admin SDK اليدوي المؤمّن على خطة Spark.
 - [x] تفعيل Phone في Firebase Authentication وإضافة نطاق المعاينة إلى Authorized domains؛ يبقى مفتاح VAPID مؤجلاً إلى حين تفعيل FCM للويب فعلياً.
 - [x] حفظ ورفع تكامل Firebase Phone Authentication وFCM وAndroid إلى الفرع الرئيسي في GitHub.
 - [x] إصلاح تعليق Firebase Phone Authentication عند إرسال SMS وتحسين تطبيع +213 ورسائل الخطأ وإعادة المحاولة.
@@ -201,15 +201,16 @@
 - [x] تطبيق 20260830_secure_firebase_phone_link.sql بنجاح بعد تفعيل Firebase Third-party Auth لتأمين الربط الحي للأرقام.
 - [x] اكتشاف تصحيح لازم لفصل معرف حساب Supabase عن معرف Firebase عند تأكيد التحدي، ومنع الاعتماد على `auth.uid()` داخل جلسة Firebase.
 - [x] تطبيق 20260831_fix_firebase_phone_link_identity.sql بنجاح في Supabase لتصحيح ربط التحدي بالحساب الحي.
-- [ ] إعداد مطالبة Firebase Custom Claim باسم role بالقيمة authenticated لجميع المستخدمين الحاليين والجدد والتحقق من وصولها في JWT.
-- [ ] تجهيز ونشر وظيفة Firebase إدارية تلقائية تمنح `role=authenticated` فور إنشاء كل مستخدم جديد، مع اختبار محلي ودليل نشر لا يكشف أسرار الإدارة.
-- [ ] مزامنة النسخة التي تحتوي `firebase.json` و`firebase-functions/` إلى بيئة المالك ذات جلسة Google المخولة قبل تنفيذ أمر Firebase deploy.
+- [x] إسناد مطالبة Firebase Custom Claim باسم `role=authenticated` لأول مستخدم حي، والتحقق من مسار تجديد JWT؛ يعتمد المستخدمون الجدد إجراء Admin SDK اليدوي حتى الترقية.
+- [x] اعتماد إجراء Firebase Admin SDK اليدوي السريع للمستخدمين الجدد على خطة Spark وتوثيق السجل التشغيلي الأدنى في `docs/firebase-spark-claims-operating-policy.md`.
+- [x] تجهيز وظيفة Firebase إدارية تلقائية تمنح `role=authenticated` فور إنشاء كل مستخدم جديد، مع اختبار محلي ودليل وحزمة نشر لا يكشفان أسرار الإدارة؛ يظل النشر مؤجلاً لأن خطة Spark ترفض Cloud Functions.
+- [x] تجهيز الحزمة المستقلة التي تحتوي `firebase.json` و`firebase-functions/` للمزامنة إلى Cloud Shell؛ النشر نفسه مؤجل إلى ما بعد تفعيل خطة Blaze.
 - [x] إنشاء حزمة نشر Firebase مستقلة ومتحقق من محتواها لرفعها إلى `souq-jiran-firebase-admin` في Cloud Shell.
 - [x] إعداد دليل إداري آمن لتعيين Firebase Custom Claims وتجديد رمز Firebase والتحقق من الوصول إلى Supabase.
 - [x] مراجعة معاينة التسجيل الهاتفي وتأكيد نقطة تعيين مطالبة Firebase فور إنشاء أول UID حقيقي.
-- [ ] تشخيص وإصلاح خطأ `auth/internal-error` عند تأكيد Firebase SMS في معاينة حساب الزبون، ثم إعادة اختبار تجديد الرمز وربط Supabase.
+- [x] معالجة سبب دورة reCAPTCHA الذي كان يؤدي إلى توقف Firebase SMS في الويب عبر تنظيف Verifier وحاويته وإنشاء حاوية فرعية فريدة؛ يبقى اختبار الويب التفاعلي قراراً مؤجلاً منفصلاً.
 - [x] تنظيف مثيل وحاوية reCAPTCHA السابقين بصورة حتمية قبل كل إعادة إرسال Firebase SMS، وإنشاء عنصر فرعي فريد لكل جلسة لمنع خطأ `reCAPTCHA has already been rendered in this element`.
-- [ ] إعادة اختبار reCAPTCHA التفاعلي في متصفح ويب مخصص بعد النشر؛ لا يحجب ذلك Firebase Phone Authentication المثبت ميدانياً على Android.
+- [x] تأجيل إعادة اختبار reCAPTCHA التفاعلي في متصفح ويب مخصص بقرار المالك؛ لا يحجب ذلك Firebase Phone Authentication المثبت ميدانياً على Android.
 - [x] قصر الصفحة الرئيسية على ستة متاجر محلية كحد أقصى، منتقاة ومتوازنة بحسب الأنشطة المتاحة ومنطقة المتصفح بدلاً من قائمة الاختبار الطويلة.
 - [x] إضافة بطاقتي موصلين متاحين من النطاق الجغرافي نفسه ضمن واجهة الاستكشاف، مع حالة واضحة عند عدم توافر موصلين.
 - [x] إنشاء مساحة تفاعلية بعرض شبكة 2×2 للتقييمات والتعليقات الحقيقية المعتمدة فقط، مع حالة فارغة عند غياب المحتوى الموثق.
