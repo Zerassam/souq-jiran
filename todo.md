@@ -201,3 +201,5 @@
 - [x] تطبيق 20260830_secure_firebase_phone_link.sql بنجاح بعد تفعيل Firebase Third-party Auth لتأمين الربط الحي للأرقام.
 - [x] اكتشاف تصحيح لازم لفصل معرف حساب Supabase عن معرف Firebase عند تأكيد التحدي، ومنع الاعتماد على `auth.uid()` داخل جلسة Firebase.
 - [x] تطبيق 20260831_fix_firebase_phone_link_identity.sql بنجاح في Supabase لتصحيح ربط التحدي بالحساب الحي.
+- [ ] إعداد مطالبة Firebase Custom Claim باسم role بالقيمة authenticated لجميع المستخدمين الحاليين والجدد والتحقق من وصولها في JWT.
+- [x] إعداد دليل إداري آمن لتعيين Firebase Custom Claims وتجديد رمز Firebase والتحقق من الوصول إلى Supabase.

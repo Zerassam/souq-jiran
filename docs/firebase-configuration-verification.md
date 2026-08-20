@@ -9,3 +9,5 @@
 - Firebase يعرض سقفاً افتراضياً للمشاريع الجديدة قدره 10 رسائل SMS يومياً؛ هذا قيد تشغيلي خارجي وليس خطأً في التطبيق.
 
 يبقى مفتاح VAPID غير مطلوب إلى حين تفعيل استقبال FCM للويب. كما يجب تطبيق أي ترحيل Firebase لاحق يظهر في `supabase/migrations/` قبل اختباره على الحسابات الحية.
+
+لإكمال وصول Firebase JWT إلى إجراءات Supabase التي تمنحها صلاحية `authenticated`، راجع الدليل الإداري: [`firebase-custom-claims-guide.md`](./firebase-custom-claims-guide.md). هذا التعيين يتم حصراً عبر Firebase Admin SDK في بيئة موثوقة، ولا يوضع في تطبيق الويب أو الـAPK.
