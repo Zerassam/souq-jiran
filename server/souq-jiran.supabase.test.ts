@@ -421,9 +421,9 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain("phone.souqjiran.local");
   });
 
-  it("provides privacy-conscious account recovery and verified phone change in mock OTP mode", () => {
+  it("provides privacy-conscious account recovery and verified phone change through Firebase SMS", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
-    const migration = readFileSync(resolve(projectRoot, "supabase/migrations/20260826_account_recovery_phone_change.sql"), "utf8");
+    const migration = readFileSync(resolve(projectRoot, "supabase/migrations/20260829_firebase_phone_change.sql"), "utf8");
 
     expect(appSource).toContain("function requestAccountRecovery");
     expect(appSource).toContain("resetPasswordForEmail");
@@ -431,8 +431,13 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain('aria-label="رقم الهاتف الجديد"');
     expect(appSource).toContain("request_my_phone_change");
     expect(appSource).toContain("confirm_my_phone_change");
-    expect(appSource).toContain("رمز OTP التجريبي 123456");
-    expect(migration).toContain("create table if not exists public.account_phone_change_requests");
+    expect(appSource).toContain('"firebase-phone-change-recaptcha"');
+    expect(appSource).toContain('id="firebase-phone-change-recaptcha"');
+    expect(appSource).toContain("completeFirebasePhoneVerification(phoneVerification, otp)");
+    expect(appSource).toContain('p_channel: "firebase_sms"');
+    expect(appSource).toContain('p_method: "firebase_sms"');
+    expect(appSource).toContain("firebasePhoneVerification.phoneNumber !== normalizedPhone");
+    expect(migration).toContain("firebase_sms");
     expect(migration).toContain("create or replace function public.request_my_phone_change");
     expect(migration).toContain("create or replace function public.confirm_my_phone_change");
     expect(migration).toContain("Phone number is already linked to another account");

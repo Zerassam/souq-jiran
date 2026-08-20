@@ -737,6 +737,7 @@ function MerchantRegisterModal({ onSubmit, onClose }) {
 function PhoneChangeModal({ currentPhone, onRequest, onConfirm, onClose }) {
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
+  const [phoneVerification, setPhoneVerification] = useState(null);
   const [requested, setRequested] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
@@ -747,20 +748,32 @@ function PhoneChangeModal({ currentPhone, onRequest, onConfirm, onClose }) {
     if (!normalizedPhone) { setError("أدخل رقم هاتف محمول جزائرياً يبدأ بـ 05 أو 06 أو 07."); return; }
     setError(""); setFeedback(""); setIsSubmitting(true);
     try {
+      const verification = await beginFirebasePhoneVerification(normalizedPhone, "firebase-phone-change-recaptcha");
       const result = await onRequest(normalizedPhone);
       if (result?.error) { setError(result.error); return; }
+      setPhoneVerification(verification);
+      setOtp("");
       setRequested(true);
-      setFeedback("تم فتح طلب التحقق في الوضع التجريبي. أدخل الرمز 123456 للمتابعة.");
+      setFeedback(verification.platform === "native" && verification.completedUser
+        ? "تم التحقق من رقم الهاتف تلقائياً بواسطة Firebase. أكد حفظ الرقم الجديد."
+        : "أُرسل رمز التحقق عبر رسالة SMS من Firebase. أدخله لتأكيد الرقم الجديد.");
+    } catch (requestError) {
+      setError(requestError?.message || "تعذر إرسال رمز Firebase. تحقق من إعداد Phone Authentication وحاول مجدداً.");
     } finally { setIsSubmitting(false); }
   }
 
   async function confirmChange() {
-    if (otp !== "123456") { setError("أدخل رمز OTP التجريبي 123456 لتأكيد الرقم."); return; }
+    if (!normalizedPhone || !phoneVerification) { setError("أرسل رمز Firebase أولاً ثم أكمل التحقق."); return; }
     setError(""); setIsSubmitting(true);
     try {
-      const result = await onConfirm({ phone: normalizedPhone, mockOtpCode: otp });
+      const verification = phoneVerification.platform === "native" && phoneVerification.completedUser
+        ? phoneVerification
+        : await completeFirebasePhoneVerification(phoneVerification, otp);
+      const result = await onConfirm({ phone: normalizedPhone, firebasePhoneVerification: verification });
       if (result?.error) { setError(result.error); return; }
       onClose();
+    } catch (verificationError) {
+      setError(verificationError?.message || "رمز Firebase غير صحيح أو انتهت صلاحيته. أعد طلب رمز جديد.");
     } finally { setIsSubmitting(false); }
   }
 
@@ -768,9 +781,10 @@ function PhoneChangeModal({ currentPhone, onRequest, onConfirm, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(35,32,27,0.55)" }} onClick={onClose}>
       <div onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl p-5 space-y-3" style={{ background: C.paper }}>
         <div className="flex items-center justify-between gap-3"><div><h3 className="font-black flex items-center gap-1.5" style={{ color: C.ink }}><Phone size={18} color={C.teal} /> تغيير رقم الهاتف</h3><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>رقمك الحالي: <span dir="ltr">{currentPhone || "غير مضاف"}</span></p></div><button onClick={onClose} aria-label="إغلاق"><X size={18} color={C.inkSoft} /></button></div>
-        <p className="text-xs leading-5 p-3 rounded-xl" style={{ background: C.ochre + "12", color: C.ink, border: `1px solid ${C.ochre}42` }}>ستتحقق من الرقم الجديد أولاً. التطبيق يعمل حالياً بوضع OTP التجريبي ولا يرسل رسالة فعلية.</p>
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input aria-label="رقم الهاتف الجديد" placeholder="0551234567 أو +213551234567" value={phone} onChange={(event) => { setPhone(event.target.value); setRequested(false); setOtp(""); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="tel" /></div>
-        {!requested ? <button disabled={isSubmitting} onClick={requestCode} className="w-full py-3 rounded-xl font-black text-sm disabled:opacity-50" style={{ background: C.teal, color: "#fff" }}>{isSubmitting ? "جارٍ فتح التحقق..." : "متابعة التحقق"}</button> : <><input aria-label="رمز تأكيد تغيير الهاتف" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="رمز OTP التجريبي 123456" inputMode="numeric" className="w-full px-3 py-2.5 rounded-xl text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /><button disabled={isSubmitting} onClick={confirmChange} className="w-full py-3 rounded-xl font-black text-sm disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ حفظ الرقم..." : "تأكيد الرقم الجديد"}</button></>}
+        <p className="text-xs leading-5 p-3 rounded-xl" style={{ background: C.ochre + "12", color: C.ink, border: `1px solid ${C.ochre}42` }}>ستتحقق من الرقم الجديد عبر رسالة SMS من Firebase قبل حفظه في ملفك.</p>
+        <div id="firebase-phone-change-recaptcha" aria-hidden="true" />
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input aria-label="رقم الهاتف الجديد" placeholder="0551234567 أو +213551234567" value={phone} onChange={(event) => { setPhone(event.target.value); setRequested(false); setPhoneVerification(null); setOtp(""); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="tel" /></div>
+        {!requested ? <button disabled={isSubmitting} onClick={requestCode} className="w-full py-3 rounded-xl font-black text-sm disabled:opacity-50" style={{ background: C.teal, color: "#fff" }}>{isSubmitting ? "جارٍ إرسال الرمز..." : "إرسال رمز Firebase"}</button> : <><input aria-label="رمز تأكيد تغيير الهاتف" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="رمز التحقق عبر SMS" inputMode="numeric" disabled={phoneVerification?.platform === "native" && phoneVerification?.completedUser} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none bg-white disabled:opacity-50" style={{ border: `1px solid ${C.line}` }} /><button disabled={isSubmitting} onClick={confirmChange} className="w-full py-3 rounded-xl font-black text-sm disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ حفظ الرقم..." : "تأكيد الرقم الجديد"}</button></>}
         {feedback && <p className="text-xs font-bold" style={{ color: C.sage }}>{feedback}</p>}
         {error && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{error}</p>}
       </div>
@@ -2653,24 +2667,24 @@ export default function App() {
     if (!auth?.id) return { error: "سجّل الدخول أولاً لتغيير رقم الهاتف." };
     const normalizedPhone = normalizeAlgerianMobile(phone);
     if (!normalizedPhone) return { error: "أدخل رقم هاتف محمول جزائرياً صحيحاً." };
-    const { error } = await supabase.rpc("request_my_phone_change", { p_phone: normalizedPhone, p_channel: "mock" });
-    if (error) return { error: "تعذر فتح تحقق الرقم. طبّق ترحيل 20260826_account_recovery_phone_change.sql في Supabase أولاً." };
-    recordMockMessage({ recipient: "صاحب الحساب", body: `طلب تغيير رقم الهاتف إلى ${normalizedPhone}. رمز OTP التجريبي هو 123456.` });
+    const { error } = await supabase.rpc("request_my_phone_change", { p_phone: normalizedPhone, p_channel: "firebase_sms" });
+    if (error) return { error: "تعذر حفظ طلب تغيير الرقم. طبّق الترحيل 20260829_firebase_phone_change.sql في Supabase ثم حاول مجدداً." };
     return {};
   }
 
-  async function confirmPhoneChange({ phone, mockOtpCode }) {
+  async function confirmPhoneChange({ phone, firebasePhoneVerification }) {
     if (!auth?.id) return { error: "سجّل الدخول أولاً لتغيير رقم الهاتف." };
     const normalizedPhone = normalizeAlgerianMobile(phone);
-    if (!normalizedPhone || mockOtpCode !== "123456") return { error: "أكمل التحقق من رقم الهاتف بالرمز التجريبي الصحيح." };
-    const { error } = await supabase.rpc("confirm_my_phone_change", { p_phone: normalizedPhone, p_method: "mock" });
+    if (!normalizedPhone || !firebasePhoneVerification?.firebaseUid) return { error: "أكمل تحقق Firebase عبر رمز SMS قبل حفظ الرقم." };
+    if (firebasePhoneVerification.phoneNumber !== normalizedPhone) return { error: "رمز Firebase مرتبط برقم مختلف. أعد طلب رمز الرقم الجديد." };
+    const { error } = await supabase.rpc("confirm_my_phone_change", { p_phone: normalizedPhone, p_method: "firebase_sms" });
     if (error) return { error: "تعذر تأكيد الرقم. تحقق من طلب التغيير أو طبّق الترحيل المطلوب." };
+    const firebaseRecord = await recordFirebasePhoneVerification(firebasePhoneVerification);
     const { error: metadataError } = await supabase.auth.updateUser({ data: { phone: normalizedPhone } });
     if (metadataError) return { error: "تم تحديث الرقم في الملف، لكن تعذر مزامنة بيانات الجلسة. سجّل الخروج ثم ادخل مجدداً." };
     setAuth((current) => current ? { ...current, phone: normalizedPhone, identity: normalizedPhone } : current);
-    recordMockMessage({ recipient: "صاحب الحساب", body: `تم تأكيد تغيير رقم الهاتف إلى ${normalizedPhone} في وضع OTP التجريبي.` });
-    notify("تم تغيير رقم الهاتف بعد التحقق التجريبي.");
-    return {};
+    notify(firebaseRecord.warning || "تم تغيير رقم الهاتف بعد تحقق Firebase.");
+    return firebaseRecord;
   }
 
   async function registerMerchant(form) {
