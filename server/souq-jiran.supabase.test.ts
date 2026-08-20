@@ -23,6 +23,10 @@ describe("Souq Jiran Supabase integration", () => {
     expect(firebaseSource).toContain("FirebaseAuthentication.confirmVerificationCode");
     expect(supabaseSource).toContain("firebaseSupabase");
     expect(supabaseSource).toContain("accessToken: async () => getFirebaseIdToken(false)");
+    expect(firebaseSource).toContain("clearFirebasePhoneVerification");
+    expect(firebaseSource).toContain("webPhoneVerificationRequests");
+    expect(authModalSource).toContain("phoneRequestInFlightRef");
+    expect(authModalSource).toContain("resetPhoneVerification");
   });
 
   it("keeps FCM tokens restricted to the active Supabase profile and configures Android permission support", () => {
@@ -473,6 +477,12 @@ describe("Souq Jiran Supabase integration", () => {
     expect(firebaseSource).toContain("phoneVerificationCompleted");
     expect(firebaseSource).toContain("لم يصل رد من Firebase خلال دقيقة");
     expect(firebaseSource).toContain("completedUser");
+    expect(firebaseSource).toContain("webRecaptchaVerifiers");
+    expect(firebaseSource).toContain("clearWebRecaptchaVerifier");
+    expect(firebaseSource).toContain("__souqJiranRecaptchaVerifiers");
+    expect(firebaseSource).toContain("__souqJiranPhoneVerificationRequests");
+    expect(firebaseSource).toContain("legacyVerifier.clear");
+    expect(firebaseSource).toContain("auth/internal-error");
     expect(appSource).toContain("const phoneAutoVerified");
     expect(appSource).toContain("تم التحقق منه تلقائياً؛ يمكنك المتابعة.");
     expect(appSource).toContain("!phoneAutoVerified && otpCode.length !== 6");

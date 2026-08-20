@@ -1,6 +1,7 @@
 import { firebaseSupabase, supabase } from "@/lib/supabase";
 import {
   beginFirebasePhoneVerification,
+  clearFirebasePhoneVerification,
   completeFirebasePhoneVerification,
   listenForNativeFcmToken,
   requestNativeFcmToken,
@@ -807,17 +808,34 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const phoneRequestInFlightRef = useRef(false);
   const parsedIdentifier = parseLoginIdentifier(identifier);
   const phoneOtpRequired = !adminOnly && parsedIdentifier?.kind === "phone";
   const waitingForPhoneCode = Boolean(phoneVerification);
   const phoneAutoVerified = Boolean(phoneVerification?.platform === "native" && phoneVerification?.completedUser);
 
+  function resetPhoneVerification() {
+    clearFirebasePhoneVerification("firebase-phone-recaptcha");
+    setOtpCode("");
+    setPhoneVerification(null);
+  }
+
+  function closeAuthModal() {
+    resetPhoneVerification();
+    onClose();
+  }
+
+  useEffect(() => () => clearFirebasePhoneVerification("firebase-phone-recaptcha"), []);
+
   async function requestPhoneCode() {
     if (!parsedIdentifier?.phone) return;
+    if (phoneRequestInFlightRef.current) return;
+    phoneRequestInFlightRef.current = true;
     setError("");
     setNotice("");
     setIsSubmitting(true);
     try {
+      resetPhoneVerification();
       const verification = await beginFirebasePhoneVerification(parsedIdentifier.phone, "firebase-phone-recaptcha");
       setPhoneVerification(verification);
       setOtpCode("");
@@ -827,6 +845,7 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
     } catch (requestError) {
       setError(requestError?.message || "تعذر إرسال رمز Firebase. تحقق من إعداد Phone Authentication وحاول مجدداً.");
     } finally {
+      phoneRequestInFlightRef.current = false;
       setIsSubmitting(false);
     }
   }
@@ -853,30 +872,30 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
     }
     if (result?.error) { setError(result.error); return; }
     if (result?.notice) { setNotice(result.notice); return; }
-    onClose();
+    closeAuthModal();
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(35,32,27,0.55)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(35,32,27,0.55)" }} onClick={closeAuthModal}>
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl p-5 space-y-3" style={{ background: C.paper }}>
-        <div className="flex items-center justify-between"><h3 className="font-black text-lg flex items-center gap-1.5" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>{mode === "login" ? <LogIn size={18} color={C.teal} /> : <UserPlus size={18} color={C.teal} />} {type === "merchant" ? "منصة التاجر" : type === "courier" ? "لوحة الموصل" : type === "customer" ? "حساب العميل" : "لوحة الإدارة"}</h3><button onClick={onClose}><X size={18} color={C.inkSoft} /></button></div>
+        <div className="flex items-center justify-between"><h3 className="font-black text-lg flex items-center gap-1.5" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>{mode === "login" ? <LogIn size={18} color={C.teal} /> : <UserPlus size={18} color={C.teal} />} {type === "merchant" ? "منصة التاجر" : type === "courier" ? "لوحة الموصل" : type === "customer" ? "حساب العميل" : "لوحة الإدارة"}</h3><button onClick={closeAuthModal}><X size={18} color={C.inkSoft} /></button></div>
         {!adminOnly && <>{!lockRole && <div className="flex gap-2 p-1 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
           <button onClick={() => setType("merchant")} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: type === "merchant" ? C.teal : "transparent", color: type === "merchant" ? "#fff" : C.inkSoft }}><Store size={15} /> تاجر</button>
           <button onClick={() => setType("courier")} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: type === "courier" ? C.teal : "transparent", color: type === "courier" ? "#fff" : C.inkSoft }}><Bike size={15} /> موصّل</button>
           <button onClick={() => setType("customer")} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: type === "customer" ? C.teal : "transparent", color: type === "customer" ? "#fff" : C.inkSoft }}><User size={15} /> عميل</button>
         </div>}
         <div className="flex gap-2 p-1 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
-          <button onClick={() => { setMode("login"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "login" ? C.ink : "transparent", color: mode === "login" ? "#fff" : C.inkSoft }}>دخول</button>
-          {allowRegistration && <button onClick={() => { setMode("register"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "register" ? C.ink : "transparent", color: mode === "register" ? "#fff" : C.inkSoft }}>حساب جديد</button>}
+          <button onClick={() => { resetPhoneVerification(); setMode("login"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "login" ? C.ink : "transparent", color: mode === "login" ? "#fff" : C.inkSoft }}>دخول</button>
+          {allowRegistration && <button onClick={() => { resetPhoneVerification(); setMode("register"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "register" ? C.ink : "transparent", color: mode === "register" ? "#fff" : C.inkSoft }}>حساب جديد</button>}
         </div></>}
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input data-testid="auth-identifier-input" placeholder="رقم الهاتف أو البريد الإلكتروني" value={identifier} onChange={(e) => { setIdentifier(e.target.value); setOtpCode(""); setPhoneVerification(null); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode={identifier.includes("@") ? "email" : "tel"} /></div>
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input data-testid="auth-identifier-input" placeholder="رقم الهاتف أو البريد الإلكتروني" value={identifier} onChange={(e) => { resetPhoneVerification(); setIdentifier(e.target.value); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode={identifier.includes("@") ? "email" : "tel"} /></div>
         <div id="firebase-phone-recaptcha" aria-hidden="true" />
         {phoneOtpRequired && <div data-testid="firebase-phone-otp" className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-xs leading-5 font-bold" style={{ color: C.ink }}>تم التعرف على رقم الهاتف <span dir="ltr">{parsedIdentifier.phone}</span>. {phoneAutoVerified ? "تم التحقق منه تلقائياً؛ يمكنك المتابعة." : waitingForPhoneCode ? "أدخل رمز SMS الذي وصلك من Firebase." : "أرسل رمز SMS لتأكيد ملكية الرقم قبل المتابعة."}</p>{waitingForPhoneCode && !phoneAutoVerified && <><input aria-label="رمز SMS من Firebase" value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="رمز SMS المكوّن من 6 أرقام" inputMode="numeric" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /><button type="button" disabled={isSubmitting} onClick={requestPhoneCode} className="text-xs font-bold" style={{ color: C.teal }}>إعادة إرسال رمز SMS</button></>}</div>}
         {mode !== "recover" && <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Lock size={15} color={C.inkSoft} /><input type="password" placeholder="كلمة المرور" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>}
         {error && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{error}</p>}
         {notice && <p className="text-xs font-bold" style={{ color: C.sage }}>{notice}</p>}
         <button disabled={isSubmitting} onClick={submit} className="w-full py-3 rounded-xl font-black flex items-center justify-center gap-1.5 disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ المعالجة..." : mode === "login" ? <><LogIn size={16} /> تسجيل الدخول</> : mode === "recover" ? <><Phone size={16} /> بدء الاستعادة</> : <><UserPlus size={16} /> إنشاء حساب</>}</button>
-        {!adminOnly && <button onClick={() => { setMode("recover"); setError(""); setNotice(""); setOtpCode(""); setPhoneVerification(null); }} className="w-full text-xs font-bold py-1" style={{ color: C.teal }}>هل نسيت كلمة المرور؟ ابدأ الاستعادة برقم الهاتف أو البريد</button>}
+        {!adminOnly && <button onClick={() => { resetPhoneVerification(); setMode("recover"); setError(""); setNotice(""); }} className="w-full text-xs font-bold py-1" style={{ color: C.teal }}>هل نسيت كلمة المرور؟ ابدأ الاستعادة برقم الهاتف أو البريد</button>}
         {adminOnly && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>لا تتاح لوحة الإدارة إلا للحسابات المصرح لها في قاعدة البيانات.</p>}
         {!adminOnly && mode === "register" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>{type === "merchant" ? "يمكنك البدء برقم الهاتف أو البريد، ثم تكمل بيانات محلك." : type === "courier" ? "يمكنك البدء برقم الهاتف أو البريد؛ بعد الموافقة تدخل لوحتك مباشرةً." : "يمكنك المتابعة برقم الهاتف أو البريد لإرسال الطلبات ومتابعتها بأمان."}</p>}
         {!adminOnly && mode === "recover" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>تصل استعادة البريد إلى رابط إعادة التعيين، أما الهاتف فيُثبت برمز SMS من Firebase ثم يُسجَّل طلب استعادة آمن دون كشف وجود الحساب.</p>}

@@ -203,3 +203,7 @@
 - [x] تطبيق 20260831_fix_firebase_phone_link_identity.sql بنجاح في Supabase لتصحيح ربط التحدي بالحساب الحي.
 - [ ] إعداد مطالبة Firebase Custom Claim باسم role بالقيمة authenticated لجميع المستخدمين الحاليين والجدد والتحقق من وصولها في JWT.
 - [x] إعداد دليل إداري آمن لتعيين Firebase Custom Claims وتجديد رمز Firebase والتحقق من الوصول إلى Supabase.
+- [x] مراجعة معاينة التسجيل الهاتفي وتأكيد نقطة تعيين مطالبة Firebase فور إنشاء أول UID حقيقي.
+- [ ] تشخيص وإصلاح خطأ `auth/internal-error` عند تأكيد Firebase SMS في معاينة حساب الزبون، ثم إعادة اختبار تجديد الرمز وربط Supabase.
+- [ ] تنظيف مثيل وحاوية reCAPTCHA السابقين بصورة حتمية قبل كل إعادة إرسال Firebase SMS، ومنع خطأ `reCAPTCHA has already been rendered in this element`.
+- [ ] إعادة اختبار reCAPTCHA التفاعلي في متصفح ويب مخصص بعد النشر؛ لا يحجب ذلك Firebase Phone Authentication المثبت ميدانياً على Android.
