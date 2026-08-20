@@ -415,27 +415,15 @@ function MapView({ stores, selectedWilaya, onSelectWilaya, onOpenStore }) {
   const [mapError, setMapError] = useState("");
   const wilayaStores = selectedWilaya ? stores.filter((s) => s.wilaya === selectedWilaya) : stores;
   const selected = wilayaStores.find((s) => s.id === pinId);
-  const showStoreMarkers = (map) => {
-    if (!window.google?.maps) return;
-    const bounds = new window.google.maps.LatLngBounds();
-    wilayaStores.forEach((store, index) => {
-      const position = getStoreMapPosition(store, index);
-      const marker = new window.google.maps.Marker({ map, position, title: store.name });
-      marker.addListener("click", () => {
-        setPinId(store.id);
-        map.panTo(position);
-        map.setZoom(Math.max(map.getZoom() || 10, 11));
-        onOpenStore(store.id);
-      });
-      bounds.extend(position);
-    });
-    if (wilayaStores.length === 1) {
-      map.setCenter(getStoreMapPosition(wilayaStores[0]));
-      map.setZoom(12);
-    } else if (wilayaStores.length > 1) {
-      map.fitBounds(bounds, 42);
-    }
-  };
+  const storeMarkers = wilayaStores.map((store, index) => ({
+    id: store.id,
+    position: getStoreMapPosition(store, index),
+    title: store.name,
+    onClick: () => {
+      setPinId(store.id);
+      onOpenStore(store.id);
+    },
+  }));
   return (
     <div className="space-y-3">
       <select value={selectedWilaya || ""} onChange={(e) => { onSelectWilaya(e.target.value || null); setPinId(null); }} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }}>
@@ -443,13 +431,13 @@ function MapView({ stores, selectedWilaya, onSelectWilaya, onOpenStore }) {
         {WILAYAS.filter((w) => stores.some((s) => s.wilaya === w)).map((w) => <option key={w} value={w}>{w}</option>)}
       </select>
       <div className="relative rounded-2xl overflow-hidden" style={{ height: 340, background: C.paperDark }}>
-        {!mapError && <GoogleMapView key={selectedWilaya || "all-stores"} className="h-full" initialCenter={{ lat: 28.0339, lng: 1.6596 }} initialZoom={5} onMapReady={showStoreMarkers} onMapError={() => setMapError("تعذر تحميل Google Maps حالياً. تحقق من اتصال الإنترنت وإتاحة Google Maps في إعدادات المشروع.")} />}
+        {!mapError && <GoogleMapView key={selectedWilaya || "all-stores"} className="h-full" initialCenter={{ lat: 28.0339, lng: 1.6596 }} initialZoom={5} markers={storeMarkers} onMapError={() => setMapError("تعذر تحميل الخريطة حالياً. تحقق من اتصال الإنترنت ثم أعد المحاولة.")} />}
         {mapError && <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center" style={{ ...mapGridStyle(26), color: C.inkSoft }}><MapPin size={28} color={C.rust} /><p className="text-sm font-bold">{mapError}</p><button onClick={() => setMapError("")} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: C.teal, color: "#fff" }}>إعادة المحاولة</button></div>}
         {wilayaStores.length === 0 && !mapError && <p className="absolute bottom-3 right-3 left-3 p-2 rounded-lg text-center text-xs" style={{ background: "#ffffffe8", color: C.inkSoft }}>لا محلات مفعلة في هذه المنطقة بعد.</p>}
       </div>
       {wilayaStores.length > 0 && <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{wilayaStores.map((store) => <button key={store.id} onClick={() => { setPinId(store.id); onOpenStore(store.id); }} className="p-3 rounded-xl text-right flex items-center gap-2" style={{ background: "#fff", border: `1px solid ${pinId === store.id ? C.teal : C.line}` }}><StoreAvatar logo={store.logo} size={30} /><span className="min-w-0 flex-1"><span className="block text-sm font-black truncate" style={{ color: C.ink }}>{store.name}</span><span className="block text-[11px]" style={{ color: C.inkSoft }}>{store.wilaya} · {store.commune}</span></span><ChevronLeft size={15} color={C.teal} /></button>)}</div>}
       {selected && <p className="text-xs" style={{ color: C.inkSoft }}>المحل المحدد: {selected.name}</p>}
-      <p className="text-xs flex items-center gap-1" style={{ color: C.inkSoft }}><MapIcon size={12} /> خريطة Google Maps لتحديد الولاية، مع قائمة المحلات المفعلة المتاحة للشراء.</p>
+      <p className="text-xs flex items-center gap-1" style={{ color: C.inkSoft }}><MapIcon size={12} /> خريطة تفاعلية لتحديد الولاية، مع قائمة المحلات المفعلة المتاحة للشراء.</p>
     </div>
   );
 }

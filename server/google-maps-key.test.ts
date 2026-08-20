@@ -1,20 +1,16 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-describe("Google Maps JavaScript API key", () => {
-  it("loads the Maps JavaScript bootstrap without a key-validation error", async () => {
-    const apiKey = process.env.VITE_GOOGLE_MAPS_API_KEY;
-    expect(apiKey, "VITE_GOOGLE_MAPS_API_KEY must be configured").toBeTruthy();
+describe("Interactive map integration", () => {
+  it("uses an open map layer rather than a browser-exposed Google Maps key or proxy", () => {
+    const mapSource = readFileSync(resolve(import.meta.dirname, "../client/src/components/Map.tsx"), "utf8");
 
-    const url = new URL("https://maps.googleapis.com/maps/api/js");
-    url.searchParams.set("key", apiKey!);
-    url.searchParams.set("v", "weekly");
-
-    const response = await fetch(url, { signal: AbortSignal.timeout(12_000) });
-    const script = await response.text();
-
-    expect(response.ok).toBe(true);
-    expect(script).not.toContain("InvalidKeyMapError");
-    expect(script).not.toContain("ApiNotActivatedMapError");
-    expect(script).not.toContain("RefererNotAllowedMapError");
-  }, 15_000);
+    expect(mapSource).toContain('from "leaflet"');
+    expect(mapSource).toContain("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png");
+    expect(mapSource).toContain("markers?: MapMarker[]");
+    expect(mapSource).not.toContain("VITE_GOOGLE_MAPS_API_KEY");
+    expect(mapSource).not.toContain("VITE_FRONTEND_FORGE_API_KEY");
+    expect(mapSource).not.toContain("https://maps.googleapis.com/maps/api/js?key=");
+  });
 });
