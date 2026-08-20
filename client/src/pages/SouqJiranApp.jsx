@@ -686,6 +686,64 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
 }
 
 /* ---------------------------------------------------------
+   تسجيل تاجر — بيانات الحساب ثم بيانات المحل ونطاق التوصيل
+--------------------------------------------------------- */
+function MerchantRegisterModal({ onSubmit, onClose }) {
+  const [form, setForm] = useState({ ownerName: "", contact: "", phone: "", password: "", mockOtpCode: "", storeName: "", wilaya: "", commune: "", deliveryCommunes: [] });
+  const [step, setStep] = useState(1);
+  const [authError, setAuthError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const contactIdentity = parseLoginIdentifier(form.contact);
+  const usesPhoneIdentity = contactIdentity?.kind === "phone";
+
+  function toggleDeliveryCommune(commune) {
+    setForm((current) => ({ ...current, deliveryCommunes: current.deliveryCommunes.includes(commune) ? current.deliveryCommunes.filter((item) => item !== commune) : [...current.deliveryCommunes, commune] }));
+  }
+
+  async function submit() {
+    if (!form.storeName || !form.wilaya) { setAuthError("أكمل اسم المحل والولاية قبل إرسال الطلب."); setStep(2); return; }
+    if (!form.ownerName || !contactIdentity) { setAuthError("أدخل اسم صاحب المحل وبريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً صحيحاً."); setStep(1); return; }
+    const operationalPhone = contactIdentity.phone || normalizeAlgerianMobile(form.phone);
+    if (!operationalPhone) { setAuthError("أدخل رقم هاتف محمول جزائرياً للتواصل يبدأ بـ 05 أو 06 أو 07."); setStep(1); return; }
+    if (form.password.length < 6) { setAuthError("كلمة المرور يجب أن تكون 6 أحرف على الأقل."); setStep(1); return; }
+    if (usesPhoneIdentity && form.mockOtpCode !== "123456") { setAuthError("أدخل رمز OTP التجريبي 123456 لتأكيد رقم الهاتف."); setStep(1); return; }
+    setAuthError("");
+    setIsSubmitting(true);
+    const result = await onSubmit({ ...form, name: form.storeName, phone: operationalPhone, phoneMockVerified: usesPhoneIdentity });
+    setIsSubmitting(false);
+    if (result?.error) { setAuthError(result.error); setStep(1); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(35,32,27,0.5)" }} onClick={onClose}>
+      <div onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl p-5 space-y-4 max-h-[88vh] overflow-y-auto" style={{ background: C.paper }}>
+        <div className="flex items-center justify-between"><h3 className="font-black flex items-center gap-1.5" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}><Store size={17} color={C.rust} /> انضم كتاجر — إعدادات التسجيل</h3><button onClick={onClose} aria-label="إغلاق"><X size={18} color={C.inkSoft} /></button></div>
+        <div className="flex gap-2 p-1 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
+          <button onClick={() => setStep(1)} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: step === 1 ? C.rust : "transparent", color: step === 1 ? "#fff" : C.inkSoft }}>1. بيانات الحساب</button>
+          <button onClick={() => setStep(2)} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: step === 2 ? C.rust : "transparent", color: step === 2 ? "#fff" : C.inkSoft }}>2. بيانات المحل</button>
+        </div>
+        {step === 1 && <div className="space-y-3">
+          <input aria-label="اسم صاحب المحل" placeholder="اسم صاحب المحل" value={form.ownerName} onChange={(event) => setForm({ ...form, ownerName: event.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
+          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input data-testid="merchant-identifier-input" placeholder="رقم الهاتف أو البريد الإلكتروني" value={form.contact} onChange={(event) => setForm({ ...form, contact: event.target.value, mockOtpCode: "" })} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode={form.contact.includes("@") ? "email" : "tel"} /></div>
+          {!usesPhoneIdentity && <input aria-label="هاتف التواصل للتاجر" placeholder="رقم الهاتف للتواصل (05/06/07)" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} inputMode="tel" />}
+          {usesPhoneIdentity && <div className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-[11px] font-bold" style={{ color: C.ink }}>تأكيد الهاتف في وضع OTP التجريبي. الرمز: 123456</p><input aria-label="رمز OTP التجريبي للتاجر" value={form.mockOtpCode} onChange={(event) => setForm({ ...form, mockOtpCode: event.target.value.replace(/\D/g, "").slice(0, 6) })} placeholder="رمز OTP التجريبي" inputMode="numeric" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /></div>}
+          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Lock size={15} color={C.inkSoft} /><input type="password" placeholder="كلمة المرور (6 أحرف على الأقل)" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>
+          {authError && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{authError}</p>}
+          <button onClick={() => setStep(2)} disabled={!form.ownerName || !contactIdentity} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>التالي: بيانات المحل</button>
+        </div>}
+        {step === 2 && <div className="space-y-4">
+          <div><label className="text-xs font-bold flex items-center gap-1 mb-1.5" style={{ color: C.ink }}><Store size={13} /> بيانات المحل</label><input aria-label="اسم المحل" placeholder="اسم المحل" value={form.storeName} onChange={(event) => setForm({ ...form, storeName: event.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /></div>
+          <div><label className="text-xs font-bold flex items-center gap-1 mb-1.5" style={{ color: C.ink }}><MapPin size={13} /> موقع المحل ونطاق التوصيل</label><div className="flex gap-2"><select value={form.wilaya} onChange={(event) => setForm({ ...form, wilaya: event.target.value, commune: "", deliveryCommunes: [] })} className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }}><option value="" disabled>اختر الولاية</option>{WILAYAS.map((wilaya) => <option key={wilaya} value={wilaya}>{wilaya}</option>)}</select><select value={form.commune} onChange={(event) => setForm({ ...form, commune: event.target.value })} disabled={!form.wilaya} className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none disabled:opacity-50" style={{ border: `1px solid ${C.line}` }}><option value="">بلدية المحل</option>{getCommunes(form.wilaya).map((commune) => <option key={commune} value={commune}>{commune}</option>)}</select></div></div>
+          {form.wilaya && <div><p className="text-[11px] mb-2" style={{ color: C.inkSoft }}>حدد البلديات الإضافية التي يغطيها توصيل محلك، أو اتركها فارغة لخدمة بلدية المحل فقط.</p><div className="flex flex-wrap gap-1.5">{getCommunes(form.wilaya).map((commune) => <button key={commune} type="button" onClick={() => toggleDeliveryCommune(commune)} className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: form.deliveryCommunes.includes(commune) ? C.rust : "transparent", color: form.deliveryCommunes.includes(commune) ? "#fff" : C.inkSoft, border: `1px solid ${form.deliveryCommunes.includes(commune) ? C.rust : C.line}` }}>{commune}</button>)}</div></div>}
+          <div className="p-3.5 rounded-xl space-y-1" style={{ background: C.rust + "12", border: `1px solid ${C.rust}35` }}><p className="text-[11px] font-bold" style={{ color: C.rust }}>معاينة طلب الانضمام</p><p className="text-[11px]" style={{ color: C.inkSoft }}>المحل: <b style={{ color: C.ink }}>{form.storeName || "—"}</b></p><p className="text-[11px]" style={{ color: C.inkSoft }}>الموقع: <b style={{ color: C.ink }}>{form.wilaya || "—"}{form.commune ? ` — ${form.commune}` : ""}</b></p><p className="text-[11px]" style={{ color: C.inkSoft }}>الدخول لاحقاً: <b dir="ltr" style={{ color: C.ink }}>{form.contact || "—"}</b></p></div>
+        </div>}
+        <div className="flex gap-2"><button onClick={() => setStep(1)} className="flex-1 py-3 rounded-xl font-bold text-sm" style={{ background: "transparent", color: C.inkSoft, border: `1px solid ${C.line}` }}>رجوع</button><button disabled={isSubmitting} onClick={submit} className="flex-1 py-3 rounded-xl font-black disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ إنشاء الحساب..." : "إرسال طلب انضمام المحل"}</button></div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------
    استعادة الحساب / تغيير رقم الهاتف
 --------------------------------------------------------- */
 function PhoneChangeModal({ currentPhone, onRequest, onConfirm, onClose }) {
@@ -735,7 +793,7 @@ function PhoneChangeModal({ currentPhone, onRequest, onConfirm, onClose }) {
 /* ---------------------------------------------------------
    شاشة تسجيل الدخول / إنشاء حساب / استعادة حساب
 --------------------------------------------------------- */
-function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = false, initialType = "merchant", initialMode = "login" }) {
+function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = false, initialType = "merchant", initialMode = "login", lockRole = true, allowRegistration = initialType === "customer" }) {
   const [mode, setMode] = useState(adminOnly ? "login" : initialMode);
   const [type, setType] = useState(adminOnly ? "admin" : initialType);
   const [identifier, setIdentifier] = useState("");
@@ -798,14 +856,14 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(35,32,27,0.55)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl p-5 space-y-3" style={{ background: C.paper }}>
         <div className="flex items-center justify-between"><h3 className="font-black text-lg flex items-center gap-1.5" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>{mode === "login" ? <LogIn size={18} color={C.teal} /> : <UserPlus size={18} color={C.teal} />} {type === "merchant" ? "منصة التاجر" : type === "courier" ? "لوحة الموصل" : type === "customer" ? "حساب العميل" : "لوحة الإدارة"}</h3><button onClick={onClose}><X size={18} color={C.inkSoft} /></button></div>
-        {!adminOnly && <><div className="flex gap-2 p-1 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
+        {!adminOnly && <>{!lockRole && <div className="flex gap-2 p-1 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
           <button onClick={() => setType("merchant")} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: type === "merchant" ? C.teal : "transparent", color: type === "merchant" ? "#fff" : C.inkSoft }}><Store size={15} /> تاجر</button>
           <button onClick={() => setType("courier")} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: type === "courier" ? C.teal : "transparent", color: type === "courier" ? "#fff" : C.inkSoft }}><Bike size={15} /> موصّل</button>
           <button onClick={() => setType("customer")} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: type === "customer" ? C.teal : "transparent", color: type === "customer" ? "#fff" : C.inkSoft }}><User size={15} /> عميل</button>
-        </div>
+        </div>}
         <div className="flex gap-2 p-1 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
           <button onClick={() => { setMode("login"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "login" ? C.ink : "transparent", color: mode === "login" ? "#fff" : C.inkSoft }}>دخول</button>
-          <button onClick={() => { setMode("register"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "register" ? C.ink : "transparent", color: mode === "register" ? "#fff" : C.inkSoft }}>حساب جديد</button>
+          {allowRegistration && <button onClick={() => { setMode("register"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "register" ? C.ink : "transparent", color: mode === "register" ? "#fff" : C.inkSoft }}>حساب جديد</button>}
         </div></>}
         <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input data-testid="auth-identifier-input" placeholder="رقم الهاتف أو البريد الإلكتروني" value={identifier} onChange={(e) => { setIdentifier(e.target.value); setOtpCode(""); setPhoneVerification(null); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode={identifier.includes("@") ? "email" : "tel"} /></div>
         <div id="firebase-phone-recaptcha" aria-hidden="true" />
@@ -1971,6 +2029,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showCourierForm, setShowCourierForm] = useState(false);
+  const [showMerchantForm, setShowMerchantForm] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
   const [authEntry, setAuthEntry] = useState({ type: "merchant", mode: "login" });
   const [showPhoneChange, setShowPhoneChange] = useState(false);
@@ -2640,16 +2699,18 @@ export default function App() {
       wilaya: form.wilaya,
       commune: form.commune,
       phone: form.phone,
-      delivery_communes: [],
+      delivery_communes: form.deliveryCommunes || [],
       status: "pending_review",
     };
     const { error } = await supabase.from("merchants").insert(merchant);
     if (error) {
       return { error: "تعذر حفظ ملف المحل. بقي حساب الدخول صالحاً؛ طبّق ملف supabase/schema.sql ثم أرسل النموذج مجدداً لإكمال الملف." };
     }
-    const store = { id: created.user.id, name: form.name, phone: form.phone, email: credential.email || "", wilaya: form.wilaya, commune: form.commune, address: "", lat: form.lat, lng: form.lng, distance: "—", status: "pending_review", rating: 0, open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: true, deliveryCommunes: [], approvedCourierIds: [], commissionType: "percentage", commissionRate: 10, subscriptionFee: 3000, duesPaid: 0, logo: { text: form.name.slice(0, 2), color: C.teal }, ccp: "", idDocName: "", products: [], reviews: [] };
+    const store = { id: created.user.id, name: form.name, phone: form.phone, email: credential.email || "", wilaya: form.wilaya, commune: form.commune, address: "", lat: form.lat, lng: form.lng, distance: "—", status: "pending_review", rating: 0, open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: true, deliveryCommunes: form.deliveryCommunes || [], approvedCourierIds: [], commissionType: "percentage", commissionRate: 10, subscriptionFee: 3000, duesPaid: 0, logo: { text: form.name.slice(0, 2), color: C.teal }, ccp: "", idDocName: "", products: [], reviews: [] };
     persistentSetStores((prev) => [...prev.filter((item) => item.id !== store.id), store]);
     await applySupabaseSession(created.session);
+    setShowMerchantForm(false);
+    notify("تم إرسال طلب انضمام المحل، بانتظار موافقة المشرف.");
     return { id: created.user.id };
   }
 
@@ -2757,7 +2818,7 @@ export default function App() {
         {role !== "admin" && <p className="text-xs mt-3 mb-1 flex items-center gap-1.5 font-medium" style={{ color: C.inkSoft }}><PackageCheck size={13} color={C.sage} /> تُحفَظ بياناتك تلقائياً وتبقى الخصوصية تحت تحكمك.</p>}
 
         <div className="mt-4">
-          {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else { setAdminLoginRequested(false); setAuthEntry({ type: "merchant", mode: "register" }); setShowAuth(true); } }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} confirmCustomerPhoneVerification={confirmCustomerPhoneVerification} requestCustomerPhoneVerification={requestCustomerPhoneVerification} referralCode={referralCode} rewardCoupons={rewardCoupons} claimReferralCode={claimCustomerReferral} />)}
+          {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else setShowMerchantForm(true); }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} confirmCustomerPhoneVerification={confirmCustomerPhoneVerification} requestCustomerPhoneVerification={requestCustomerPhoneVerification} referralCode={referralCode} rewardCoupons={rewardCoupons} claimReferralCode={claimCustomerReferral} />)}
           {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} registerMerchant={registerMerchant} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} merchantConfirmSettlement={merchantConfirmSettlement} reportCustomerAccount={reportCustomerAccount} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} messages={messages} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} courierConfirmPickup={courierConfirmPickup} courierStartDelivery={courierStartDelivery} courierConfirmDelivery={courierConfirmDelivery} courierConfirmRemittance={courierConfirmRemittance} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} orderNotifications={adminOrderNotifications} mockMessages={mockMessages} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} customerReports={customerReports} customerBlacklist={customerBlacklist} deliveryPricing={deliveryPricing} referralAnalytics={referralAnalytics} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} markOrderNotificationRead={markOrderNotificationRead} markAllOrderNotificationsRead={markAllOrderNotificationsRead} saveArchiveAlertSettings={saveArchiveAlertSettings} setCustomerBlacklist={setCustomerBlacklistStatus} saveDeliveryPricing={saveDeliveryPricingConfig} />}
@@ -2766,15 +2827,19 @@ export default function App() {
         {role === "customer" && !showRoleGuide && (
           <section className="mt-10 p-5 sm:p-6 rounded-[28px]" style={{ background: "rgba(238,240,255,.7)", border: `1px solid ${C.line}` }} data-testid="role-join-cards">
             <div className="flex items-center justify-between gap-3 mb-4"><div><h2 className="font-black text-lg tracking-tight" style={{ color: C.ink }}>ابنِ حضورك على المنصة</h2><p className="text-xs mt-1" style={{ color: C.inkSoft }}>اختر مساحة العمل المناسبة لك، وابدأ برقم هاتفك أو بريدك الإلكتروني.</p></div><div className="flex items-center gap-2"><button data-testid="role-benefits-link" onClick={() => setShowRoleGuide(true)} className="text-xs font-black px-3 py-2 rounded-xl" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}2B` }}>استكشف المسارات</button></div></div>
-            <div data-testid="provider-role-switches" className="grid sm:grid-cols-2 gap-3">
-              <button data-testid="merchant-role-button" onClick={() => (auth?.type === "merchant" ? (setRole("merchant"), persistentSetMyStoreId(auth.id)) : (setAdminLoginRequested(false), setAuthEntry({ type: "merchant", mode: "register" }), setShowAuth(true)))} className="role-join-card group text-right p-5 rounded-[22px]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(51,59,120,.06)", "--role-accent": C.rust }}>
-                <div className="flex items-start justify-between gap-3"><div className="flex items-center justify-center rounded-2xl" style={{ width: 46, height: 46, background: C.rust + "16", color: C.rust }}><Store size={22} /></div><span className="flex items-center justify-center rounded-xl" style={{ width: 30, height: 30, background: C.paperDark, color: C.inkSoft }}><ChevronLeft size={17} className="transition-transform group-hover:-translate-x-0.5" /></span></div>
-                <h3 className="font-black mt-4" style={{ color: C.ink }}>انضم كتاجر</h3><p className="text-xs leading-5 mt-1.5" style={{ color: C.inkSoft }}>منتجاتك، طلباتك، وشركاء التوصيل؛ في لوحة نظيفة واحدة.</p>
-              </button>
-              <button data-testid="courier-role-button" onClick={() => (auth?.type === "courier" ? setRole("courier") : setShowCourierForm(true))} className="role-join-card group text-right p-5 rounded-[22px]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(51,59,120,.06)", "--role-accent": C.teal }}>
-                <div className="flex items-start justify-between gap-3"><div className="flex items-center justify-center rounded-2xl" style={{ width: 46, height: 46, background: C.teal + "16", color: C.teal }}><Bike size={22} /></div><span className="flex items-center justify-center rounded-xl" style={{ width: 30, height: 30, background: C.paperDark, color: C.inkSoft }}><ChevronLeft size={17} className="transition-transform group-hover:-translate-x-0.5" /></span></div>
-                <h3 className="font-black mt-4" style={{ color: C.ink }}>انضم كموصل</h3><p className="text-xs leading-5 mt-1.5" style={{ color: C.inkSoft }}>تحكم في ساعاتك ونطاقك وطلباتك النشطة في أي وقت.</p>
-              </button>
+            <div data-testid="provider-role-switches" className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <article data-testid="merchant-role-button" className="role-join-card group text-right p-5 rounded-[22px]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(51,59,120,.06)", "--role-accent": C.rust }}>
+                <span className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ background: C.rust + "16", color: C.rust }}><Store size={22} /></span><h3 className="font-black mt-4" style={{ color: C.ink }}>انضم كتاجر</h3><p className="text-xs leading-5 mt-1.5" style={{ color: C.inkSoft }}>بيانات المحل ونطاق التوصيل في خطوات واضحة.</p>
+                <div className="mt-4 grid grid-cols-2 gap-2"><button onClick={() => (auth?.type === "merchant" ? (setRole("merchant"), persistentSetMyStoreId(auth.id)) : setShowMerchantForm(true))} className="py-2.5 rounded-xl text-xs font-black" style={{ background: C.rust, color: "#fff" }}>إنشاء حساب</button><button onClick={() => { setAdminLoginRequested(false); setAuthEntry({ type: "merchant", mode: "login" }); setShowAuth(true); }} className="py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1" style={{ border: `1px solid ${C.rust}44`, color: C.rust }}><LogIn size={13} /> دخول</button></div>
+              </article>
+              <article data-testid="courier-role-button" className="role-join-card group text-right p-5 rounded-[22px]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(51,59,120,.06)", "--role-accent": C.teal }}>
+                <span className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ background: C.teal + "16", color: C.teal }}><Bike size={22} /></span><h3 className="font-black mt-4" style={{ color: C.ink }}>انضم كموصل</h3><p className="text-xs leading-5 mt-1.5" style={{ color: C.inkSoft }}>تحكم في ساعاتك ونطاقك وطلباتك النشطة في أي وقت.</p>
+                <div className="mt-4 grid grid-cols-2 gap-2"><button onClick={() => (auth?.type === "courier" ? setRole("courier") : setShowCourierForm(true))} className="py-2.5 rounded-xl text-xs font-black" style={{ background: C.teal, color: "#fff" }}>إنشاء حساب</button><button data-testid="courier-login-button" onClick={() => { setAdminLoginRequested(false); setAuthEntry({ type: "courier", mode: "login" }); setShowAuth(true); }} className="py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1" style={{ border: `1px solid ${C.teal}44`, color: C.teal }}><LogIn size={13} /> دخول الحساب</button></div>
+              </article>
+              <article data-testid="customer-role-button" className="role-join-card group text-right p-5 rounded-[22px]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(51,59,120,.06)", "--role-accent": C.ochre }}>
+                <span className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ background: C.ochre + "16", color: C.ochre }}><User size={22} /></span><h3 className="font-black mt-4" style={{ color: C.ink }}>حساب الزبون</h3><p className="text-xs leading-5 mt-1.5" style={{ color: C.inkSoft }}>تابع طلباتك وعناوينك وقسائمك من بوابتك الخاصة.</p>
+                <button onClick={() => { setAdminLoginRequested(false); setAuthEntry({ type: "customer", mode: "login" }); setShowAuth(true); }} className="mt-4 w-full py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5" style={{ background: C.ochre, color: "#fff" }}><UserPlus size={14} /> دخول أو إنشاء حساب</button>
+              </article>
             </div>
           </section>
         )}
@@ -2784,7 +2849,8 @@ export default function App() {
 
       {showResetConfirm && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(35,32,27,0.5)" }} onClick={() => setShowResetConfirm(false)}><div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-2xl p-5" style={{ background: C.paper }}><div className="flex items-center gap-2 mb-2"><AlertCircle size={20} color={C.rust} /><h3 className="font-black" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>تأكيد إعادة الضبط</h3></div><p className="text-sm mb-5" style={{ color: C.inkSoft }}>سيتم إرجاع كل البيانات إلى حالتها الافتراضية.</p><div className="flex gap-2"><button onClick={() => setShowResetConfirm(false)} className="flex-1 py-2.5 rounded-xl font-bold text-sm" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}>إلغاء</button><button onClick={resetDemoData} className="flex-1 py-2.5 rounded-xl font-black text-sm" style={{ background: C.rust, color: "#fff" }}>نعم، إعادة الضبط</button></div></div></div>)}
       {showCourierForm && <CourierRegisterModal stores={stores} onSubmit={registerCourier} onClose={() => setShowCourierForm(false)} />}
-      {showAuth && <AuthModal authenticate={authenticate} requestAccountRecovery={requestAccountRecovery} adminOnly={adminLoginRequested} initialType={authEntry.type} initialMode={authEntry.mode} onClose={() => { setShowAuth(false); setAdminLoginRequested(false); setAuthEntry({ type: "merchant", mode: "login" }); }} />}
+      {showMerchantForm && <MerchantRegisterModal onSubmit={registerMerchant} onClose={() => setShowMerchantForm(false)} />}
+      {showAuth && <AuthModal authenticate={authenticate} requestAccountRecovery={requestAccountRecovery} adminOnly={adminLoginRequested} initialType={authEntry.type} initialMode={authEntry.mode} lockRole onClose={() => { setShowAuth(false); setAdminLoginRequested(false); setAuthEntry({ type: "merchant", mode: "login" }); }} />}
       {showPhoneChange && <PhoneChangeModal currentPhone={auth?.phone} onRequest={requestPhoneChange} onConfirm={confirmPhoneChange} onClose={() => setShowPhoneChange(false)} />}
       {role !== "admin" && <button aria-label="دخول الإدارة" onClick={() => { setAdminLoginRequested(true); setShowAuth(true); }} className="fixed top-1 right-1 h-2 w-2 rounded-full opacity-15 transition-opacity hover:opacity-70 focus:opacity-100" style={{ background: C.ink }} />}
     </div>

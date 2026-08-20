@@ -149,26 +149,32 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain('supabase.rpc("admin_delete_message_permanently"');
   });
 
-  it("moves merchant and courier actions into the lower join cards and keeps the public header minimal", () => {
+  it("keeps three independent account gates in the lower join cards and the public header minimal", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
     const providerSwitchIndex = appSource.indexOf('data-testid="provider-role-switches"');
-    const providerSwitchSource = appSource.slice(providerSwitchIndex, providerSwitchIndex + 2200);
+    const providerSwitchSource = appSource.slice(providerSwitchIndex, providerSwitchIndex + 6000);
     const publicHeaderSource = appSource.slice(
-      appSource.indexOf('<div className="max-w-5xl mx-auto px-4 py-5">'),
+      appSource.indexOf('<div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 sm:py-7">'),
       appSource.indexOf("<StripeDivider />"),
     );
 
     expect(providerSwitchIndex).toBeGreaterThan(-1);
     expect(providerSwitchSource).toContain('data-testid="courier-role-button"');
     expect(providerSwitchSource).toContain('data-testid="merchant-role-button"');
+    expect(providerSwitchSource).toContain('data-testid="customer-role-button"');
+    expect(providerSwitchSource).toContain('data-testid="courier-login-button"');
     expect(appSource).toContain('data-testid="role-join-cards"');
     expect(appSource).toContain("انضم كتاجر");
     expect(appSource).toContain("انضم كموصل");
+    expect(appSource).toContain("حساب الزبون");
     expect(appSource.indexOf('data-testid="role-join-cards"')).toBeGreaterThan(appSource.indexOf("<CustomerView"));
     expect(publicHeaderSource).not.toContain("دخول بالإيميل");
     expect(publicHeaderSource).not.toContain("<NotificationsBell");
     expect(publicHeaderSource).not.toContain("إعادة ضبط");
-    expect(providerSwitchSource).not.toContain('> عميل</button>');
+    expect(appSource).toContain("function MerchantRegisterModal");
+    expect(appSource).toContain("function CourierRegisterModal");
+    expect(appSource).toContain("lockRole = true");
+    expect(appSource).toContain("!lockRole && <div");
   });
 
   it("provides an accessible role benefits page and explicit new-order counters for providers", () => {
@@ -479,12 +485,14 @@ describe("Souq Jiran Supabase integration", () => {
     expect(courierPolicyMigration).toContain("public.is_app_admin()");
   });
 
-  it("wires direct merchant registration, courier QR identity, broad search, maps, and Android location permissions", () => {
+  it("wires the specialized merchant registration, courier QR identity, broad search, maps, and Android location permissions", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
     const mapSource = readFileSync(resolve(projectRoot, "client/src/components/Map.tsx"), "utf8");
     const manifest = readFileSync(resolve(projectRoot, "android/app/src/main/AndroidManifest.xml"), "utf8");
 
-    expect(appSource).toContain('setAuthEntry({ type: "merchant", mode: "register" })');
+    expect(appSource).toContain("function MerchantRegisterModal");
+    expect(appSource).toContain("setShowMerchantForm(true)");
+    expect(appSource).toContain("إرسال طلب انضمام المحل");
     expect(appSource).toContain("QRCode.toDataURL(deepLink");
     expect(appSource).toContain("رمز QR الخاص بملف الموصل");
     expect(appSource).toContain("normalizeSearchText");
