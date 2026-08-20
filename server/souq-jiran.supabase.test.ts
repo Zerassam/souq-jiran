@@ -482,6 +482,9 @@ describe("Souq Jiran Supabase integration", () => {
     expect(firebaseSource).toContain("__souqJiranRecaptchaVerifiers");
     expect(firebaseSource).toContain("__souqJiranPhoneVerificationRequests");
     expect(firebaseSource).toContain("legacyVerifier.clear");
+    expect(firebaseSource).toContain("createFreshRecaptchaMount");
+    expect(firebaseSource).toContain("firebaseRecaptchaMount");
+    expect(firebaseSource).toContain("recaptchaContainerId}-mount-");
     expect(firebaseSource).toContain("auth/internal-error");
     expect(appSource).toContain("const phoneAutoVerified");
     expect(appSource).toContain("تم التحقق منه تلقائياً؛ يمكنك المتابعة.");

@@ -20,6 +20,7 @@ type PhoneVerificationSession =
       platform: "web";
       confirmationResult: ConfirmationResult;
       recaptchaVerifier: RecaptchaVerifier;
+      recaptchaContainerId: string;
     };
 
 const firebaseConfig = {
@@ -51,15 +52,21 @@ export const isNativeFirebaseRuntime = () => Capacitor.isNativePlatform();
 // يحتفظ الويب بمثيل واحد فقط لكل حاوية reCAPTCHA. نضع السجل على window أيضاً
 // حتى لا تفقده تحديثات Vite السريعة (HMR) بينما ما زالت أداة Google مرسومة؛
 // فقدان المرجع هو أحد أسباب رسالة «already been rendered in this element».
+type WebRecaptchaRecord = {
+  verifier: RecaptchaVerifier;
+  mount: HTMLDivElement;
+};
+
 type FirebaseWebRuntime = Window & typeof globalThis & {
-  __souqJiranRecaptchaVerifiers?: Map<string, RecaptchaVerifier>;
+  __souqJiranRecaptchaVerifiers?: Map<string, WebRecaptchaRecord>;
   __souqJiranPhoneVerificationRequests?: Map<string, Promise<PhoneVerificationSession>>;
   recaptchaVerifier?: { clear?: () => void };
+  __souqJiranRecaptchaSequence?: number;
 };
 
 const firebaseWebRuntime = typeof window === "undefined" ? null : (window as FirebaseWebRuntime);
 const webRecaptchaVerifiers = firebaseWebRuntime?.__souqJiranRecaptchaVerifiers
-  ?? new Map<string, RecaptchaVerifier>();
+  ?? new Map<string, WebRecaptchaRecord>();
 const webPhoneVerificationRequests = firebaseWebRuntime?.__souqJiranPhoneVerificationRequests
   ?? new Map<string, Promise<PhoneVerificationSession>>();
 
@@ -69,7 +76,8 @@ if (firebaseWebRuntime) {
 }
 
 function clearWebRecaptchaVerifier(recaptchaContainerId: string) {
-  const activeVerifier = webRecaptchaVerifiers.get(recaptchaContainerId);
+  const activeRecord = webRecaptchaVerifiers.get(recaptchaContainerId);
+  const activeVerifier = activeRecord?.verifier;
   const legacyVerifier = firebaseWebRuntime?.recaptchaVerifier;
   // احذف المرجع أولاً حتى لا تعيد محاولة متداخلة استخدام كائن يجري تنظيفه.
   webRecaptchaVerifiers.delete(recaptchaContainerId);
@@ -92,6 +100,21 @@ function clearWebRecaptchaVerifier(recaptchaContainerId: string) {
     // يماثل innerHTML = "" المقترح من Firebase، لكنه يتجنب إدراج HTML نصي.
     container.replaceChildren();
   }
+}
+
+function createFreshRecaptchaMount(recaptchaContainerId: string) {
+  const container = document.getElementById(recaptchaContainerId);
+  if (!container) throw new Error("تعذر تهيئة حماية reCAPTCHA في شاشة التحقق.");
+
+  // لا نرسم Google reCAPTCHA على عنصر React الثابت مباشرة. يحتفظ Google أحياناً
+  // بسجل داخلي للعنصر حتى بعد clear()؛ وعليه فلكل طلب SMS عنصر فرعي جديد فعلياً.
+  const sequence = (firebaseWebRuntime?.__souqJiranRecaptchaSequence || 0) + 1;
+  if (firebaseWebRuntime) firebaseWebRuntime.__souqJiranRecaptchaSequence = sequence;
+  const mount = document.createElement("div");
+  mount.id = `${recaptchaContainerId}-mount-${sequence}`;
+  mount.dataset.firebaseRecaptchaMount = "true";
+  container.replaceChildren(mount);
+  return mount;
 }
 
 // تستدعيها الواجهة عند تغيير الرقم أو إغلاق النافذة حتى لا ترث الجلسة التالية
@@ -195,14 +218,14 @@ export async function beginFirebasePhoneVerification(
   if (activeRequest) return activeRequest;
 
   const verificationRequest = (async () => {
-    const container = document.getElementById(recaptchaContainerId);
-    if (!container) throw new Error("تعذر تهيئة حماية reCAPTCHA في شاشة التحقق.");
     clearWebRecaptchaVerifier(recaptchaContainerId);
-    const recaptchaVerifier = new RecaptchaVerifier(firebaseAuth, container, { size: "invisible" });
-    webRecaptchaVerifiers.set(recaptchaContainerId, recaptchaVerifier);
+    const mount = createFreshRecaptchaMount(recaptchaContainerId);
+    const recaptchaVerifier = new RecaptchaVerifier(firebaseAuth, mount, { size: "invisible" });
+    webRecaptchaVerifiers.set(recaptchaContainerId, { verifier: recaptchaVerifier, mount });
+    if (firebaseWebRuntime) firebaseWebRuntime.recaptchaVerifier = recaptchaVerifier;
     try {
       const confirmationResult = await signInWithPhoneNumber(firebaseAuth, normalizedPhoneNumber, recaptchaVerifier);
-      return { platform: "web" as const, confirmationResult, recaptchaVerifier };
+      return { platform: "web" as const, confirmationResult, recaptchaVerifier, recaptchaContainerId };
     } catch (error) {
       clearWebRecaptchaVerifier(recaptchaContainerId);
       throw new Error(readablePhoneVerificationError(error));
@@ -237,12 +260,7 @@ export async function completeFirebasePhoneVerification(
     const credential = await verification.confirmationResult.confirm(verificationCode);
     return { firebaseUid: credential.user.uid, phoneNumber: credential.user.phoneNumber };
   } finally {
-    verification.recaptchaVerifier.clear();
-    webRecaptchaVerifiers.forEach((activeVerifier, recaptchaContainerId) => {
-      if (activeVerifier === verification.recaptchaVerifier) {
-        webRecaptchaVerifiers.delete(recaptchaContainerId);
-      }
-    });
+    clearWebRecaptchaVerifier(verification.recaptchaContainerId);
   }
 }
 
