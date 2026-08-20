@@ -436,11 +436,13 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain("completeFirebasePhoneVerification(phoneVerification, otp)");
     expect(appSource).toContain("phoneChallenge");
     expect(appSource).toContain("firebasePhoneVerification.phoneNumber !== normalizedPhone");
-    const secureMigration = readFileSync(resolve(projectRoot, "supabase/migrations/20260830_secure_firebase_phone_link.sql"), "utf8");
+    const secureMigration = readFileSync(resolve(projectRoot, "supabase/migrations/20260831_fix_firebase_phone_link_identity.sql"), "utf8");
     expect(secureMigration).toContain("firebase_phone_link_challenges");
     expect(secureMigration).toContain("auth.jwt() ->> 'phone_number'");
-    expect(secureMigration).toContain("Firebase identity is already linked to another account");
-    expect(secureMigration).toContain("revoke all on function public.record_my_firebase_phone");
+    expect(secureMigration).toContain("v_profile_id uuid := auth.uid()");
+    expect(secureMigration).toContain("where id = v_challenge.profile_id");
+    expect(secureMigration).not.toContain("where id = auth.uid()");
+    expect(secureMigration).toContain("Firebase phone does not match the requested number");
   });
 
   it("validates the supplied Firebase Auth API key without creating an account", async () => {

@@ -199,3 +199,5 @@
 - [x] تطبيق 20260829_firebase_phone_change.sql بنجاح في Supabase لتفعيل قناة Firebase SMS لتغيير الأرقام الحية.
 - [x] استبدال قبول رقم أو UID Firebase من المتصفح بمسار تحدٍ مؤقت يستخرج الهوية والرقم من Firebase JWT الموثوق.
 - [x] تطبيق 20260830_secure_firebase_phone_link.sql بنجاح بعد تفعيل Firebase Third-party Auth لتأمين الربط الحي للأرقام.
+- [x] اكتشاف تصحيح لازم لفصل معرف حساب Supabase عن معرف Firebase عند تأكيد التحدي، ومنع الاعتماد على `auth.uid()` داخل جلسة Firebase.
+- [ ] تطبيق 20260831_fix_firebase_phone_link_identity.sql في Supabase لتصحيح ربط التحدي بالحساب الحي.
