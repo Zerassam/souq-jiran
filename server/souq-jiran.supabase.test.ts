@@ -423,25 +423,24 @@ describe("Souq Jiran Supabase integration", () => {
 
   it("provides privacy-conscious account recovery and verified phone change through Firebase SMS", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
-    const migration = readFileSync(resolve(projectRoot, "supabase/migrations/20260829_firebase_phone_change.sql"), "utf8");
 
     expect(appSource).toContain("function requestAccountRecovery");
     expect(appSource).toContain("resetPasswordForEmail");
     expect(appSource).toContain("function PhoneChangeModal");
     expect(appSource).toContain('aria-label="رقم الهاتف الجديد"');
-    expect(appSource).toContain("request_my_phone_change");
-    expect(appSource).toContain("confirm_my_phone_change");
+    expect(appSource).toContain("request_my_firebase_phone_link");
+    expect(appSource).toContain("confirm_my_firebase_phone_link");
+    expect(appSource).toContain("firebaseSupabase.rpc");
     expect(appSource).toContain('"firebase-phone-change-recaptcha"');
     expect(appSource).toContain('id="firebase-phone-change-recaptcha"');
     expect(appSource).toContain("completeFirebasePhoneVerification(phoneVerification, otp)");
-    expect(appSource).toContain('p_channel: "firebase_sms"');
-    expect(appSource).toContain('p_method: "firebase_sms"');
+    expect(appSource).toContain("phoneChallenge");
     expect(appSource).toContain("firebasePhoneVerification.phoneNumber !== normalizedPhone");
-    expect(migration).toContain("firebase_sms");
-    expect(migration).toContain("create or replace function public.request_my_phone_change");
-    expect(migration).toContain("create or replace function public.confirm_my_phone_change");
-    expect(migration).toContain("Phone number is already linked to another account");
-    expect(migration).toContain("grant execute on function public.confirm_my_phone_change(text, text) to authenticated");
+    const secureMigration = readFileSync(resolve(projectRoot, "supabase/migrations/20260830_secure_firebase_phone_link.sql"), "utf8");
+    expect(secureMigration).toContain("firebase_phone_link_challenges");
+    expect(secureMigration).toContain("auth.jwt() ->> 'phone_number'");
+    expect(secureMigration).toContain("Firebase identity is already linked to another account");
+    expect(secureMigration).toContain("revoke all on function public.record_my_firebase_phone");
   });
 
   it("validates the supplied Firebase Auth API key without creating an account", async () => {

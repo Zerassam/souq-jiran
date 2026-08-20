@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { firebaseSupabase, supabase } from "@/lib/supabase";
 import {
   beginFirebasePhoneVerification,
   completeFirebasePhoneVerification,
@@ -738,6 +738,7 @@ function PhoneChangeModal({ currentPhone, onRequest, onConfirm, onClose }) {
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [phoneVerification, setPhoneVerification] = useState(null);
+  const [phoneChallenge, setPhoneChallenge] = useState(null);
   const [requested, setRequested] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
@@ -748,10 +749,11 @@ function PhoneChangeModal({ currentPhone, onRequest, onConfirm, onClose }) {
     if (!normalizedPhone) { setError("أدخل رقم هاتف محمول جزائرياً يبدأ بـ 05 أو 06 أو 07."); return; }
     setError(""); setFeedback(""); setIsSubmitting(true);
     try {
-      const verification = await beginFirebasePhoneVerification(normalizedPhone, "firebase-phone-change-recaptcha");
       const result = await onRequest(normalizedPhone);
       if (result?.error) { setError(result.error); return; }
+      const verification = await beginFirebasePhoneVerification(normalizedPhone, "firebase-phone-change-recaptcha");
       setPhoneVerification(verification);
+      setPhoneChallenge(result?.challenge || null);
       setOtp("");
       setRequested(true);
       setFeedback(verification.platform === "native" && verification.completedUser
@@ -763,13 +765,13 @@ function PhoneChangeModal({ currentPhone, onRequest, onConfirm, onClose }) {
   }
 
   async function confirmChange() {
-    if (!normalizedPhone || !phoneVerification) { setError("أرسل رمز Firebase أولاً ثم أكمل التحقق."); return; }
+    if (!normalizedPhone || !phoneVerification || !phoneChallenge) { setError("أرسل رمز Firebase أولاً ثم أكمل التحقق."); return; }
     setError(""); setIsSubmitting(true);
     try {
       const verification = phoneVerification.platform === "native" && phoneVerification.completedUser
         ? phoneVerification
         : await completeFirebasePhoneVerification(phoneVerification, otp);
-      const result = await onConfirm({ phone: normalizedPhone, firebasePhoneVerification: verification });
+      const result = await onConfirm({ phone: normalizedPhone, firebasePhoneVerification: verification, challenge: phoneChallenge });
       if (result?.error) { setError(result.error); return; }
       onClose();
     } catch (verificationError) {
@@ -2569,14 +2571,20 @@ export default function App() {
     return { user: data.user, session: data.session };
   }
 
-  async function recordFirebasePhoneVerification(firebasePhoneVerification) {
-    if (!firebasePhoneVerification?.firebaseUid) return {};
-    const { error } = await supabase.rpc("record_my_firebase_phone", {
-      p_firebase_uid: firebasePhoneVerification.firebaseUid,
-      p_phone: firebasePhoneVerification.phoneNumber || "",
-    });
-    if (error?.code === "42883") return { warning: "تم إثبات ملكية الهاتف عبر Firebase، لكن يلزم تطبيق ترحيل 20260827_firebase_fcm_columns.sql لحفظ حالة التحقق ومعرّف Firebase في الملف." };
-    if (error) return { warning: "تم إثبات ملكية الهاتف عبر Firebase، لكن تعذر حفظ حالة التحقق في الملف: " + error.message };
+  async function linkVerifiedFirebasePhone(firebasePhoneVerification, challenge = null) {
+    const verifiedPhone = normalizeAlgerianMobile(firebasePhoneVerification?.phoneNumber);
+    if (!firebasePhoneVerification?.firebaseUid || !verifiedPhone) {
+      return { warning: "تعذر التحقق من رقم Firebase الموثق." };
+    }
+    let phoneChallenge = challenge;
+    if (!phoneChallenge) {
+      const { data, error } = await supabase.rpc("request_my_firebase_phone_link", { p_phone: verifiedPhone });
+      if (error?.code === "42883") return { warning: "يلزم تطبيق ترحيل 20260830_secure_firebase_phone_link.sql لتأمين ربط الهاتف عبر Firebase." };
+      if (error) return { warning: "تعذر تجهيز الربط الآمن للهاتف: " + error.message };
+      phoneChallenge = data;
+    }
+    const { error } = await firebaseSupabase.rpc("confirm_my_firebase_phone_link", { p_challenge: phoneChallenge });
+    if (error) return { warning: "تم إثبات ملكية الهاتف عبر Firebase، لكن تعذر ربطه بالملف بأمان: " + error.message };
     return {};
   }
 
@@ -2630,7 +2638,7 @@ export default function App() {
         const courierRequest = await ensureCourierReviewRequest(created.user.id);
         if (courierRequest.error) return courierRequest;
       }
-      const firebaseRecord = credential.kind === "phone" ? await recordFirebasePhoneVerification(firebasePhoneVerification) : {};
+      const firebaseRecord = credential.kind === "phone" ? await linkVerifiedFirebasePhone(firebasePhoneVerification) : {};
       notify(firebaseRecord.warning || (type === "courier"
         ? "تم إنشاء حساب الموصل وإرسال طلبه إلى لوحة الإدارة للمراجعة."
         : "تم إنشاء الحساب وربط الهاتف المؤكد عبر Firebase بنجاح."));
@@ -2645,7 +2653,7 @@ export default function App() {
       return { error: "نوع الحساب لا يطابق البوابة المحددة. اختر بوابة حسابك الصحيحة." };
     }
     await applySupabaseSession(data.session);
-    const firebaseRecord = credential.kind === "phone" ? await recordFirebasePhoneVerification(firebasePhoneVerification) : {};
+    const firebaseRecord = credential.kind === "phone" ? await linkVerifiedFirebasePhone(firebasePhoneVerification) : {};
     if (firebaseRecord.warning) notify(firebaseRecord.warning);
     if (signedIn.profileUnavailable) notify("تم الدخول. أكمل تطبيق ملف الترحيل في Supabase لتفعيل ملفات الأدوار.");
     return {};
@@ -2667,24 +2675,23 @@ export default function App() {
     if (!auth?.id) return { error: "سجّل الدخول أولاً لتغيير رقم الهاتف." };
     const normalizedPhone = normalizeAlgerianMobile(phone);
     if (!normalizedPhone) return { error: "أدخل رقم هاتف محمول جزائرياً صحيحاً." };
-    const { error } = await supabase.rpc("request_my_phone_change", { p_phone: normalizedPhone, p_channel: "firebase_sms" });
-    if (error) return { error: "تعذر حفظ طلب تغيير الرقم. طبّق الترحيل 20260829_firebase_phone_change.sql في Supabase ثم حاول مجدداً." };
-    return {};
+    const { data, error } = await supabase.rpc("request_my_firebase_phone_link", { p_phone: normalizedPhone });
+    if (error) return { error: "تعذر تجهيز طلب تغيير الرقم. طبّق الترحيل 20260830_secure_firebase_phone_link.sql في Supabase ثم حاول مجدداً." };
+    return { challenge: data };
   }
 
-  async function confirmPhoneChange({ phone, firebasePhoneVerification }) {
+  async function confirmPhoneChange({ phone, firebasePhoneVerification, challenge }) {
     if (!auth?.id) return { error: "سجّل الدخول أولاً لتغيير رقم الهاتف." };
     const normalizedPhone = normalizeAlgerianMobile(phone);
-    if (!normalizedPhone || !firebasePhoneVerification?.firebaseUid) return { error: "أكمل تحقق Firebase عبر رمز SMS قبل حفظ الرقم." };
+    if (!normalizedPhone || !firebasePhoneVerification?.firebaseUid || !challenge) return { error: "أكمل تحقق Firebase عبر رمز SMS قبل حفظ الرقم." };
     if (firebasePhoneVerification.phoneNumber !== normalizedPhone) return { error: "رمز Firebase مرتبط برقم مختلف. أعد طلب رمز الرقم الجديد." };
-    const { error } = await supabase.rpc("confirm_my_phone_change", { p_phone: normalizedPhone, p_method: "firebase_sms" });
-    if (error) return { error: "تعذر تأكيد الرقم. تحقق من طلب التغيير أو طبّق الترحيل المطلوب." };
-    const firebaseRecord = await recordFirebasePhoneVerification(firebasePhoneVerification);
+    const firebaseRecord = await linkVerifiedFirebasePhone(firebasePhoneVerification, challenge);
+    if (firebaseRecord.warning) return { error: firebaseRecord.warning };
     const { error: metadataError } = await supabase.auth.updateUser({ data: { phone: normalizedPhone } });
     if (metadataError) return { error: "تم تحديث الرقم في الملف، لكن تعذر مزامنة بيانات الجلسة. سجّل الخروج ثم ادخل مجدداً." };
     setAuth((current) => current ? { ...current, phone: normalizedPhone, identity: normalizedPhone } : current);
-    notify(firebaseRecord.warning || "تم تغيير رقم الهاتف بعد تحقق Firebase.");
-    return firebaseRecord;
+    notify("تم تغيير رقم الهاتف بعد تحقق Firebase.");
+    return {};
   }
 
   async function registerMerchant(form) {

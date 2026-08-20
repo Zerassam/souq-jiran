@@ -197,3 +197,5 @@
 - [x] اختبار تنظيم البوابات على الهاتف وسطح المكتب ثم حفظ ورفع الإصلاح.
 - [x] إصلاح ApiTargetBlockedMapError باستبدال تحميل Google Maps المحظور بخريطة تفاعلية مفتوحة؛ ظهرت البلاطات ومؤشرات المحلات في المعاينة دون خطأ المفتاح.
 - [x] تطبيق 20260829_firebase_phone_change.sql بنجاح في Supabase لتفعيل قناة Firebase SMS لتغيير الأرقام الحية.
+- [x] استبدال قبول رقم أو UID Firebase من المتصفح بمسار تحدٍ مؤقت يستخرج الهوية والرقم من Firebase JWT الموثوق.
+- [ ] تطبيق 20260830_secure_firebase_phone_link.sql في Supabase بعد تفعيل Firebase Third-party Auth لتأمين الربط الحي للأرقام.
