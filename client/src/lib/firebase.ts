@@ -13,7 +13,8 @@ import { getMessaging, isSupported, type Messaging } from "firebase/messaging";
 type PhoneVerificationSession =
   | {
       platform: "native";
-      verificationId: string;
+      verificationId?: string;
+      completedUser?: { firebaseUid: string; phoneNumber: string | null };
     }
   | {
       platform: "web";
@@ -51,6 +52,32 @@ function firebaseSetupError() {
   return new Error("إعداد Firebase غير مكتمل. راجع متغيرات VITE_FIREBASE_* قبل تفعيل التحقق بالهاتف.");
 }
 
+function readablePhoneVerificationError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  const normalized = message.toLowerCase();
+  if (normalized.includes("too-many-requests")) return "تم تجاوز عدد محاولات SMS المسموح بها مؤقتاً. انتظر قليلاً ثم حاول مجدداً.";
+  if (normalized.includes("invalid-phone-number")) return "رقم الهاتف غير صالح. استخدم رقماً جزائرياً بصيغة +213 ثم تسعة أرقام.";
+  if (normalized.includes("invalid app credential") || normalized.includes("app verification")) return "تعذر التحقق من هوية التطبيق. تأكد من إضافة بصمة SHA للتطبيق ومن اتصال Google Play services ثم أعد المحاولة.";
+  if (normalized.includes("network")) return "تعذر الاتصال بخدمة Firebase. تحقق من الإنترنت وحاول مجدداً.";
+  return message || "تعذر إرسال رمز SMS. تحقق من إعداد Phone Authentication وحاول مجدداً.";
+}
+
+function normalizeFirebasePhoneNumber(value: string) {
+  const compact = String(value || "").trim().replace(/[\s().-]/g, "");
+  const national = compact.replace(/^0+/, "");
+  const normalized = compact.startsWith("+213")
+    ? `+213${compact.slice(4)}`
+    : compact.startsWith("00213")
+      ? `+213${compact.slice(5)}`
+      : /^[5-7]\d{8}$/.test(national)
+        ? `+213${national}`
+        : compact;
+  if (!/^\+213[5-7]\d{8}$/.test(normalized)) {
+    throw new Error("رقم الهاتف غير صالح. استخدم رقماً جزائرياً يبدأ بـ 05 أو 06 أو 07.");
+  }
+  return normalized;
+}
+
 export async function getFirebaseIdToken(forceRefresh = false): Promise<string | null> {
   try {
     if (isNativeFirebaseRuntime()) {
@@ -67,29 +94,54 @@ export async function beginFirebasePhoneVerification(
   phoneNumber: string,
   recaptchaContainerId: string,
 ): Promise<PhoneVerificationSession> {
-  if (!isFirebaseConfigured || !firebaseAuth) throw firebaseSetupError();
-
+  const normalizedPhoneNumber = normalizeFirebasePhoneNumber(phoneNumber);
   if (isNativeFirebaseRuntime()) {
-    let listener: { remove: () => Promise<void> } | undefined;
+    let codeSentListener: { remove: () => Promise<void> } | undefined;
+    let failureListener: { remove: () => Promise<void> } | undefined;
+    let completionListener: { remove: () => Promise<void> } | undefined;
     try {
-      const verification = await new Promise<{ verificationId: string }>(async (resolve, reject) => {
-        const timeout = window.setTimeout(() => reject(new Error("انتهت مهلة إرسال رمز التحقق. حاول مرة أخرى.")), 45_000);
-        listener = await FirebaseAuthentication.addListener("phoneCodeSent", (event) => {
+      const verification = await new Promise<{ verificationId?: string; completedUser?: { firebaseUid: string; phoneNumber: string | null } }>(async (resolve, reject) => {
+        let settled = false;
+        const settle = (callback: (value: any) => void, value: any) => {
+          if (settled) return;
+          settled = true;
           window.clearTimeout(timeout);
-          resolve({ verificationId: event.verificationId });
-        });
-        await FirebaseAuthentication.signInWithPhoneNumber({ phoneNumber });
+          callback(value);
+        };
+        const timeout = window.setTimeout(
+          () => settle(reject, new Error("لم يصل رد من Firebase خلال دقيقة. تحقق من الإنترنت وبصمات SHA ثم حاول مجدداً.")),
+          65_000,
+        );
+
+        try {
+          [codeSentListener, failureListener, completionListener] = await Promise.all([
+            FirebaseAuthentication.addListener("phoneCodeSent", (event) => settle(resolve, { verificationId: event.verificationId })),
+            FirebaseAuthentication.addListener("phoneVerificationFailed", (event) => settle(reject, new Error(readablePhoneVerificationError(event.message)))),
+            FirebaseAuthentication.addListener("phoneVerificationCompleted", (event) => {
+              if (!event.user?.uid) {
+                settle(reject, new Error("أكملت Firebase التحقق دون إرجاع هوية مستخدم صالحة."));
+                return;
+              }
+              settle(resolve, { completedUser: { firebaseUid: event.user.uid, phoneNumber: event.user.phoneNumber } });
+            }),
+          ]);
+          await FirebaseAuthentication.signInWithPhoneNumber({ phoneNumber: normalizedPhoneNumber, timeout: 60 });
+        } catch (error) {
+          settle(reject, new Error(readablePhoneVerificationError(error)));
+        }
       });
-      return { platform: "native", verificationId: verification.verificationId };
+      return { platform: "native", ...verification };
     } finally {
-      await listener?.remove();
+      await Promise.all([codeSentListener?.remove(), failureListener?.remove(), completionListener?.remove()]);
     }
   }
+
+  if (!isFirebaseConfigured || !firebaseAuth) throw firebaseSetupError();
 
   const container = document.getElementById(recaptchaContainerId);
   if (!container) throw new Error("تعذر تهيئة حماية reCAPTCHA في شاشة التحقق.");
   const recaptchaVerifier = new RecaptchaVerifier(firebaseAuth, container, { size: "invisible" });
-  const confirmationResult = await signInWithPhoneNumber(firebaseAuth, phoneNumber, recaptchaVerifier);
+  const confirmationResult = await signInWithPhoneNumber(firebaseAuth, normalizedPhoneNumber, recaptchaVerifier);
   return { platform: "web", confirmationResult, recaptchaVerifier };
 }
 
@@ -98,6 +150,8 @@ export async function completeFirebasePhoneVerification(
   verificationCode: string,
 ): Promise<{ firebaseUid: string; phoneNumber: string | null }> {
   if (verification.platform === "native") {
+    if (verification.completedUser) return verification.completedUser;
+    if (!verification.verificationId) throw new Error("لم تُرجع Firebase معرّف تحقق صالحاً. أعد طلب الرمز.");
     const result = await FirebaseAuthentication.confirmVerificationCode({
       verificationId: verification.verificationId,
       verificationCode,

@@ -184,3 +184,9 @@
 - [ ] تطبيق 20260827_firebase_fcm_columns.sql في Supabase وتفعيل Firebase Third-party Auth ومطالبة role=authenticated قبل استخدام عميل firebaseSupabase على البيانات الحية.
 - [ ] تفعيل Phone في Firebase Authentication وإضافة نطاق الويب وتوفير مفتاح VAPID عند الحاجة إلى FCM على الويب.
 - [x] حفظ ورفع تكامل Firebase Phone Authentication وFCM وAndroid إلى الفرع الرئيسي في GitHub.
+- [x] إصلاح تعليق Firebase Phone Authentication عند إرسال SMS وتحسين تطبيع +213 ورسائل الخطأ وإعادة المحاولة.
+- [x] إصلاح بحث المحلات وعرض الخريطة وتهيئة Google Maps وأذونات الموقع في Android.
+- [x] ضمان ظهور الموصل الجديد كطلب pending في لوحة الإدارة مع دور وسجل انضمام صحيحين.
+- [x] تصحيح زر «انضم كتاجر» لفتح تسجيل التاجر مباشرةً.
+- [x] توليد وعرض QR Code شخصي للموصل اعتماداً على معرّف حسابه.
+- [x] إضافة اختبارات للإصلاحات وبناء APK Android محدثة ورفعها للاختبار الميداني.

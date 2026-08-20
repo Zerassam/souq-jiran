@@ -5,6 +5,7 @@ import {
   listenForNativeFcmToken,
   requestNativeFcmToken,
 } from "@/lib/firebase";
+import { MapView as GoogleMapView } from "@/components/Map";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Papa from "papaparse";
 import QRCode from "qrcode";
@@ -31,6 +32,25 @@ const C = {
 };
 const LOGO_COLORS = [C.teal, C.rust, C.ochre, C.sage, C.purple];
 const PLATFORM_COURIER_FEE = 120;
+const WILAYA_MAP_CENTERS = {
+  "الجزائر": { lat: 36.7538, lng: 3.0588 }, "البليدة": { lat: 36.4700, lng: 2.8290 },
+  "سطيف": { lat: 36.1911, lng: 5.4137 }, "أم البواقي": { lat: 35.8754, lng: 7.1135 },
+  "وهران": { lat: 35.6971, lng: -0.6308 }, "قسنطينة": { lat: 36.3650, lng: 6.6147 },
+  "عنابة": { lat: 36.9000, lng: 7.7667 }, "باتنة": { lat: 35.5550, lng: 6.1741 },
+  "بجاية": { lat: 36.7500, lng: 5.0667 }, "تيزي وزو": { lat: 36.7118, lng: 4.0459 },
+  "الشلف": { lat: 36.1653, lng: 1.3340 }, "تلمسان": { lat: 34.8783, lng: -1.3150 },
+  "بسكرة": { lat: 34.8504, lng: 5.7281 }, "الجلفة": { lat: 34.6728, lng: 3.2630 },
+};
+function getStoreMapPosition(store, index = 0) {
+  const latitude = Number(store?.latitude ?? store?.lat);
+  const longitude = Number(store?.longitude ?? store?.lng);
+  if (Number.isFinite(latitude) && Number.isFinite(longitude) && Math.abs(latitude) <= 36.95 && Math.abs(longitude) <= 12) {
+    return { lat: latitude, lng: longitude };
+  }
+  const center = WILAYA_MAP_CENTERS[store?.wilaya] || { lat: 28.0339, lng: 1.6596 };
+  const offset = ((index % 5) - 2) * 0.012;
+  return { lat: center.lat + offset, lng: center.lng + offset };
+}
 
 const DEPARTMENTS = [
   { id: "veggies", label: "خضر وفواكه", icon: ShoppingBasket, color: C.sage },
@@ -136,6 +156,18 @@ function normalizeAlgerianMobile(value = "") {
   if (/^\+213[567]\d{8}$/.test(compact)) return compact;
   if (/^00213[567]\d{8}$/.test(compact)) return `+${compact.slice(2)}`;
   return "";
+}
+
+function normalizeSearchText(value = "") {
+  return String(value)
+    .toLowerCase()
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/ـ/g, "")
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function parseLoginIdentifier(value = "") {
@@ -380,28 +412,44 @@ function computeBounds(list) {
 }
 function MapView({ stores, selectedWilaya, onSelectWilaya, onOpenStore }) {
   const [pinId, setPinId] = useState(null);
+  const [mapError, setMapError] = useState("");
   const wilayaStores = selectedWilaya ? stores.filter((s) => s.wilaya === selectedWilaya) : stores;
-  const bounds = computeBounds(wilayaStores.length ? wilayaStores : stores);
-  function project(s) { const { minX, maxX, minY, maxY } = bounds; const x = ((s.lng - minX) / (maxX - minX || 1)) * 100, y = ((s.lat - minY) / (maxY - minY || 1)) * 100; return { x: Math.min(96, Math.max(4, x)), y: Math.min(96, Math.max(4, y)) }; }
   const selected = wilayaStores.find((s) => s.id === pinId);
+  const showStoreMarkers = (map) => {
+    if (!window.google?.maps) return;
+    const bounds = new window.google.maps.LatLngBounds();
+    wilayaStores.forEach((store, index) => {
+      const position = getStoreMapPosition(store, index);
+      const marker = new window.google.maps.Marker({ map, position, title: store.name });
+      marker.addListener("click", () => {
+        setPinId(store.id);
+        map.panTo(position);
+        map.setZoom(Math.max(map.getZoom() || 10, 11));
+        onOpenStore(store.id);
+      });
+      bounds.extend(position);
+    });
+    if (wilayaStores.length === 1) {
+      map.setCenter(getStoreMapPosition(wilayaStores[0]));
+      map.setZoom(12);
+    } else if (wilayaStores.length > 1) {
+      map.fitBounds(bounds, 42);
+    }
+  };
   return (
     <div className="space-y-3">
       <select value={selectedWilaya || ""} onChange={(e) => { onSelectWilaya(e.target.value || null); setPinId(null); }} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }}>
         <option value="">كل الولايات</option>
         {WILAYAS.filter((w) => stores.some((s) => s.wilaya === w)).map((w) => <option key={w} value={w}>{w}</option>)}
       </select>
-      <div className="relative rounded-2xl overflow-hidden" style={{ height: 340, ...mapGridStyle(26) }}>
-        {wilayaStores.length === 0 && <p className="absolute inset-0 flex items-center justify-center text-sm" style={{ color: C.inkSoft }}>لا محلات في هذه المنطقة بعد.</p>}
-        {wilayaStores.map((s) => { const p = project(s); return (<button key={s.id} onClick={() => setPinId(s.id)} className="absolute" style={{ left: `${p.x}%`, top: `${p.y}%`, transform: "translate(-50%, -100%)" }}><MapPin size={pinId === s.id ? 30 : 24} color={C.rust} fill={pinId === s.id ? C.rust : C.rust + "40"} strokeWidth={2.2} /></button>); })}
-        {selected && (() => { const p = project(selected); return (
-          <div className="absolute z-10 w-60 p-3.5 rounded-xl shadow-lg" style={{ left: `${p.x}%`, top: `${p.y}%`, transform: "translate(-50%, -128%)", background: "#fff", border: `1px solid ${C.line}` }}>
-            <div className="flex items-center gap-2 mb-1.5"><StoreAvatar logo={selected.logo} size={30} /><div><div className="font-black text-sm" style={{ color: C.ink }}>{selected.name}</div><div className="text-xs" style={{ color: C.inkSoft }}>{selected.wilaya} · {selected.commune}</div></div></div>
-            <div className="flex items-center gap-1 mb-2 text-xs font-bold" style={{ color: C.ochre }}><Star size={12} fill={C.ochre} strokeWidth={0} /> {selected.rating || "جديد"}</div>
-            <button onClick={() => onOpenStore(selected.id)} className="w-full py-2 rounded-lg text-xs font-bold" style={{ background: C.teal, color: "#fff" }}>تصفح المنتجات والشراء</button>
-          </div>
-        ); })()}
+      <div className="relative rounded-2xl overflow-hidden" style={{ height: 340, background: C.paperDark }}>
+        {!mapError && <GoogleMapView key={selectedWilaya || "all-stores"} className="h-full" initialCenter={{ lat: 28.0339, lng: 1.6596 }} initialZoom={5} onMapReady={showStoreMarkers} onMapError={() => setMapError("تعذر تحميل Google Maps حالياً. تحقق من اتصال الإنترنت وإتاحة Google Maps في إعدادات المشروع.")} />}
+        {mapError && <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center" style={{ ...mapGridStyle(26), color: C.inkSoft }}><MapPin size={28} color={C.rust} /><p className="text-sm font-bold">{mapError}</p><button onClick={() => setMapError("")} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: C.teal, color: "#fff" }}>إعادة المحاولة</button></div>}
+        {wilayaStores.length === 0 && !mapError && <p className="absolute bottom-3 right-3 left-3 p-2 rounded-lg text-center text-xs" style={{ background: "#ffffffe8", color: C.inkSoft }}>لا محلات مفعلة في هذه المنطقة بعد.</p>}
       </div>
-      <p className="text-xs flex items-center gap-1" style={{ color: C.inkSoft }}><MapIcon size={12} /> خريطة تفاعلية مبسّطة داخل التطبيق.</p>
+      {wilayaStores.length > 0 && <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{wilayaStores.map((store) => <button key={store.id} onClick={() => { setPinId(store.id); onOpenStore(store.id); }} className="p-3 rounded-xl text-right flex items-center gap-2" style={{ background: "#fff", border: `1px solid ${pinId === store.id ? C.teal : C.line}` }}><StoreAvatar logo={store.logo} size={30} /><span className="min-w-0 flex-1"><span className="block text-sm font-black truncate" style={{ color: C.ink }}>{store.name}</span><span className="block text-[11px]" style={{ color: C.inkSoft }}>{store.wilaya} · {store.commune}</span></span><ChevronLeft size={15} color={C.teal} /></button>)}</div>}
+      {selected && <p className="text-xs" style={{ color: C.inkSoft }}>المحل المحدد: {selected.name}</p>}
+      <p className="text-xs flex items-center gap-1" style={{ color: C.inkSoft }}><MapIcon size={12} /> خريطة Google Maps لتحديد الولاية، مع قائمة المحلات المفعلة المتاحة للشراء.</p>
     </div>
   );
 }
@@ -687,9 +735,9 @@ function PhoneChangeModal({ currentPhone, onRequest, onConfirm, onClose }) {
 /* ---------------------------------------------------------
    شاشة تسجيل الدخول / إنشاء حساب / استعادة حساب
 --------------------------------------------------------- */
-function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = false }) {
-  const [mode, setMode] = useState("login");
-  const [type, setType] = useState(adminOnly ? "admin" : "merchant");
+function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = false, initialType = "merchant", initialMode = "login" }) {
+  const [mode, setMode] = useState(adminOnly ? "login" : initialMode);
+  const [type, setType] = useState(adminOnly ? "admin" : initialType);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [otpCode, setOtpCode] = useState("");
@@ -700,6 +748,7 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
   const parsedIdentifier = parseLoginIdentifier(identifier);
   const phoneOtpRequired = !adminOnly && parsedIdentifier?.kind === "phone";
   const waitingForPhoneCode = Boolean(phoneVerification);
+  const phoneAutoVerified = Boolean(phoneVerification?.platform === "native" && phoneVerification?.completedUser);
 
   async function requestPhoneCode() {
     if (!parsedIdentifier?.phone) return;
@@ -710,7 +759,9 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
       const verification = await beginFirebasePhoneVerification(parsedIdentifier.phone, "firebase-phone-recaptcha");
       setPhoneVerification(verification);
       setOtpCode("");
-      setNotice("أُرسل رمز التحقق عبر رسالة SMS. أدخله لإكمال العملية.");
+      setNotice(verification.platform === "native" && verification.completedUser
+        ? "تم التحقق من رقم الهاتف تلقائياً بواسطة Firebase. تابع لإكمال العملية."
+        : "أُرسل رمز التحقق عبر رسالة SMS. أدخله لإكمال العملية.");
     } catch (requestError) {
       setError(requestError?.message || "تعذر إرسال رمز Firebase. تحقق من إعداد Phone Authentication وحاول مجدداً.");
     } finally {
@@ -722,7 +773,7 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
     if (!parsedIdentifier) { setError("أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07."); return; }
     if (mode !== "recover" && password.length < 6) { setError("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); return; }
     if (phoneOtpRequired && !waitingForPhoneCode) { await requestPhoneCode(); return; }
-    if (phoneOtpRequired && otpCode.length !== 6) { setError("أدخل رمز SMS المكوّن من ستة أرقام."); return; }
+    if (phoneOtpRequired && !phoneAutoVerified && otpCode.length !== 6) { setError("أدخل رمز SMS المكوّن من ستة أرقام."); return; }
     setError(""); setNotice("");
     setIsSubmitting(true);
     let result;
@@ -758,7 +809,7 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
         </div></>}
         <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input data-testid="auth-identifier-input" placeholder="رقم الهاتف أو البريد الإلكتروني" value={identifier} onChange={(e) => { setIdentifier(e.target.value); setOtpCode(""); setPhoneVerification(null); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode={identifier.includes("@") ? "email" : "tel"} /></div>
         <div id="firebase-phone-recaptcha" aria-hidden="true" />
-        {phoneOtpRequired && <div data-testid="firebase-phone-otp" className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-xs leading-5 font-bold" style={{ color: C.ink }}>تم التعرف على رقم الهاتف <span dir="ltr">{parsedIdentifier.phone}</span>. {waitingForPhoneCode ? "أدخل رمز SMS الذي وصلك من Firebase." : "أرسل رمز SMS لتأكيد ملكية الرقم قبل المتابعة."}</p>{waitingForPhoneCode && <><input aria-label="رمز SMS من Firebase" value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="رمز SMS المكوّن من 6 أرقام" inputMode="numeric" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /><button type="button" disabled={isSubmitting} onClick={requestPhoneCode} className="text-xs font-bold" style={{ color: C.teal }}>إعادة إرسال رمز SMS</button></>}</div>}
+        {phoneOtpRequired && <div data-testid="firebase-phone-otp" className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-xs leading-5 font-bold" style={{ color: C.ink }}>تم التعرف على رقم الهاتف <span dir="ltr">{parsedIdentifier.phone}</span>. {phoneAutoVerified ? "تم التحقق منه تلقائياً؛ يمكنك المتابعة." : waitingForPhoneCode ? "أدخل رمز SMS الذي وصلك من Firebase." : "أرسل رمز SMS لتأكيد ملكية الرقم قبل المتابعة."}</p>{waitingForPhoneCode && !phoneAutoVerified && <><input aria-label="رمز SMS من Firebase" value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="رمز SMS المكوّن من 6 أرقام" inputMode="numeric" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /><button type="button" disabled={isSubmitting} onClick={requestPhoneCode} className="text-xs font-bold" style={{ color: C.teal }}>إعادة إرسال رمز SMS</button></>}</div>}
         {mode !== "recover" && <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Lock size={15} color={C.inkSoft} /><input type="password" placeholder="كلمة المرور" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>}
         {error && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{error}</p>}
         {notice && <p className="text-xs font-bold" style={{ color: C.sage }}>{notice}</p>}
@@ -847,16 +898,16 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const [rewardCouponInput, setRewardCouponInput] = useState("");
   const [appliedReward, setAppliedReward] = useState(null);
 
-  const approvedStores = stores.filter((s) => s.status === "approved");
+  const approvedStores = stores.filter((s) => ["approved", "active", "open"].includes(String(s.status || "approved").toLowerCase()));
   const visibleStores = useMemo(() => {
-    const q = query.trim();
+    const q = normalizeSearchText(query);
     return approvedStores.filter((s) => {
       if (filterWilaya && s.wilaya !== filterWilaya) return false;
       if (filterCommune && s.commune !== filterCommune) return false;
       if (!q) return true;
-      const inName = s.name.includes(q) || s.commune.includes(q) || s.wilaya.includes(q);
-      const inDept = s.products.some((p) => deptInfo(p.department).label.includes(q));
-      return inName || inDept;
+      const storeTerms = [s.name, s.commune, s.wilaya, s.description, s.category].map(normalizeSearchText);
+      const productTerms = (s.products || []).flatMap((product) => [product.name, product.department, deptInfo(product.department).label]).map(normalizeSearchText);
+      return [...storeTerms, ...productTerms].some((term) => term && (term.includes(q) || q.includes(term)));
     });
   }, [approvedStores, query, filterWilaya, filterCommune]);
 
@@ -1380,6 +1431,29 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
 /* ---------------------------------------------------------
    لوحة الموصل — الطلبات المتاحة حوله وساعات عمله
 --------------------------------------------------------- */
+function CourierQrCard({ courier, notify }) {
+  const [qrDataUrl, setQrDataUrl] = useState("");
+  const deepLink = useMemo(() => `${window.location.origin}${window.location.pathname}?courier=${encodeURIComponent(courier.id)}`, [courier.id]);
+
+  useEffect(() => {
+    let active = true;
+    QRCode.toDataURL(deepLink, { errorCorrectionLevel: "H", width: 560, margin: 2, color: { dark: C.ink, light: "#FFFFFF" } })
+      .then((value) => { if (active) setQrDataUrl(value); })
+      .catch(() => { if (active) notify("تعذر إنشاء رمز QR لملف الموصل."); });
+    return () => { active = false; };
+  }, [deepLink, notify]);
+
+  async function copyLink() {
+    try { await navigator.clipboard.writeText(deepLink); notify("تم نسخ رابط الموصل."); }
+    catch { notify("تعذر النسخ تلقائياً؛ انسخ الرابط يدوياً."); }
+  }
+
+  return <div data-testid="courier-qr-card" className="mt-3 p-3 rounded-xl flex items-center gap-3 flex-wrap" style={{ background: "rgba(255,255,255,.55)", border: `1px solid ${C.line}` }}>
+    <div className="bg-white rounded-lg p-1.5" style={{ border: `1px solid ${C.line}` }}>{qrDataUrl ? <img src={qrDataUrl} alt={`رمز QR للموصل ${courier.name}`} className="w-20 h-20" /> : <div className="w-20 h-20 flex items-center justify-center text-[10px]" style={{ color: C.inkSoft }}>جارٍ التوليد…</div>}</div>
+    <div className="min-w-0 flex-1"><p className="text-xs font-black" style={{ color: C.ink }}>رمز QR الخاص بملف الموصل</p><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>مرتبط بالمعرّف الآمن للحساب: {courier.id.slice(0, 8)}…</p><button onClick={copyLink} className="mt-2 px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}55` }}><Copy size={12} /> نسخ الرابط</button></div>
+  </div>;
+}
+
 function CourierDashboard({ courierId, stores, orders, messages, couriers, setCouriers, notify, onLogout, claimReadyOrder, courierConfirmPickup, courierStartDelivery, courierConfirmDelivery, courierConfirmRemittance, archiveOrder, archiveMessage, userId }) {
   const [tab, setTab] = useState("available");
   const [orderStatusFilter, setOrderStatusFilter] = useState(() => {
@@ -1452,8 +1526,9 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
             </div>
           </div>
           <button onClick={onLogout} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A20", color: "#8B3A2A" }}><LogOut size={12} /> خروج</button>
-        </div>
-        <button data-testid="courier-new-orders-counter" onClick={() => selectCourierOrderFilter("ready")} className="w-full mb-2 p-3 rounded-xl flex items-center justify-between gap-3 text-right" aria-label={`${newAvailableOrdersCount} طلبات جديدة متاحة`} style={{ background: newAvailableOrdersCount ? C.teal + "10" : "rgba(255,255,255,.42)", border: `1px solid ${newAvailableOrdersCount ? C.teal + "38" : C.line}`, color: C.ink }}><span className="flex items-center gap-2 text-xs font-black"><span className="flex items-center justify-center rounded-lg" style={{ width: 28, height: 28, background: newAvailableOrdersCount ? C.teal : C.sage, color: "#fff" }}><Bell size={14} /></span>طلبات جديدة ضمن نطاقك</span><span className="text-sm font-black px-2.5 py-1 rounded-full" style={{ background: newAvailableOrdersCount ? C.teal : C.sage, color: "#fff" }}>{newAvailableOrdersCount}</span></button>
+          </div>
+          <CourierQrCard courier={courier} notify={notify} />
+          <button data-testid="courier-new-orders-counter" onClick={() => selectCourierOrderFilter("ready")} className="w-full mb-2 p-3 rounded-xl flex items-center justify-between gap-3 text-right" aria-label={`${newAvailableOrdersCount} طلبات جديدة متاحة`} style={{ background: newAvailableOrdersCount ? C.teal + "10" : "rgba(255,255,255,.42)", border: `1px solid ${newAvailableOrdersCount ? C.teal + "38" : C.line}`, color: C.ink }}><span className="flex items-center gap-2 text-xs font-black"><span className="flex items-center justify-center rounded-lg" style={{ width: 28, height: 28, background: newAvailableOrdersCount ? C.teal : C.sage, color: "#fff" }}><Bell size={14} /></span>طلبات جديدة ضمن نطاقك</span><span className="text-sm font-black px-2.5 py-1 rounded-full" style={{ background: newAvailableOrdersCount ? C.teal : C.sage, color: "#fff" }}>{newAvailableOrdersCount}</span></button>
         <div className="flex items-center justify-between gap-2 mb-3 flex-wrap"><button data-testid="courier-new-orders-link" onClick={() => selectCourierOrderFilter("ready")} className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}><ArrowLeft size={12} /> عرض الطلبات الجديدة</button><label className="flex items-center gap-2 text-xs font-bold" style={{ color: C.inkSoft }}>فلتر الحالة<select data-testid="courier-order-status-filter" value={orderStatusFilter} onChange={(event) => selectCourierOrderFilter(event.target.value)} className="px-2 py-1 rounded-lg bg-white outline-none" style={{ border: `1px solid ${C.line}`, color: C.ink }}><option value="all">كل الحالات</option><option value="ready">طلبات جديدة متاحة</option><option value="assigned">بانتظار الاستلام من المحل</option><option value="picked_up">تم الاستلام</option><option value="out_for_delivery">في الطريق</option><option value="customer_confirmed">بانتظار تحويل المستحقات</option><option value="settled">مكتمل التسوية</option></select></label></div>
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => setTab("available")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "available" ? C.teal : "transparent", color: tab === "available" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "available" ? C.teal : C.line}` }}>الطلبات المتاحة {newAvailableOrdersCount > 0 && `(${newAvailableOrdersCount})`}</button>
@@ -1897,6 +1972,7 @@ export default function App() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showCourierForm, setShowCourierForm] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
+  const [authEntry, setAuthEntry] = useState({ type: "merchant", mode: "login" });
   const [showPhoneChange, setShowPhoneChange] = useState(false);
   const [adminLoginRequested, setAdminLoginRequested] = useState(false);
   const [showRoleGuide, setShowRoleGuide] = useState(false);
@@ -1953,7 +2029,10 @@ export default function App() {
       setAuth(null);
       setMyStoreId(null);
       setRole("customer");
-      setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]); setReferralCode(""); setRewardCoupons([]); setReferralAnalytics({ totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0, redeemedValue: 0 });
+      setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]); setReferralCode(""); setRewardCoupons([]); setReferralAnalytics({ totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0 });
+      // تبقى الصفحة الرئيسية متاحة للزائر: سياسة RLS تسمح بقراءة المحلات المعتمدة
+      // فقط، لذا لا ينبغي لمسح القائمة عند عدم وجود جلسة تسجيل دخول.
+      await refreshSupabaseData("public");
       return;
     }
     const nextAuth = await resolveSupabaseUser(session.user);
@@ -2459,6 +2538,22 @@ export default function App() {
     return {};
   }
 
+  async function ensureCourierReviewRequest(userId) {
+    if (!userId) return { error: "تعذر تحديد حساب الموصل الجديد." };
+    const { error } = await supabase.from("couriers").upsert({
+      id: userId,
+      vehicle: "",
+      wilaya: "غير محددة",
+      communes: [],
+      availability: [],
+      store_mode: "all",
+      selected_store_ids: [],
+      status: "pending",
+    }, { onConflict: "id", ignoreDuplicates: true });
+    if (error) return { error: "تم إنشاء الحساب، لكن تعذر إرسال طلب انضمام الموصل للمراجعة: " + error.message };
+    return {};
+  }
+
   async function authenticate({ mode, type, identifier, password, firebasePhoneVerification = null }) {
     const credential = parseLoginIdentifier(identifier);
     if (!credential) return { error: "أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07." };
@@ -2468,8 +2563,16 @@ export default function App() {
       const created = await createSupabaseAccount({ identifier: credential.value, password, role: type, name: credential.email?.split("@")[0] || credential.phone, phone: credential.phone || "" });
       if (created.error || created.notice) return created;
       await applySupabaseSession(created.session);
+      const profile = await ensureSupabaseProfile({ user: created.user, role: type, name: credential.email?.split("@")[0] || credential.phone, phone: credential.phone || "" });
+      if (profile.error) return profile;
+      if (type === "courier") {
+        const courierRequest = await ensureCourierReviewRequest(created.user.id);
+        if (courierRequest.error) return courierRequest;
+      }
       const firebaseRecord = credential.kind === "phone" ? await recordFirebasePhoneVerification(firebasePhoneVerification) : {};
-      notify(firebaseRecord.warning || "تم إنشاء الحساب وربط الهاتف المؤكد عبر Firebase بنجاح.");
+      notify(firebaseRecord.warning || (type === "courier"
+        ? "تم إنشاء حساب الموصل وإرسال طلبه إلى لوحة الإدارة للمراجعة."
+        : "تم إنشاء الحساب وربط الهاتف المؤكد عبر Firebase بنجاح."));
       return {};
     }
     if (credential.kind === "phone" && !firebasePhoneVerification) return { error: "أكمل تحقق Firebase عبر رمز SMS قبل تسجيل الدخول بالهاتف." };
@@ -2654,7 +2757,7 @@ export default function App() {
         {role !== "admin" && <p className="text-xs mt-3 mb-1 flex items-center gap-1.5 font-medium" style={{ color: C.inkSoft }}><PackageCheck size={13} color={C.sage} /> تُحفَظ بياناتك تلقائياً وتبقى الخصوصية تحت تحكمك.</p>}
 
         <div className="mt-4">
-          {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else { setAdminLoginRequested(false); setShowAuth(true); } }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} confirmCustomerPhoneVerification={confirmCustomerPhoneVerification} requestCustomerPhoneVerification={requestCustomerPhoneVerification} referralCode={referralCode} rewardCoupons={rewardCoupons} claimReferralCode={claimCustomerReferral} />)}
+          {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else { setAdminLoginRequested(false); setAuthEntry({ type: "merchant", mode: "register" }); setShowAuth(true); } }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} confirmCustomerPhoneVerification={confirmCustomerPhoneVerification} requestCustomerPhoneVerification={requestCustomerPhoneVerification} referralCode={referralCode} rewardCoupons={rewardCoupons} claimReferralCode={claimCustomerReferral} />)}
           {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} registerMerchant={registerMerchant} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} merchantConfirmSettlement={merchantConfirmSettlement} reportCustomerAccount={reportCustomerAccount} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} messages={messages} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} courierConfirmPickup={courierConfirmPickup} courierStartDelivery={courierStartDelivery} courierConfirmDelivery={courierConfirmDelivery} courierConfirmRemittance={courierConfirmRemittance} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} orderNotifications={adminOrderNotifications} mockMessages={mockMessages} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} customerReports={customerReports} customerBlacklist={customerBlacklist} deliveryPricing={deliveryPricing} referralAnalytics={referralAnalytics} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} markOrderNotificationRead={markOrderNotificationRead} markAllOrderNotificationsRead={markAllOrderNotificationsRead} saveArchiveAlertSettings={saveArchiveAlertSettings} setCustomerBlacklist={setCustomerBlacklistStatus} saveDeliveryPricing={saveDeliveryPricingConfig} />}
@@ -2664,7 +2767,7 @@ export default function App() {
           <section className="mt-10 p-5 sm:p-6 rounded-[28px]" style={{ background: "rgba(238,240,255,.7)", border: `1px solid ${C.line}` }} data-testid="role-join-cards">
             <div className="flex items-center justify-between gap-3 mb-4"><div><h2 className="font-black text-lg tracking-tight" style={{ color: C.ink }}>ابنِ حضورك على المنصة</h2><p className="text-xs mt-1" style={{ color: C.inkSoft }}>اختر مساحة العمل المناسبة لك، وابدأ برقم هاتفك أو بريدك الإلكتروني.</p></div><div className="flex items-center gap-2"><button data-testid="role-benefits-link" onClick={() => setShowRoleGuide(true)} className="text-xs font-black px-3 py-2 rounded-xl" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}2B` }}>استكشف المسارات</button></div></div>
             <div data-testid="provider-role-switches" className="grid sm:grid-cols-2 gap-3">
-              <button data-testid="merchant-role-button" onClick={() => (auth?.type === "merchant" ? (setRole("merchant"), persistentSetMyStoreId(auth.id)) : (setAdminLoginRequested(false), setShowAuth(true)))} className="role-join-card group text-right p-5 rounded-[22px]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(51,59,120,.06)", "--role-accent": C.rust }}>
+              <button data-testid="merchant-role-button" onClick={() => (auth?.type === "merchant" ? (setRole("merchant"), persistentSetMyStoreId(auth.id)) : (setAdminLoginRequested(false), setAuthEntry({ type: "merchant", mode: "register" }), setShowAuth(true)))} className="role-join-card group text-right p-5 rounded-[22px]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(51,59,120,.06)", "--role-accent": C.rust }}>
                 <div className="flex items-start justify-between gap-3"><div className="flex items-center justify-center rounded-2xl" style={{ width: 46, height: 46, background: C.rust + "16", color: C.rust }}><Store size={22} /></div><span className="flex items-center justify-center rounded-xl" style={{ width: 30, height: 30, background: C.paperDark, color: C.inkSoft }}><ChevronLeft size={17} className="transition-transform group-hover:-translate-x-0.5" /></span></div>
                 <h3 className="font-black mt-4" style={{ color: C.ink }}>انضم كتاجر</h3><p className="text-xs leading-5 mt-1.5" style={{ color: C.inkSoft }}>منتجاتك، طلباتك، وشركاء التوصيل؛ في لوحة نظيفة واحدة.</p>
               </button>
@@ -2681,7 +2784,7 @@ export default function App() {
 
       {showResetConfirm && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(35,32,27,0.5)" }} onClick={() => setShowResetConfirm(false)}><div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-2xl p-5" style={{ background: C.paper }}><div className="flex items-center gap-2 mb-2"><AlertCircle size={20} color={C.rust} /><h3 className="font-black" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>تأكيد إعادة الضبط</h3></div><p className="text-sm mb-5" style={{ color: C.inkSoft }}>سيتم إرجاع كل البيانات إلى حالتها الافتراضية.</p><div className="flex gap-2"><button onClick={() => setShowResetConfirm(false)} className="flex-1 py-2.5 rounded-xl font-bold text-sm" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}>إلغاء</button><button onClick={resetDemoData} className="flex-1 py-2.5 rounded-xl font-black text-sm" style={{ background: C.rust, color: "#fff" }}>نعم، إعادة الضبط</button></div></div></div>)}
       {showCourierForm && <CourierRegisterModal stores={stores} onSubmit={registerCourier} onClose={() => setShowCourierForm(false)} />}
-      {showAuth && <AuthModal authenticate={authenticate} requestAccountRecovery={requestAccountRecovery} adminOnly={adminLoginRequested} onClose={() => { setShowAuth(false); setAdminLoginRequested(false); }} />}
+      {showAuth && <AuthModal authenticate={authenticate} requestAccountRecovery={requestAccountRecovery} adminOnly={adminLoginRequested} initialType={authEntry.type} initialMode={authEntry.mode} onClose={() => { setShowAuth(false); setAdminLoginRequested(false); setAuthEntry({ type: "merchant", mode: "login" }); }} />}
       {showPhoneChange && <PhoneChangeModal currentPhone={auth?.phone} onRequest={requestPhoneChange} onConfirm={confirmPhoneChange} onClose={() => setShowPhoneChange(false)} />}
       {role !== "admin" && <button aria-label="دخول الإدارة" onClick={() => { setAdminLoginRequested(true); setShowAuth(true); }} className="fixed top-1 right-1 h-2 w-2 rounded-full opacity-15 transition-opacity hover:opacity-70 focus:opacity-100" style={{ background: C.ink }} />}
     </div>

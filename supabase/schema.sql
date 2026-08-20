@@ -143,6 +143,11 @@ create policy couriers_read_self_or_merchant on public.couriers
     or (status = 'approved' and public.current_app_role() = 'merchant')
   );
 
+-- لا يرى المشرف بيانات الموصلين (ومنها طلبات pending) إلا داخل لوحة الإدارة.
+drop policy if exists couriers_admin_read on public.couriers;
+create policy couriers_admin_read on public.couriers
+  for select to authenticated using (public.is_app_admin());
+
 drop policy if exists couriers_register_self on public.couriers;
 create policy couriers_register_self on public.couriers
   for insert to authenticated
@@ -151,6 +156,12 @@ create policy couriers_register_self on public.couriers
     and public.current_app_role() = 'courier'
     and status = 'pending'
   );
+
+drop policy if exists couriers_admin_update on public.couriers;
+create policy couriers_admin_update on public.couriers
+  for update to authenticated
+  using (public.is_app_admin())
+  with check (public.is_app_admin());
 
 -- Only the merchant chooses approved couriers; couriers may only view their approvals.
 drop policy if exists approvals_read_owner_or_courier on public.merchant_courier_approvals;

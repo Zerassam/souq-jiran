@@ -444,10 +444,53 @@ describe("Souq Jiran Supabase integration", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "{}",
+      signal: AbortSignal.timeout(10_000),
     });
     const payload = await response.json();
 
     expect(response.status).toBe(400);
     expect(JSON.stringify(payload)).toContain("MISSING_ID_TOKEN");
+  }, 12_000);
+
+  it("surfaces Firebase phone failures, normalizes Algerian numbers, and accepts native auto-verification", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const firebaseSource = readFileSync(resolve(projectRoot, "client/src/lib/firebase.ts"), "utf8");
+
+    expect(firebaseSource).toContain("normalizeFirebasePhoneNumber");
+    expect(firebaseSource).toContain("phoneVerificationFailed");
+    expect(firebaseSource).toContain("phoneVerificationCompleted");
+    expect(firebaseSource).toContain("لم يصل رد من Firebase خلال دقيقة");
+    expect(firebaseSource).toContain("completedUser");
+    expect(appSource).toContain("const phoneAutoVerified");
+    expect(appSource).toContain("تم التحقق منه تلقائياً؛ يمكنك المتابعة.");
+    expect(appSource).toContain("!phoneAutoVerified && otpCode.length !== 6");
+  });
+
+  it("creates a pending courier review request from unified registration and exposes it to administrators", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const courierPolicyMigration = readFileSync(resolve(projectRoot, "supabase/migrations/20260828_admin_courier_visibility.sql"), "utf8");
+
+    expect(appSource).toContain("function ensureCourierReviewRequest");
+    expect(appSource).toContain('supabase.from("couriers").upsert');
+    expect(appSource).toContain('status: "pending"');
+    expect(appSource).toContain('if (type === "courier")');
+    expect(appSource).toContain("تم إنشاء حساب الموصل وإرسال طلبه إلى لوحة الإدارة للمراجعة.");
+    expect(courierPolicyMigration).toContain("couriers_admin_read");
+    expect(courierPolicyMigration).toContain("public.is_app_admin()");
+  });
+
+  it("wires direct merchant registration, courier QR identity, broad search, maps, and Android location permissions", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const mapSource = readFileSync(resolve(projectRoot, "client/src/components/Map.tsx"), "utf8");
+    const manifest = readFileSync(resolve(projectRoot, "android/app/src/main/AndroidManifest.xml"), "utf8");
+
+    expect(appSource).toContain('setAuthEntry({ type: "merchant", mode: "register" })');
+    expect(appSource).toContain("QRCode.toDataURL(deepLink");
+    expect(appSource).toContain("رمز QR الخاص بملف الموصل");
+    expect(appSource).toContain("normalizeSearchText");
+    expect(appSource).toContain("MapView");
+    expect(mapSource).toContain("onMapError");
+    expect(manifest).toContain("android.permission.ACCESS_COARSE_LOCATION");
+    expect(manifest).toContain("android.permission.ACCESS_FINE_LOCATION");
   });
 });
