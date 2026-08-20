@@ -535,4 +535,21 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).not.toContain('comment: "أسعار ممتازة"');
     expect(appSource).not.toContain('comment: "توصيل سريع"');
   });
+
+  it("keeps automatic Firebase Auth custom claims in trusted server-side code", () => {
+    const triggerSource = readFileSync(
+      resolve(projectRoot, "firebase-functions", "index.cjs"),
+      "utf8",
+    );
+    const firebaseConfig = readFileSync(resolve(projectRoot, "firebase.json"), "utf8");
+
+    expect(triggerSource).toContain('require("firebase-functions/v1")');
+    expect(triggerSource).toContain(".auth.user()");
+    expect(triggerSource).toContain(".onCreate(async (user)");
+    expect(triggerSource).toContain("getAuth().setCustomUserClaims");
+    expect(triggerSource).toContain('role: "authenticated"');
+    expect(triggerSource).toContain("...existingClaims");
+    expect(firebaseConfig).toContain('"source": "firebase-functions"');
+    expect(firebaseConfig).toContain('"runtime": "nodejs22"');
+  });
 });

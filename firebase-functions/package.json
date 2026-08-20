@@ -1,0 +1,18 @@
+{
+  "name": "souq-jiran-firebase-functions",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Trusted Firebase Auth triggers for Souq Jiran",
+  "main": "index.cjs",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "deploy:claims": "firebase deploy --only functions:assignAuthenticatedRoleOnCreate",
+    "logs:claims": "firebase functions:log --only assignAuthenticatedRoleOnCreate"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.2",
+    "firebase-functions": "^6.3.2"
+  }
+}

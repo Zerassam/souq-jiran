@@ -202,6 +202,9 @@
 - [x] اكتشاف تصحيح لازم لفصل معرف حساب Supabase عن معرف Firebase عند تأكيد التحدي، ومنع الاعتماد على `auth.uid()` داخل جلسة Firebase.
 - [x] تطبيق 20260831_fix_firebase_phone_link_identity.sql بنجاح في Supabase لتصحيح ربط التحدي بالحساب الحي.
 - [ ] إعداد مطالبة Firebase Custom Claim باسم role بالقيمة authenticated لجميع المستخدمين الحاليين والجدد والتحقق من وصولها في JWT.
+- [ ] تجهيز ونشر وظيفة Firebase إدارية تلقائية تمنح `role=authenticated` فور إنشاء كل مستخدم جديد، مع اختبار محلي ودليل نشر لا يكشف أسرار الإدارة.
+- [ ] مزامنة النسخة التي تحتوي `firebase.json` و`firebase-functions/` إلى بيئة المالك ذات جلسة Google المخولة قبل تنفيذ أمر Firebase deploy.
+- [x] إنشاء حزمة نشر Firebase مستقلة ومتحقق من محتواها لرفعها إلى `souq-jiran-firebase-admin` في Cloud Shell.
 - [x] إعداد دليل إداري آمن لتعيين Firebase Custom Claims وتجديد رمز Firebase والتحقق من الوصول إلى Supabase.
 - [x] مراجعة معاينة التسجيل الهاتفي وتأكيد نقطة تعيين مطالبة Firebase فور إنشاء أول UID حقيقي.
 - [ ] تشخيص وإصلاح خطأ `auth/internal-error` عند تأكيد Firebase SMS في معاينة حساب الزبون، ثم إعادة اختبار تجديد الرمز وربط Supabase.
