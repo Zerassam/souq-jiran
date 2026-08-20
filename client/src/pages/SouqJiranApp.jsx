@@ -33,6 +33,8 @@ const C = {
 };
 const LOGO_COLORS = [C.teal, C.rust, C.ochre, C.sage, C.purple];
 const PLATFORM_COURIER_FEE = 120;
+const MAX_DISCOVERY_STORES = 6;
+const MAX_DISCOVERY_COURIERS = 2;
 const WILAYA_MAP_CENTERS = {
   "الجزائر": { lat: 36.7538, lng: 3.0588 }, "البليدة": { lat: 36.4700, lng: 2.8290 },
   "سطيف": { lat: 36.1911, lng: 5.4137 }, "أم البواقي": { lat: 35.8754, lng: 7.1135 },
@@ -223,12 +225,12 @@ const initialStores = [
   {
     id: "s1", name: "سوبر ماركت الأمل", phone: "0555 12 34 56",
     wilaya: "البليدة", commune: "البليدة", address: "شارع الاستقلال",
-    lat: 52, lng: 47, distance: "350 م", status: "approved", rating: 4.6,
+    lat: 52, lng: 47, distance: "350 م", status: "approved", rating: null,
     open: 7, close: 22, minOrder: 500, deliveryFee: 150, hasOwnDelivery: true,
     deliveryCommunes: ["البليدة", "بوفاريك"], approvedCourierIds: ["c1"],
     commissionType: "percentage", commissionRate: 10, subscriptionFee: 3000, duesPaid: 0,
     logo: { text: "سأ", color: C.teal }, ccp: "0079999912 45", idDocName: "سجل_تجاري.pdf",
-    reviews: [{ id: "r1", customer: "سارة ب.", stars: 5, comment: "خدمة سريعة ومنتجات طازجة", date: "قبل يومين" }],
+    reviews: [],
     products: [
       { id: "p1", name: "خبز تقليدي", price: 25, unit: "الوحدة", department: "bakery", available: true },
       { id: "p2", name: "حليب طازج 1ل", price: 90, unit: "العلبة", department: "dairy", available: true },
@@ -241,12 +243,12 @@ const initialStores = [
   {
     id: "s2", name: "سوبر ماركت النور", phone: "0661 22 33 44",
     wilaya: "البليدة", commune: "بوفاريك", address: "نهج بن باديس",
-    lat: 55, lng: 50, distance: "700 م", status: "approved", rating: 4.8,
+    lat: 55, lng: 50, distance: "700 م", status: "approved", rating: null,
     open: 6, close: 21, minOrder: 300, deliveryFee: 100, hasOwnDelivery: false,
     deliveryCommunes: [], approvedCourierIds: ["c1"],
     commissionType: "percentage", commissionRate: 8, subscriptionFee: 2500, duesPaid: 0,
     logo: { text: "نر", color: C.rust }, ccp: "0088888844 12", idDocName: "سجل_تجاري.pdf",
-    reviews: [{ id: "r2", customer: "يوسف ك.", stars: 5, comment: "أسعار ممتازة", date: "أمس" }],
+    reviews: [],
     products: [
       { id: "p7", name: "جبن أبيض 500غ", price: 340, unit: "العلبة", department: "dairy", available: true },
       { id: "p8", name: "كرواسون زبدة", price: 40, unit: "الوحدة", department: "bakery", available: true },
@@ -257,7 +259,7 @@ const initialStores = [
   {
     id: "s3", name: "سوبر ماركت العاصمة", phone: "0770 55 66 77",
     wilaya: "الجزائر", commune: "باب الوادي", address: "شارع العربي بن مهيدي",
-    lat: 38, lng: 30, distance: "—", status: "approved", rating: 4.3,
+    lat: 38, lng: 30, distance: "—", status: "approved", rating: null,
     open: 8, close: 22, minOrder: 600, deliveryFee: 200, hasOwnDelivery: true,
     deliveryCommunes: ["باب الوادي", "حسين داي"], approvedCourierIds: [],
     commissionType: "subscription", commissionRate: 10, subscriptionFee: 4000, duesPaid: 0,
@@ -272,12 +274,12 @@ const initialStores = [
   {
     id: "s4", name: "سوبر ماركت وهران المركزي", phone: "0540 88 99 00",
     wilaya: "وهران", commune: "وهران", address: "الطريق الوطني رقم 2",
-    lat: 70, lng: 78, distance: "—", status: "approved", rating: 4.5,
+    lat: 70, lng: 78, distance: "—", status: "approved", rating: null,
     open: 8, close: 23, minOrder: 400, deliveryFee: 180, hasOwnDelivery: false,
     deliveryCommunes: [], approvedCourierIds: ["c2"],
     commissionType: "percentage", commissionRate: 12, subscriptionFee: 3500, duesPaid: 0,
     logo: { text: "وه", color: C.sage }, ccp: "0099887766 33", idDocName: "سجل_تجاري.pdf",
-    reviews: [{ id: "r3", customer: "أمينة ز.", stars: 4, comment: "توصيل سريع", date: "قبل 3 أيام" }],
+    reviews: [],
     products: [
       { id: "p14", name: "بيض بلدي (12)", price: 320, unit: "الطبق", department: "dairy", available: true },
       { id: "p15", name: "بطاطا", price: 70, unit: "الكيلوغرام", department: "veggies", available: true },
@@ -287,7 +289,7 @@ const initialStores = [
   {
     id: "s5", name: "سوبر ماركت قسنطينة الجديد", phone: "0666 44 55 66",
     wilaya: "قسنطينة", commune: "قسنطينة", address: "",
-    lat: 24, lng: 18, distance: "—", status: "awaiting_profile", rating: 0,
+    lat: 24, lng: 18, distance: "—", status: "awaiting_profile", rating: null,
     open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: true,
     deliveryCommunes: [], approvedCourierIds: [],
     commissionType: "percentage", commissionRate: 10, subscriptionFee: 3000, duesPaid: 0,
@@ -305,7 +307,7 @@ const initialOrders = [
 const pendingStoreSeed = {
   id: "s6", name: "سوبر ماركت الجيران", phone: "0555 99 00 11",
   wilaya: "البليدة", commune: "الأربعاء", address: "",
-  lat: 48, lng: 53, distance: "—", status: "pending_review", rating: 0,
+  lat: 48, lng: 53, distance: "—", status: "pending_review", rating: null,
   open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: true,
   deliveryCommunes: [], approvedCourierIds: [],
   commissionType: "percentage", commissionRate: 10, subscriptionFee: 3000, duesPaid: 0,
@@ -349,6 +351,61 @@ function PriceTag({ amount, size = "md" }) {
 }
 function DeptBadge({ id, size = 16 }) { const info = deptInfo(id); const Icon = info.icon; return <span className="inline-flex items-center justify-center" style={{ width: size + 14, height: size + 14, borderRadius: 999, background: info.color + "22", color: info.color }}><Icon size={size} strokeWidth={2.3} /></span>; }
 function StoreAvatar({ logo, size = 42 }) { return <span className="flex items-center justify-center rounded-[14px] shrink-0 font-black" style={{ width: size, height: size, background: `linear-gradient(145deg, ${logo?.color || C.teal}, ${C.purple})`, color: "#fff", fontSize: size * 0.36, fontFamily: "'IBM Plex Sans Arabic', sans-serif", boxShadow: `0 8px 18px ${(logo?.color || C.teal)}35` }}>{logo?.text || <Store size={size * 0.5} />}</span>; }
+function getDiscoveryCategory(store) {
+  const raw = `${store?.category || ""} ${store?.businessType || ""} ${store?.name || ""}`.toLowerCase();
+  if (/صيدل/.test(raw)) return { id: "pharmacy", label: "صيدلية" };
+  if (/فاست|fast|مطعم|restaurant/.test(raw)) return { id: "fast-food", label: "وجبات سريعة" };
+  if (/حلويات|patisserie|pastry/.test(raw)) return { id: "sweets", label: "حلويات" };
+  if (/خرد|بقال|épicer|grocery/.test(raw)) return { id: "grocery", label: "بقالة" };
+  if (/سوبر|supermarket|ماركت/.test(raw)) return { id: "supermarket", label: "سوبرماركت" };
+  return { id: "local", label: store?.category || store?.businessType || "متجر محلي" };
+}
+function curateDiscoveryStores(stores) {
+  const buckets = new Map();
+  stores.forEach((store) => {
+    const category = getDiscoveryCategory(store);
+    if (!buckets.has(category.id)) buckets.set(category.id, []);
+    buckets.get(category.id).push(store);
+  });
+  const preferredOrder = ["supermarket", "pharmacy", "fast-food", "sweets", "grocery", "local"];
+  const categoryIds = [...preferredOrder, ...[...buckets.keys()].filter((id) => !preferredOrder.includes(id))];
+  const selected = [];
+  categoryIds.forEach((categoryId) => {
+    const first = buckets.get(categoryId)?.[0];
+    if (first && selected.length < MAX_DISCOVERY_STORES) selected.push(first);
+  });
+  stores.forEach((store) => {
+    if (selected.length < MAX_DISCOVERY_STORES && !selected.some((item) => item.id === store.id)) selected.push(store);
+  });
+  return selected;
+}
+function PublicCourierAvailability({ couriers, areaLabel }) {
+  return <section className="space-y-3" data-testid="nearby-couriers-panel">
+    <div className="flex items-end justify-between gap-3"><div><h3 className="font-black" style={{ color: C.ink, fontFamily: "'Reem Kufi', sans-serif" }}>موصلون متاحون عبر المنصة</h3><p className="text-xs mt-1" style={{ color: C.inkSoft }}>تظهر حالة التوفر فقط؛ تُحفظ هوية الموصل وبياناته الخاصة حتى إسناد الطلب.</p></div><span className="text-xs font-bold px-2.5 py-1 rounded-full shrink-0" style={{ background: C.teal + "12", color: C.teal }}>{couriers.length}/{MAX_DISCOVERY_COURIERS} متاح</span></div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {Array.from({ length: MAX_DISCOVERY_COURIERS }).map((_, index) => {
+        const courier = couriers[index];
+        return <div key={courier?.id || `courier-slot-${index}`} className="p-4 rounded-2xl flex items-center gap-3" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+          <span className="flex items-center justify-center rounded-xl shrink-0" style={{ width: 42, height: 42, background: courier ? C.sage + "18" : C.paperDark, color: courier ? C.sage : C.inkSoft }}><Bike size={20} /></span>
+          <div className="min-w-0"><div className="text-sm font-black" style={{ color: C.ink }}>{courier ? `موصل المنصة ${index + 1}` : "بانتظار موصل متاح"}</div><div className="text-xs mt-1" style={{ color: C.inkSoft }}>{courier ? `${courier.wilaya || areaLabel} · ${courier.commune || "يغطي نطاق المنطقة"}` : `${areaLabel} · ستظهر البطاقة عند توفر موصل معتمد`}</div></div>
+        </div>;
+      })}
+    </div>
+  </section>;
+}
+function VerifiedFeedbackPanel({ stores }) {
+  const reviews = useMemo(() => stores.flatMap((store) => (store.reviews || []).filter((review) => review?.verified === true && review?.comment).map((review) => ({ ...review, storeName: store.name }))), [stores]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  useEffect(() => {
+    setActiveIndex(0);
+    if (reviews.length < 2) return undefined;
+    const timer = window.setInterval(() => setActiveIndex((current) => (current + 1) % reviews.length), 5500);
+    return () => window.clearInterval(timer);
+  }, [reviews.length]);
+  if (reviews.length === 0) return <section data-testid="verified-feedback-panel" className="p-5 rounded-2xl" style={{ background: `linear-gradient(135deg, ${C.paperDark}, #fff)`, border: `1px solid ${C.line}` }}><div className="flex items-start gap-3"><span className="flex items-center justify-center rounded-xl shrink-0" style={{ width: 42, height: 42, background: C.teal + "12", color: C.teal }}><MessageSquare size={20} /></span><div><h3 className="font-black" style={{ color: C.ink, fontFamily: "'Reem Kufi', sans-serif" }}>آراء موثقة من المجتمع</h3><p className="text-xs leading-6 mt-1" style={{ color: C.inkSoft }}>ستظهر هنا تقييمات العملاء والتجار والموصلين بعد اكتمال الطلب واعتماد المراجعة. لا نعرض أي تعليق تجريبي أو تقييم غير موثق.</p></div></div></section>;
+  const review = reviews[activeIndex % reviews.length];
+  return <section data-testid="verified-feedback-panel" className="p-5 rounded-2xl overflow-hidden" style={{ background: `linear-gradient(135deg, ${C.ink}, ${C.tealDark})`, color: "#fff" }}><div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-1.5 text-xs font-bold opacity-75"><MessageSquare size={14} /> آراء موثقة من المجتمع</div><h3 className="font-black text-lg mt-2" style={{ fontFamily: "'Reem Kufi', sans-serif" }}>{review.storeName}</h3></div><div className="flex gap-1"><button aria-label="التعليق السابق" onClick={() => setActiveIndex((current) => (current - 1 + reviews.length) % reviews.length)} className="p-2 rounded-xl" style={{ background: "rgba(255,255,255,.12)" }}><ChevronRight size={16} /></button><button aria-label="التعليق التالي" onClick={() => setActiveIndex((current) => (current + 1) % reviews.length)} className="p-2 rounded-xl" style={{ background: "rgba(255,255,255,.12)" }}><ChevronLeft size={16} /></button></div></div><div key={review.id} className="mt-5 transition-all duration-300"><StarRating value={review.stars} size={14} /><p className="mt-3 text-sm leading-7">{review.comment}</p><p className="mt-3 text-xs opacity-70">{review.authorRole || "عضو موثّق"} · {review.date || ""}</p></div>{reviews.length > 1 && <div className="flex gap-1.5 mt-5">{reviews.map((item, index) => <button key={item.id} aria-label={`انتقال إلى التعليق ${index + 1}`} onClick={() => setActiveIndex(index)} className="h-1.5 rounded-full transition-all" style={{ width: index === activeIndex ? 22 : 7, background: index === activeIndex ? "#fff" : "rgba(255,255,255,.3)" }} />)}</div>}</section>;
+}
 const STATUS_MAP = {
   pending: { label: "قيد الانتظار", color: C.ochre }, accepted: { label: "تم القبول", color: C.sage },
   preparing: { label: "قيد التحضير", color: C.teal }, ready: { label: "جاهز للتسليم", color: C.rust },
@@ -991,6 +1048,19 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
       return [...storeTerms, ...productTerms].some((term) => term && (term.includes(q) || q.includes(term)));
     });
   }, [approvedStores, query, filterWilaya, filterCommune]);
+  const curatedStores = useMemo(() => curateDiscoveryStores(visibleStores), [visibleStores]);
+  const discoveryAreaLabel = filterCommune || filterWilaya || curatedStores[0]?.wilaya || "نطاقك الحالي";
+  const publicCouriers = useMemo(() => {
+    const localWilaya = filterWilaya || curatedStores[0]?.wilaya;
+    const localCommune = filterCommune;
+    return couriers.filter((courier) => {
+      const status = String(courier.status || "").toLowerCase();
+      if (!["approved", "active", "available"].includes(status)) return false;
+      if (localWilaya && courier.wilaya !== localWilaya) return false;
+      if (localCommune && !(courier.communes || []).includes(localCommune)) return false;
+      return true;
+    }).slice(0, MAX_DISCOVERY_COURIERS);
+  }, [couriers, curatedStores, filterWilaya, filterCommune]);
 
   const openStore = stores.find((s) => s.id === openStoreId);
   const cartStore = stores.find((s) => s.id === cart.storeId);
@@ -1068,9 +1138,9 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
     setOtpStatus(result.message || "تم تجهيز مسار التحقق التجريبي.");
   }
   function submitReview(order, stars, comment) {
-    setStores((prev) => prev.map((s) => { if (s.id !== order.storeId) return s; const reviews = [...(s.reviews || []), { id: "r" + Math.random().toString(36).slice(2, 7), customer: "أنت", stars, comment, date: "الآن" }]; const avg = reviews.reduce((a, r) => a + r.stars, 0) / reviews.length; return { ...s, reviews, rating: Math.round(avg * 10) / 10 }; }));
+    setStores((prev) => prev.map((s) => { if (s.id !== order.storeId) return s; const reviews = [...(s.reviews || []), { id: "r" + Math.random().toString(36).slice(2, 7), customer: "أنت", authorRole: "زبون", stars, comment, date: "الآن", verified: false }]; return { ...s, reviews }; }));
     setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, rated: true } : o)));
-    setReviewingOrder(null); notify("شكراً على تقييمك! ⭐");
+    setReviewingOrder(null); notify("تم استلام تقييمك للمراجعة قبل نشره.");
   }
 
   const myOrders = orders.filter((o) => o.customerId ? o.customerId === customerId : o.customer === "أنت");
@@ -1108,24 +1178,29 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
           </div>
 
           {browseMode === "map" ? (
-            <MapView stores={visibleStores} selectedWilaya={filterWilaya} onSelectWilaya={(w) => { setFilterWilaya(w || ""); setFilterCommune(""); }} onOpenStore={setOpenStoreId} />
+            <MapView stores={curatedStores} selectedWilaya={filterWilaya} onSelectWilaya={(w) => { setFilterWilaya(w || ""); setFilterCommune(""); }} onOpenStore={setOpenStoreId} />
           ) : (
             <>
               <WilayaCommuneSelect wilaya={filterWilaya} commune={filterCommune} allowAllWilaya allowAllCommune onChange={({ wilaya, commune }) => { setFilterWilaya(wilaya); setFilterCommune(commune); }} />
+              <div className="flex items-end justify-between gap-3 flex-wrap"><div><h2 className="font-black" style={{ color: C.ink, fontFamily: "'Reem Kufi', sans-serif" }}>متاجر مقترحة في {discoveryAreaLabel}</h2><p className="text-xs mt-1" style={{ color: C.inkSoft }}>نختار حتى 6 متاجر فقط مع إعطاء الأولوية لتنوع الأنشطة المتاح في المنطقة.</p></div><span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: C.teal + "12", color: C.teal }}>{curatedStores.length}/{MAX_DISCOVERY_STORES} متجر</span></div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {visibleStores.map((s) => {
+                {curatedStores.map((s) => {
                   const isOpen = new Date().getHours() >= s.open && new Date().getHours() < s.close;
+                  const verifiedReviewCount = (s.reviews || []).filter((review) => review?.verified === true).length;
+                  const category = getDiscoveryCategory(s);
                   return (
                     <button key={s.id} onClick={() => setOpenStoreId(s.id)} className="text-right p-4 rounded-2xl transition hover:-translate-y-0.5" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 1px 0 rgba(35,32,27,0.05)" }}>
-                      <div className="flex items-start justify-between mb-3"><StoreAvatar logo={s.logo} size={38} /><span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: isOpen ? C.sage + "22" : "#8883", color: isOpen ? C.sage : C.inkSoft }}>{isOpen ? "مفتوح الآن" : "مغلق"}</span></div>
+                      <div className="flex items-start justify-between mb-3"><StoreAvatar logo={s.logo} size={38} /><div className="flex flex-col items-end gap-1"><span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: isOpen ? C.sage + "22" : "#8883", color: isOpen ? C.sage : C.inkSoft }}>{isOpen ? "مفتوح الآن" : "مغلق"}</span><span className="text-[10px] font-bold" style={{ color: C.teal }}>{category.label}</span></div></div>
                       <div className="font-black text-base" style={{ color: C.ink, fontFamily: "'Reem Kufi', sans-serif" }}>{s.name}</div>
                       <div className="flex items-center gap-1 text-xs mt-1" style={{ color: C.inkSoft }}><MapPin size={12} /> {s.wilaya} · {s.commune}</div>
-                      <div className="flex items-center justify-between mt-3"><span className="flex items-center gap-1 text-xs font-bold" style={{ color: C.ochre }}><Star size={13} fill={C.ochre} strokeWidth={0} /> {s.rating || "جديد"}{(s.reviews || []).length > 0 && <span style={{ color: C.inkSoft, fontWeight: 500 }}>({s.reviews.length})</span>}</span><span className="text-xs font-bold flex items-center gap-1" style={{ color: C.teal }}>عرض المنتجات <ChevronLeft size={14} /></span></div>
+                      <div className="flex items-center justify-between mt-3"><span className="flex items-center gap-1 text-xs font-bold" style={{ color: C.ochre }}><Star size={13} fill={C.ochre} strokeWidth={0} /> {s.rating || "جديد"}{verifiedReviewCount > 0 && <span style={{ color: C.inkSoft, fontWeight: 500 }}>({verifiedReviewCount})</span>}</span><span className="text-xs font-bold flex items-center gap-1" style={{ color: C.teal }}>عرض المنتجات <ChevronLeft size={14} /></span></div>
                     </button>
                   );
                 })}
-                {visibleStores.length === 0 && <p className="col-span-2 text-center py-10 text-sm" style={{ color: C.inkSoft }}>لا توجد محلات مطابقة لبحثك.</p>}
+                {curatedStores.length === 0 && <p className="col-span-2 text-center py-10 text-sm" style={{ color: C.inkSoft }}>لا توجد محلات مطابقة لبحثك.</p>}
               </div>
+              <PublicCourierAvailability couriers={publicCouriers} areaLabel={discoveryAreaLabel} />
+              <VerifiedFeedbackPanel stores={curatedStores} />
             </>
           )}
         </>
@@ -1148,7 +1223,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
               </div>
             ))}
           </div>
-          {(openStore.reviews || []).length > 0 && (<div><h4 className="font-black text-sm mb-2 flex items-center gap-1.5" style={{ color: C.ink }}><MessageSquare size={14} color={C.teal} /> آراء العملاء</h4><div className="space-y-2">{openStore.reviews.map((r) => (<div key={r.id} className="p-3 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="flex items-center justify-between mb-1"><span className="text-xs font-bold" style={{ color: C.ink }}>{r.customer}</span><StarRating value={r.stars} size={12} /></div>{r.comment && <p className="text-xs" style={{ color: C.inkSoft }}>{r.comment}</p>}<p className="text-[10px] mt-1" style={{ color: C.inkSoft }}>{r.date}</p></div>))}</div></div>)}
+          {(openStore.reviews || []).filter((review) => review?.verified === true).length > 0 && (<div><h4 className="font-black text-sm mb-2 flex items-center gap-1.5" style={{ color: C.ink }}><MessageSquare size={14} color={C.teal} /> آراء موثقة</h4><div className="space-y-2">{openStore.reviews.filter((review) => review?.verified === true).map((r) => (<div key={r.id} className="p-3 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="flex items-center justify-between mb-1"><span className="text-xs font-bold" style={{ color: C.ink }}>{r.authorRole || r.customer || "عضو موثّق"}</span><StarRating value={r.stars} size={12} /></div>{r.comment && <p className="text-xs" style={{ color: C.inkSoft }}>{r.comment}</p>}<p className="text-[10px] mt-1" style={{ color: C.inkSoft }}>{r.date}</p></div>))}</div></div>)}
         </div>
       )}
 

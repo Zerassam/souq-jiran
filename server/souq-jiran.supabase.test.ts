@@ -517,4 +517,19 @@ describe("Souq Jiran Supabase integration", () => {
     expect(manifest).toContain("android.permission.ACCESS_COARSE_LOCATION");
     expect(manifest).toContain("android.permission.ACCESS_FINE_LOCATION");
   });
+
+  it("keeps local discovery concise, preserves courier privacy, and never seeds public feedback", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(appSource).toContain("const MAX_DISCOVERY_STORES = 6");
+    expect(appSource).toContain("const MAX_DISCOVERY_COURIERS = 2");
+    expect(appSource).toContain("function curateDiscoveryStores");
+    expect(appSource).toContain("data-testid=\"nearby-couriers-panel\"");
+    expect(appSource).toContain("موصل المنصة");
+    expect(appSource).toContain("data-testid=\"verified-feedback-panel\"");
+    expect(appSource).toContain("review?.verified === true");
+    expect(appSource).not.toContain('comment: "خدمة سريعة ومنتجات طازجة"');
+    expect(appSource).not.toContain('comment: "أسعار ممتازة"');
+    expect(appSource).not.toContain('comment: "توصيل سريع"');
+  });
 });

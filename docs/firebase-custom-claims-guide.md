@@ -82,6 +82,8 @@ node set-authenticated-role.mjs FIREBASE_UID_HERE
 
 للمستخدمين الجدد، كرر التعيين الإداري مباشرة بعد أول تحقق هاتف إلى أن تضيف مستقبلاً عملية خلفية موثوقة تستخدم Firebase Admin SDK. لا تنفذ هذه العملية في React أو Capacitor، ولا في قاعدة بيانات Supabase.
 
+لأتمتة الإسناد، يدعم التوثيق الرسمي حدث إنشاء مستخدم Firebase في Cloud Functions من الجيل الأول. أما Blocking Functions فهي بديل مختلف يتطلب الترقية إلى Firebase Authentication with Identity Platform ويؤثر مباشرة في مسار إنشاء الحساب أو تسجيل الدخول؛ لذلك لا تُفعّل قبل تقييم أثرها التشغيلي.
+
 ## اختبار التحقق
 
 بعد تسجيل دخول المستخدم مجدداً:
@@ -106,3 +108,5 @@ await admin.auth().setCustomUserClaims("FIREBASE_UID_HERE", claims);
 
 - [Firebase Admin: Custom Claims](https://firebase.google.com/docs/auth/admin/custom-claims)
 - [Supabase: Firebase Third-Party Auth](https://supabase.com/docs/guides/auth/third-party/firebase-auth)
+- [Firebase Authentication triggers (Cloud Functions, الجيل الأول)](https://firebase.google.com/docs/functions/1st-gen/auth-events)
+- [Firebase Authentication blocking functions](https://firebase.google.com/docs/auth/extend-with-blocking-functions)
