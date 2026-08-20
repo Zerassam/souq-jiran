@@ -178,12 +178,12 @@
 - [x] إعداد ترحيل وسياسات Supabase لتخزين رمز FCM وسجل تحديثه بصورة مقيدة بالصلاحيات.
 - [x] إضافة اختبارات Firebase وFCM والتحقق من بناء الإنتاج بنجاح.
 - [x] ترحيل مسار تغيير رقم الهاتف من OTP التجريبي إلى Firebase SMS في الواجهة، مع تحقق تلقائي على Android وإدخال رمز SMS على الويب.
-- [ ] تطبيق 20260829_firebase_phone_change.sql في Supabase لتفعيل قناة Firebase SMS في تغيير الأرقام الحية.
+- [x] تطبيق 20260829_firebase_phone_change.sql في Supabase لتفعيل قناة Firebase SMS في تغيير الأرقام الحية؛ أُكد نجاحه لاحقاً في البند التفصيلي.
 - [x] إنشاء بنية android/app واستيراد google-services.json المقدّم من المستخدم باسم الحزمة com.souqjiran.app.
 - [x] استخراج إعدادات Firebase العامة من ملف Android وإضافتها كمتغيرات VITE آمنة.
 - [x] إجراء اختبار إعدادات البيئة ثم رفع ملف Android والتكامل المكتمل إلى GitHub.
 - [ ] تطبيق 20260827_firebase_fcm_columns.sql في Supabase وتفعيل Firebase Third-party Auth ومطالبة role=authenticated قبل استخدام عميل firebaseSupabase على البيانات الحية.
-- [ ] تفعيل Phone في Firebase Authentication وإضافة نطاق الويب وتوفير مفتاح VAPID عند الحاجة إلى FCM على الويب.
+- [x] تفعيل Phone في Firebase Authentication وإضافة نطاق المعاينة إلى Authorized domains؛ يبقى مفتاح VAPID مؤجلاً إلى حين تفعيل FCM للويب فعلياً.
 - [x] حفظ ورفع تكامل Firebase Phone Authentication وFCM وAndroid إلى الفرع الرئيسي في GitHub.
 - [x] إصلاح تعليق Firebase Phone Authentication عند إرسال SMS وتحسين تطبيع +213 ورسائل الخطأ وإعادة المحاولة.
 - [x] إصلاح بحث المحلات وعرض الخريطة وتهيئة Google Maps وأذونات الموقع في Android.
@@ -200,4 +200,4 @@
 - [x] استبدال قبول رقم أو UID Firebase من المتصفح بمسار تحدٍ مؤقت يستخرج الهوية والرقم من Firebase JWT الموثوق.
 - [x] تطبيق 20260830_secure_firebase_phone_link.sql بنجاح بعد تفعيل Firebase Third-party Auth لتأمين الربط الحي للأرقام.
 - [x] اكتشاف تصحيح لازم لفصل معرف حساب Supabase عن معرف Firebase عند تأكيد التحدي، ومنع الاعتماد على `auth.uid()` داخل جلسة Firebase.
-- [ ] تطبيق 20260831_fix_firebase_phone_link_identity.sql في Supabase لتصحيح ربط التحدي بالحساب الحي.
+- [x] تطبيق 20260831_fix_firebase_phone_link_identity.sql بنجاح في Supabase لتصحيح ربط التحدي بالحساب الحي.
