@@ -737,6 +737,7 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
           </div>
         )}
 
+        {step === 2 && <>
         <div className="p-3.5 rounded-xl space-y-1" style={{ background: C.teal + "12", border: `1px solid ${C.teal}40` }}>
           <p className="text-[11px] font-bold flex items-center gap-1" style={{ color: C.teal }}><CheckCircle2 size={12} /> معاينة إعداداتك</p>
           <p className="text-[11px]" style={{ color: C.inkSoft }}>التواقيت: <b style={{ color: C.ink }}>{timeLabel}</b></p>
@@ -749,6 +750,7 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
           <button onClick={() => setStep(1)} className="flex-1 py-3 rounded-xl font-bold text-sm" style={{ background: "transparent", color: C.inkSoft, border: `1px solid ${C.line}` }}>رجوع</button>
           <button disabled={isSubmitting} onClick={submit} className="flex-1 py-3 rounded-xl font-black disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ إنشاء الحساب..." : "إرسال طلب الانضمام"}</button>
         </div>
+        </>}
       </div>
     </div>
   );
