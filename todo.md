@@ -234,3 +234,6 @@
 - [x] تنفيذ `20260902_registration_geography_scopes.sql` في Supabase SQL Editor لتفعيل الحقول الموسعة على البيانات الحية.
 - [x] استبدال `android/app/google-services.json` بالنسخة المحدّثة بعد تفعيل Google Sign-In، والتحقق من توافقها مع الحزمة `com.souqjiran.app` ثم مزامنة وبناء Android.
 - [x] إعداد سياسة خصوصية عربية لـ«سوق الجيران» تعكس استخدام Supabase وFirebase والموقع والإشعارات، وتكون جاهزة للنشر عبر GitHub Pages.
+- [x] إنشاء ملف HTML مستقل لسياسة خصوصية «سوق الجيران» باسم `souqjiran-privacy.html` وجاهز للنشر على GitHub Pages.
+- [x] إنشاء صفحة HTML مستقلة لشروط خدمة «سوق الجيران» باسم `souqjiran-terms.html` وجاهزة للنشر على GitHub Pages.
+- [x] إنشاء صفحة HTML مستقلة لطلب حذف حساب «سوق الجيران» باسم `souqjiran-delete-account.html` مع نموذج يوجّه الطلب بأمان إلى البريد الإداري.
