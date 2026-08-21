@@ -12,7 +12,20 @@
           "package_name": "com.souqjiran.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "751850487896-vua63sbo0v55nlgus1m25pas2rk3aoce.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.souqjiran.app",
+            "certificate_hash": "bc4dc5d8c8cd98319dfe3bb14e9442c4cb228449"
+          }
+        },
+        {
+          "client_id": "751850487896-s8j4pspji2gb92eg5f2ltbdh55p2a8ej.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCafjbPZhv6fENLQCnVdqR7lHHRRLSVNVY"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "751850487896-s8j4pspji2gb92eg5f2ltbdh55p2a8ej.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
