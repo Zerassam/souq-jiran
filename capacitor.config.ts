@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'dist/public',
   plugins: {
     FirebaseAuthentication: {
-      providers: ['phone'],
+      providers: ['phone', 'google.com'],
     },
     FirebaseMessaging: {
       presentationOptions: ['alert', 'badge', 'sound'],

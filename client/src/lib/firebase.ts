@@ -49,6 +49,32 @@ export const firebaseApp: FirebaseApp | null = isFirebaseConfigured
 export const firebaseAuth = firebaseApp ? getAuth(firebaseApp) : null;
 export const isNativeFirebaseRuntime = () => Capacitor.isNativePlatform();
 
+export type GoogleProfilePrefill = {
+  name: string;
+  email: string;
+};
+
+/**
+ * يجلب الاسم والبريد من Google لملء نموذج الانضمام فقط. لا ينشئ حساب
+ * سوق الجيران ولا يتجاوز رقم الهاتف أو بقية الحقول الإلزامية.
+ */
+export async function requestGoogleProfilePrefill(): Promise<GoogleProfilePrefill> {
+  if (!isFirebaseConfigured) {
+    throw new Error("خدمة Google غير مهيأة لهذا التطبيق بعد.");
+  }
+
+  const { user } = await FirebaseAuthentication.signInWithGoogle();
+  const email = String(user?.email || "").trim().toLowerCase();
+  if (!email) {
+    throw new Error("لم تُرجع Google بريداً إلكترونياً صالحاً. اختر حساباً آخر.");
+  }
+
+  return {
+    name: String(user?.displayName || "").trim(),
+    email,
+  };
+}
+
 // يحتفظ الويب بمثيل واحد فقط لكل حاوية reCAPTCHA. نضع السجل على window أيضاً
 // حتى لا تفقده تحديثات Vite السريعة (HMR) بينما ما زالت أداة Google مرسومة؛
 // فقدان المرجع هو أحد أسباب رسالة «already been rendered in this element».

@@ -8,6 +8,7 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { registerOrderPushWebhook } from "../order-push-webhook";
+import { registerAdminContactRoute } from "../admin-contact";
 import { serveStatic, setupVite } from "./vite";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -36,6 +37,7 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerOrderPushWebhook(app);
+  registerAdminContactRoute(app);
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   // tRPC API

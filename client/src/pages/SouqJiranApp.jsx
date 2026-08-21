@@ -5,8 +5,10 @@ import {
   completeFirebasePhoneVerification,
   listenForNativeFcmToken,
   listenForNativeOrderNotifications,
+  requestGoogleProfilePrefill,
   requestNativeFcmToken,
 } from "@/lib/firebase";
+import { FULL_COMMUNES_BY_WILAYA } from "@/data/algeriaCommunes";
 import { MapView as GoogleMapView } from "@/components/Map";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Papa from "papaparse";
@@ -67,10 +69,7 @@ const DEPARTMENTS = [
 const deptInfo = (id) => DEPARTMENTS.find((d) => d.id === id) || DEPARTMENTS[5];
 
 /* ---------------------------------------------------------
-   التقسيم الجغرافي — 58 ولاية جزائرية
-   ملاحظة: قوائم البلديات هنا تمثيلية (أهم البلديات لكل ولاية)
-   وليست السجل الرسمي الكامل (~1541 بلدية) تفادياً لإدخال بيانات
-   غير دقيقة لكل بلدية في الجزائر.
+   التقسيم الجغرافي — 58 ولاية جزائرية و1541 بلدية
 --------------------------------------------------------- */
 const WILAYAS = [
   "أدرار", "الشلف", "الأغواط", "أم البواقي", "باتنة", "بجاية", "بسكرة", "بشار",
@@ -143,7 +142,9 @@ const COMMUNES_BY_WILAYA = {
   "المغير": ["المغير", "أم الطيور", "سطيل", "سيدي خليل", "جامعة", "سيدي عمران", "تندلة", "مرارة"],
   "المنيعة": ["المنيعة", "حاسي القارة", "حاسي الفحل"],
 };
-function getCommunes(wilaya) { return COMMUNES_BY_WILAYA[wilaya] || (wilaya ? [wilaya] : []); }
+function getCommunes(wilaya) {
+  return FULL_COMMUNES_BY_WILAYA[wilaya] || COMMUNES_BY_WILAYA[wilaya] || (wilaya ? [wilaya] : []);
+}
 
 const VEHICLES = ["دراجة نارية", "سيارة", "دراجة هوائية"];
 const AVAILABILITY_SLOTS = [
@@ -185,6 +186,19 @@ function parseLoginIdentifier(value = "") {
   // يبقى OTP تجريبياً حالياً؛ يستعمل هذا الاسم الداخلي فقط لربط كلمة المرور
   // بحساب Supabase إلى أن يهيئ المشرف مزود هاتف/WhatsApp فعلياً.
   return { kind: "phone", value: phone, phone, authEmail: `phone-${phone.replace(/\D/g, "")}@phone.souqjiran.local` };
+}
+
+async function openAdminContactLink(action, reference) {
+  const response = await fetch("/api/account-contact-link", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, reference }),
+  });
+  if (!response.ok) return false;
+  const payload = await response.json();
+  if (!payload?.url) return false;
+  window.location.assign(payload.url);
+  return true;
 }
 
 function formatRelativeActivity(isoTimestamp) {
@@ -611,7 +625,7 @@ function BulkImportModal({ onConfirm, onClose }) {
    تسجيل موصّل — مواقيت، نطاق تغطية، اختيار المحلات
 --------------------------------------------------------- */
 function CourierRegisterModal({ stores, onSubmit, onClose }) {
-  const [form, setForm] = useState({ name: "", contact: "", phone: "", password: "", mockOtpCode: "", vehicle: VEHICLES[0], wilaya: "", commune: "", communes: [], availability: [], useCustomHours: false, hoursFrom: "08:00", hoursTo: "18:00", storeMode: "all", selectedStoreIds: [] });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", vehicle: VEHICLES[0], wilaya: "", commune: "", communes: [], deliveryScope: "local", adjacentWilayas: [], availability: [], useCustomHours: false, hoursFrom: "08:00", hoursTo: "18:00", storeMode: "all", selectedStoreIds: [] });
   const [step, setStep] = useState(1);
   const [authError, setAuthError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -619,28 +633,33 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
   function toggleCommune(c) { setForm((f) => ({ ...f, communes: f.communes.includes(c) ? f.communes.filter((x) => x !== c) : [...f.communes, c] })); }
   function toggleSlot(id) { setForm((f) => ({ ...f, availability: f.availability.includes(id) ? f.availability.filter((x) => x !== id) : [...f.availability, id] })); }
   function toggleStore(id) { setForm((f) => ({ ...f, selectedStoreIds: f.selectedStoreIds.includes(id) ? f.selectedStoreIds.filter((x) => x !== id) : [...f.selectedStoreIds, id] })); }
+  function toggleAdjacentWilaya(wilaya) { setForm((f) => ({ ...f, adjacentWilayas: f.adjacentWilayas.includes(wilaya) ? f.adjacentWilayas.filter((item) => item !== wilaya) : [...f.adjacentWilayas, wilaya] })); }
+
+  async function fillFromGoogle() {
+    try {
+      const profile = await requestGoogleProfilePrefill();
+      setForm((current) => ({ ...current, name: profile.name || current.name, email: profile.email }));
+      setAuthError("");
+    } catch (googleError) { setAuthError(googleError?.message || "تعذر إكمال الملء من Google. أدخل بياناتك يدوياً."); }
+  }
 
   const wilayaStores = stores.filter((s) => s.status === "approved" && s.wilaya === form.wilaya);
 
   const timeLabel = form.useCustomHours
     ? `من ${form.hoursFrom} إلى ${form.hoursTo}`
     : form.availability.map((a) => AVAILABILITY_SLOTS.find((s) => s.id === a)?.label).join(" / ") || "—";
-  const coverageLabel = form.communes.length > 0
-    ? form.communes.join("، ")
-    : form.wilaya ? "كل بلديات وأحياء الولاية" : "—";
-  const contactIdentity = parseLoginIdentifier(form.contact);
-  const usesPhoneIdentity = contactIdentity?.kind === "phone";
-
+  const coverageLabel = form.deliveryScope === "local"
+    ? `داخل بلدية ${form.commune || "المقر"}`
+    : form.deliveryScope === "wilaya"
+      ? `جميع بلديات ${form.wilaya || "الولاية"}`
+      : `${form.wilaya || "الولاية"} + ${form.adjacentWilayas.join("، ") || "ولايات مجاورة"}`;
   async function submit() {
-    if (!form.name || !form.wilaya) return;
-    if (!contactIdentity) { setAuthError("أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07."); setStep(1); return; }
-    const operationalPhone = contactIdentity.phone || normalizeAlgerianMobile(form.phone);
-    if (!operationalPhone) { setAuthError("أدخل رقم هاتف محمول جزائرياً للتواصل يبدأ بـ 05 أو 06 أو 07."); setStep(1); return; }
+    if (!form.name || !parseLoginIdentifier(form.email)?.email || !normalizeAlgerianMobile(form.phone)) { setAuthError("أدخل الاسم والبريد الإلكتروني ورقم الهاتف الجزائري في الحقول المخصصة."); setStep(1); return; }
+    if (!form.wilaya || (form.deliveryScope === "local" && !form.commune) || (form.deliveryScope === "inter_wilaya" && form.adjacentWilayas.length === 0)) { setAuthError("أكمل نطاق التوصيل قبل إرسال الطلب."); setStep(2); return; }
     if (form.password.length < 6) { setAuthError("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); setStep(1); return; }
-    if (usesPhoneIdentity && form.mockOtpCode !== "123456") { setAuthError("أدخل رمز OTP التجريبي 123456 لتأكيد رقم الهاتف."); setStep(1); return; }
     setAuthError("");
     setIsSubmitting(true);
-    const result = await onSubmit({ ...form, phone: operationalPhone, phoneMockVerified: usesPhoneIdentity, coverageLabel, timeLabel });
+    const result = await onSubmit({ ...form, phone: normalizeAlgerianMobile(form.phone), coverageLabel, timeLabel });
     setIsSubmitting(false);
     if (result?.error) { setAuthError(result.error); setStep(1); }
   }
@@ -656,15 +675,14 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
 
         {step === 1 && (
           <div className="space-y-3">
-            <input placeholder="الاسم الكامل" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input data-testid="courier-identifier-input" placeholder="رقم الهاتف أو البريد الإلكتروني" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value, mockOtpCode: "" })} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode={form.contact.includes("@") ? "email" : "tel"} /></div>
-            {!usesPhoneIdentity && <input placeholder="رقم الهاتف للتواصل (05/06/07)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} inputMode="tel" />}
-            {usesPhoneIdentity && <div className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-[11px] font-bold" style={{ color: C.ink }}>تأكيد الهاتف في وضع OTP التجريبي. الرمز: 123456</p><input aria-label="رمز OTP التجريبي للموصل" value={form.mockOtpCode} onChange={(e) => setForm({ ...form, mockOtpCode: e.target.value.replace(/\D/g, "").slice(0, 6) })} placeholder="رمز OTP التجريبي" inputMode="numeric" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /></div>}
+            <button type="button" onClick={fillFromGoogle} className="w-full py-2 rounded-xl text-xs font-bold" style={{ border: `1px solid ${C.line}`, color: C.teal }}>إكمال الاسم والبريد من Google</button>
+            <input required placeholder="الاسم الكامل" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
+            <input required type="email" autoComplete="email" data-testid="courier-email-input" placeholder="البريد الإلكتروني" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} dir="ltr" />
+            <input required placeholder="رقم الهاتف للتواصل (05/06/07)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} inputMode="tel" dir="ltr" />
             <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Lock size={15} color={C.inkSoft} /><input type="password" placeholder="كلمة المرور (4 أحرف على الأقل)" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>
             <select value={form.vehicle} onChange={(e) => setForm({ ...form, vehicle: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }}>{VEHICLES.map((v) => <option key={v} value={v}>{v}</option>)}</select>
             {authError && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{authError}</p>}
-            <button onClick={() => setStep(2)} disabled={!form.name || !contactIdentity} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.teal, color: "#fff" }}>التالي: التواقيت ونطاق التغطية</button>
-            <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>يمكنك الدخول برقم الهاتف أو البريد الإلكتروني؛ يستمر OTP التجريبي حتى تهيئة مزود رسائل فعلي.</p>
+            <button onClick={() => { if (!form.name || !parseLoginIdentifier(form.email)?.email || !normalizeAlgerianMobile(form.phone) || form.password.length < 6) { setAuthError("أكمل جميع بيانات الحساب المطلوبة بكلمة مرور من ستة أحرف على الأقل."); return; } setAuthError(""); setStep(2); }} className="w-full py-3 rounded-xl font-black" style={{ background: C.teal, color: "#fff" }}>التالي: بيانات الموصل</button>
           </div>
         )}
 
@@ -689,8 +707,12 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
                   {getCommunes(form.wilaya).map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-              <p className="text-[11px] mt-2 mb-1" style={{ color: C.inkSoft }}>اختر البلديات والأحياء والتجمعات السكانية التي يمكنك التوصيل إليها (تعدد الاختيارات):</p>
-              <div className="flex flex-wrap gap-1.5">{getCommunes(form.wilaya).map((c) => (<button key={c} onClick={() => toggleCommune(c)} className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: form.communes.includes(c) ? C.teal : "transparent", color: form.communes.includes(c) ? "#fff" : C.inkSoft, border: `1px solid ${form.communes.includes(c) ? C.teal : C.line}` }}>{c}</button>))}</div>
+              <p className="text-[11px] mt-2 mb-1" style={{ color: C.inkSoft }}>اختر مستوى نطاق التوصيل المناسب لوسيلتك:</p>
+              <div className="grid grid-cols-1 gap-1.5">
+                {[{ id: "local", label: "توصيل محلي", note: "داخل البلدية فقط — للدراجات والمشاة" }, { id: "wilaya", label: "توصيل ولائي", note: "جميع بلديات الولاية — للسيارات والدراجات الكبيرة" }, { id: "inter_wilaya", label: "توصيل بين الولايات", note: "ولايتك وولايات مجاورة — للسيارات والشاحنات" }].map((scope) => <button key={scope.id} type="button" onClick={() => setForm({ ...form, deliveryScope: scope.id, communes: scope.id === "local" ? form.communes : [], adjacentWilayas: scope.id === "inter_wilaya" ? form.adjacentWilayas : [] })} className="text-right p-2.5 rounded-xl" style={{ background: form.deliveryScope === scope.id ? C.teal + "14" : "#fff", border: `1px solid ${form.deliveryScope === scope.id ? C.teal : C.line}` }}><b className="block text-xs" style={{ color: form.deliveryScope === scope.id ? C.teal : C.ink }}>{scope.label}</b><span className="block text-[10px] mt-0.5" style={{ color: C.inkSoft }}>{scope.note}</span></button>)}
+              </div>
+              {form.deliveryScope === "local" && <div className="mt-2"><p className="text-[11px] mb-1" style={{ color: C.inkSoft }}>يمكنك إضافة أحياء أو تجمعات ضمن نطاق البلدية:</p><div className="flex flex-wrap gap-1.5">{getCommunes(form.wilaya).map((c) => (<button key={c} type="button" onClick={() => toggleCommune(c)} className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: form.communes.includes(c) ? C.teal : "transparent", color: form.communes.includes(c) ? "#fff" : C.inkSoft, border: `1px solid ${form.communes.includes(c) ? C.teal : C.line}` }}>{c}</button>))}</div></div>}
+              {form.deliveryScope === "inter_wilaya" && <div className="mt-2"><p className="text-[11px] mb-1" style={{ color: C.inkSoft }}>حدد الولايات المجاورة التي تستطيع التوصيل إليها:</p><div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">{WILAYAS.filter((wilaya) => wilaya !== form.wilaya).map((wilaya) => <button key={wilaya} type="button" onClick={() => toggleAdjacentWilaya(wilaya)} className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: form.adjacentWilayas.includes(wilaya) ? C.teal : "transparent", color: form.adjacentWilayas.includes(wilaya) ? "#fff" : C.inkSoft, border: `1px solid ${form.adjacentWilayas.includes(wilaya) ? C.teal : C.line}` }}>{wilaya}</button>)}</div></div>}
             </div>
 
             <div>
@@ -720,7 +742,7 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
           <p className="text-[11px]" style={{ color: C.inkSoft }}>التواقيت: <b style={{ color: C.ink }}>{timeLabel}</b></p>
           <p className="text-[11px]" style={{ color: C.inkSoft }}>نطاق التغطية: <b style={{ color: C.ink }}>{form.wilaya} — {coverageLabel}</b></p>
           <p className="text-[11px]" style={{ color: C.inkSoft }}>المحلات: <b style={{ color: C.ink }}>{form.storeMode === "all" ? "التوصيل لجميع محلات المنطقة" : `${form.selectedStoreIds.length} محل محدد`}</b></p>
-          <p className="text-[11px]" style={{ color: C.inkSoft }}>الدخول لاحقًا: <b dir="ltr" style={{ color: C.ink }}>{form.contact || "—"}</b></p>
+          <p className="text-[11px]" style={{ color: C.inkSoft }}>البريد: <b dir="ltr" style={{ color: C.ink }}>{form.email || "—"}</b></p>
         </div>
 
         <div className="flex gap-2">
@@ -736,27 +758,32 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
    تسجيل تاجر — بيانات الحساب ثم بيانات المحل ونطاق التوصيل
 --------------------------------------------------------- */
 function MerchantRegisterModal({ onSubmit, onClose }) {
-  const [form, setForm] = useState({ ownerName: "", contact: "", phone: "", password: "", mockOtpCode: "", storeName: "", wilaya: "", commune: "", deliveryCommunes: [] });
+  const [form, setForm] = useState({ ownerName: "", email: "", phone: "", password: "", storeName: "", wilaya: "", commune: "", deliveryWilayas: [], deliveryCommunes: [], nationwideCoverage: false });
   const [step, setStep] = useState(1);
   const [authError, setAuthError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const contactIdentity = parseLoginIdentifier(form.contact);
-  const usesPhoneIdentity = contactIdentity?.kind === "phone";
+  const [communeSearch, setCommuneSearch] = useState("");
 
   function toggleDeliveryCommune(commune) {
     setForm((current) => ({ ...current, deliveryCommunes: current.deliveryCommunes.includes(commune) ? current.deliveryCommunes.filter((item) => item !== commune) : [...current.deliveryCommunes, commune] }));
   }
+  function toggleDeliveryWilaya(wilaya) { setForm((current) => ({ ...current, nationwideCoverage: false, deliveryWilayas: current.deliveryWilayas.includes(wilaya) ? current.deliveryWilayas.filter((item) => item !== wilaya) : [...current.deliveryWilayas, wilaya] })); }
+  function setNationwideCoverage() { setForm((current) => ({ ...current, nationwideCoverage: true, deliveryWilayas: [...WILAYAS], deliveryCommunes: [] })); }
+  async function fillFromGoogle() {
+    try {
+      const profile = await requestGoogleProfilePrefill();
+      setForm((current) => ({ ...current, ownerName: profile.name || current.ownerName, email: profile.email }));
+      setAuthError("");
+    } catch (googleError) { setAuthError(googleError?.message || "تعذر إكمال الملء من Google. أدخل بياناتك يدوياً."); }
+  }
 
   async function submit() {
-    if (!form.storeName || !form.wilaya) { setAuthError("أكمل اسم المحل والولاية قبل إرسال الطلب."); setStep(2); return; }
-    if (!form.ownerName || !contactIdentity) { setAuthError("أدخل اسم صاحب المحل وبريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً صحيحاً."); setStep(1); return; }
-    const operationalPhone = contactIdentity.phone || normalizeAlgerianMobile(form.phone);
-    if (!operationalPhone) { setAuthError("أدخل رقم هاتف محمول جزائرياً للتواصل يبدأ بـ 05 أو 06 أو 07."); setStep(1); return; }
+    if (!form.storeName || !form.wilaya || !form.commune || (!form.nationwideCoverage && form.deliveryWilayas.length === 0)) { setAuthError("أكمل اسم المحل والولاية والبلدية وحدد ولاية تغطية واحدة على الأقل أو كامل التراب الوطني."); setStep(2); return; }
+    if (!form.ownerName || !parseLoginIdentifier(form.email)?.email || !normalizeAlgerianMobile(form.phone)) { setAuthError("أدخل اسم صاحب المحل والبريد الإلكتروني ورقم الهاتف الجزائري في الحقول المخصصة."); setStep(1); return; }
     if (form.password.length < 6) { setAuthError("كلمة المرور يجب أن تكون 6 أحرف على الأقل."); setStep(1); return; }
-    if (usesPhoneIdentity && form.mockOtpCode !== "123456") { setAuthError("أدخل رمز OTP التجريبي 123456 لتأكيد رقم الهاتف."); setStep(1); return; }
     setAuthError("");
     setIsSubmitting(true);
-    const result = await onSubmit({ ...form, name: form.storeName, phone: operationalPhone, phoneMockVerified: usesPhoneIdentity });
+    const result = await onSubmit({ ...form, name: form.storeName, phone: normalizeAlgerianMobile(form.phone), deliveryWilayas: form.nationwideCoverage ? [...WILAYAS] : form.deliveryWilayas });
     setIsSubmitting(false);
     if (result?.error) { setAuthError(result.error); setStep(1); }
   }
@@ -770,21 +797,22 @@ function MerchantRegisterModal({ onSubmit, onClose }) {
           <button onClick={() => setStep(2)} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: step === 2 ? C.rust : "transparent", color: step === 2 ? "#fff" : C.inkSoft }}>2. بيانات المحل</button>
         </div>
         {step === 1 && <div className="space-y-3">
-          <input aria-label="اسم صاحب المحل" placeholder="اسم صاحب المحل" value={form.ownerName} onChange={(event) => setForm({ ...form, ownerName: event.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
-          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input data-testid="merchant-identifier-input" placeholder="رقم الهاتف أو البريد الإلكتروني" value={form.contact} onChange={(event) => setForm({ ...form, contact: event.target.value, mockOtpCode: "" })} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode={form.contact.includes("@") ? "email" : "tel"} /></div>
-          {!usesPhoneIdentity && <input aria-label="هاتف التواصل للتاجر" placeholder="رقم الهاتف للتواصل (05/06/07)" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} inputMode="tel" />}
-          {usesPhoneIdentity && <div className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-[11px] font-bold" style={{ color: C.ink }}>تأكيد الهاتف في وضع OTP التجريبي. الرمز: 123456</p><input aria-label="رمز OTP التجريبي للتاجر" value={form.mockOtpCode} onChange={(event) => setForm({ ...form, mockOtpCode: event.target.value.replace(/\D/g, "").slice(0, 6) })} placeholder="رمز OTP التجريبي" inputMode="numeric" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /></div>}
+          <button type="button" onClick={fillFromGoogle} className="w-full py-2 rounded-xl text-xs font-bold" style={{ border: `1px solid ${C.line}`, color: C.rust }}>إكمال الاسم والبريد من Google</button>
+          <input required aria-label="اسم صاحب المحل" placeholder="اسم صاحب المحل" value={form.ownerName} onChange={(event) => setForm({ ...form, ownerName: event.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
+          <input required type="email" autoComplete="email" data-testid="merchant-email-input" placeholder="البريد الإلكتروني" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} dir="ltr" />
+          <input required aria-label="هاتف التواصل للتاجر" placeholder="رقم الهاتف للتواصل (05/06/07)" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} inputMode="tel" dir="ltr" />
           <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Lock size={15} color={C.inkSoft} /><input type="password" placeholder="كلمة المرور (6 أحرف على الأقل)" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>
           {authError && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{authError}</p>}
-          <button onClick={() => setStep(2)} disabled={!form.ownerName || !contactIdentity} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>التالي: بيانات المحل</button>
+          <button onClick={() => { if (!form.ownerName || !parseLoginIdentifier(form.email)?.email || !normalizeAlgerianMobile(form.phone) || form.password.length < 6) { setAuthError("أكمل جميع بيانات الحساب المطلوبة بكلمة مرور من ستة أحرف على الأقل."); return; } setAuthError(""); setStep(2); }} className="w-full py-3 rounded-xl font-black" style={{ background: C.rust, color: "#fff" }}>التالي: بيانات المحل</button>
         </div>}
         {step === 2 && <div className="space-y-4">
           <div><label className="text-xs font-bold flex items-center gap-1 mb-1.5" style={{ color: C.ink }}><Store size={13} /> بيانات المحل</label><input aria-label="اسم المحل" placeholder="اسم المحل" value={form.storeName} onChange={(event) => setForm({ ...form, storeName: event.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /></div>
           <div><label className="text-xs font-bold flex items-center gap-1 mb-1.5" style={{ color: C.ink }}><MapPin size={13} /> موقع المحل ونطاق التوصيل</label><div className="flex gap-2"><select value={form.wilaya} onChange={(event) => setForm({ ...form, wilaya: event.target.value, commune: "", deliveryCommunes: [] })} className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }}><option value="" disabled>اختر الولاية</option>{WILAYAS.map((wilaya) => <option key={wilaya} value={wilaya}>{wilaya}</option>)}</select><select value={form.commune} onChange={(event) => setForm({ ...form, commune: event.target.value })} disabled={!form.wilaya} className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none disabled:opacity-50" style={{ border: `1px solid ${C.line}` }}><option value="">بلدية المحل</option>{getCommunes(form.wilaya).map((commune) => <option key={commune} value={commune}>{commune}</option>)}</select></div></div>
-          {form.wilaya && <div><p className="text-[11px] mb-2" style={{ color: C.inkSoft }}>حدد البلديات الإضافية التي يغطيها توصيل محلك، أو اتركها فارغة لخدمة بلدية المحل فقط.</p><div className="flex flex-wrap gap-1.5">{getCommunes(form.wilaya).map((commune) => <button key={commune} type="button" onClick={() => toggleDeliveryCommune(commune)} className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: form.deliveryCommunes.includes(commune) ? C.rust : "transparent", color: form.deliveryCommunes.includes(commune) ? "#fff" : C.inkSoft, border: `1px solid ${form.deliveryCommunes.includes(commune) ? C.rust : C.line}` }}>{commune}</button>)}</div></div>}
-          <div className="p-3.5 rounded-xl space-y-1" style={{ background: C.rust + "12", border: `1px solid ${C.rust}35` }}><p className="text-[11px] font-bold" style={{ color: C.rust }}>معاينة طلب الانضمام</p><p className="text-[11px]" style={{ color: C.inkSoft }}>المحل: <b style={{ color: C.ink }}>{form.storeName || "—"}</b></p><p className="text-[11px]" style={{ color: C.inkSoft }}>الموقع: <b style={{ color: C.ink }}>{form.wilaya || "—"}{form.commune ? ` — ${form.commune}` : ""}</b></p><p className="text-[11px]" style={{ color: C.inkSoft }}>الدخول لاحقاً: <b dir="ltr" style={{ color: C.ink }}>{form.contact || "—"}</b></p></div>
+          <div className="space-y-2"><div className="flex items-center justify-between"><p className="text-[11px] font-bold" style={{ color: C.ink }}>الولايات المغطاة</p><button type="button" onClick={setNationwideCoverage} className="text-[11px] font-bold px-2 py-1 rounded-lg" style={{ color: C.rust, border: `1px solid ${C.rust}55` }}>تغطية كامل التراب الوطني (58 ولاية)</button></div><div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">{WILAYAS.map((wilaya) => <button key={wilaya} type="button" onClick={() => toggleDeliveryWilaya(wilaya)} className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: form.deliveryWilayas.includes(wilaya) ? C.rust : "transparent", color: form.deliveryWilayas.includes(wilaya) ? "#fff" : C.inkSoft, border: `1px solid ${form.deliveryWilayas.includes(wilaya) ? C.rust : C.line}` }}>{wilaya}</button>)}</div></div>
+          {form.wilaya && <div><div className="flex items-center justify-between gap-2 mb-2"><p className="text-[11px]" style={{ color: C.inkSoft }}>بلديات ولاية المحل: ابحث، حدد الكل، أو ألغِ أي بلدية بالنقر.</p><button type="button" onClick={() => setForm((current) => ({ ...current, deliveryCommunes: getCommunes(form.wilaya) }))} className="text-[11px] font-bold" style={{ color: C.rust }}>تحديد كافة البلديات</button></div><input value={communeSearch} onChange={(event) => setCommuneSearch(event.target.value)} placeholder="بحث داخل البلديات" className="w-full px-3 py-2 rounded-xl text-xs outline-none mb-2" style={{ border: `1px solid ${C.line}` }} /> <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">{getCommunes(form.wilaya).filter((commune) => commune.includes(communeSearch.trim())).map((commune) => <button key={commune} type="button" onClick={() => toggleDeliveryCommune(commune)} className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: form.deliveryCommunes.includes(commune) ? C.rust : "transparent", color: form.deliveryCommunes.includes(commune) ? "#fff" : C.inkSoft, border: `1px solid ${form.deliveryCommunes.includes(commune) ? C.rust : C.line}` }}>{commune}</button>)}</div></div>}
+          <div className="p-3.5 rounded-xl space-y-1" style={{ background: C.rust + "12", border: `1px solid ${C.rust}35` }}><p className="text-[11px] font-bold" style={{ color: C.rust }}>معاينة طلب الانضمام</p><p className="text-[11px]" style={{ color: C.inkSoft }}>المحل: <b style={{ color: C.ink }}>{form.storeName || "—"}</b></p><p className="text-[11px]" style={{ color: C.inkSoft }}>التغطية: <b style={{ color: C.ink }}>{form.nationwideCoverage ? "كامل التراب الوطني" : `${form.deliveryWilayas.length || 0} ولاية`}</b></p><p className="text-[11px]" style={{ color: C.inkSoft }}>البريد: <b dir="ltr" style={{ color: C.ink }}>{form.email || "—"}</b></p></div>
         </div>}
-        <div className="flex gap-2"><button onClick={() => setStep(1)} className="flex-1 py-3 rounded-xl font-bold text-sm" style={{ background: "transparent", color: C.inkSoft, border: `1px solid ${C.line}` }}>رجوع</button><button disabled={isSubmitting} onClick={submit} className="flex-1 py-3 rounded-xl font-black disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ إنشاء الحساب..." : "إرسال طلب انضمام المحل"}</button></div>
+        {step === 2 && <div className="flex gap-2"><button onClick={() => setStep(1)} className="flex-1 py-3 rounded-xl font-bold text-sm" style={{ background: "transparent", color: C.inkSoft, border: `1px solid ${C.line}` }}>رجوع</button><button disabled={isSubmitting} onClick={submit} className="flex-1 py-3 rounded-xl font-black disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ إنشاء الحساب..." : "إرسال طلب الانضمام"}</button></div>}
       </div>
     </div>
   );
@@ -860,6 +888,9 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
   const [mode, setMode] = useState(adminOnly ? "login" : initialMode);
   const [type, setType] = useState(adminOnly ? "admin" : initialType);
   const [identifier, setIdentifier] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [registrationEmail, setRegistrationEmail] = useState("");
+  const [registrationPhone, setRegistrationPhone] = useState("");
   const [password, setPassword] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [phoneVerification, setPhoneVerification] = useState(null);
@@ -868,7 +899,7 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const phoneRequestInFlightRef = useRef(false);
   const parsedIdentifier = parseLoginIdentifier(identifier);
-  const phoneOtpRequired = !adminOnly && parsedIdentifier?.kind === "phone";
+  const phoneOtpRequired = mode === "login" && !adminOnly && parsedIdentifier?.kind === "phone";
   const waitingForPhoneCode = Boolean(phoneVerification);
   const phoneAutoVerified = Boolean(phoneVerification?.platform === "native" && phoneVerification?.completedUser);
 
@@ -908,7 +939,56 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
     }
   }
 
+  async function fillFromGoogle() {
+    setError("");
+    setNotice("");
+    setIsSubmitting(true);
+    try {
+      const profile = await requestGoogleProfilePrefill();
+      if (!profile?.email) {
+        setError("تعذر جلب البريد من Google. أدخل بياناتك يدوياً أو أكمل إعداد Google Sign-In في Firebase.");
+        return;
+      }
+      setRegistrationEmail(profile.email);
+      setFullName(profile.name || fullName);
+      setNotice("تمت تعبئة الاسم والبريد. أكمل رقم الهاتف وكلمة المرور للمتابعة.");
+    } catch (googleError) {
+      setError(googleError?.message || "تعذر الاتصال بـ Google حالياً. يمكنك متابعة التسجيل يدوياً.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   async function submit() {
+    if (mode === "register") {
+      const emailCredential = parseLoginIdentifier(registrationEmail);
+      const normalizedPhone = normalizeAlgerianMobile(registrationPhone);
+      if (!fullName.trim() || !emailCredential?.email || !normalizedPhone) {
+        setError("أدخل الاسم والبريد الإلكتروني ورقم الهاتف في الحقول المخصصة.");
+        return;
+      }
+      if (password.length < 6) { setError("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); return; }
+      setError(""); setNotice(""); setIsSubmitting(true);
+      let result;
+      try {
+        result = await authenticate({ mode, type, identifier: emailCredential.email, password, name: fullName.trim(), phone: normalizedPhone });
+        if (!result?.error && !result?.notice) {
+          const contactOpened = await openAdminContactLink("account_confirmation", emailCredential.email).catch(() => false);
+          if (contactOpened) {
+            setNotice("تم إنشاء الحساب وفتح رسالة التأكيد الجاهزة.");
+            return;
+          }
+        }
+      } catch (submissionError) {
+        result = { error: submissionError?.message || "تعذر إكمال التسجيل. حاول مرة أخرى." };
+      } finally {
+        setIsSubmitting(false);
+      }
+      if (result?.error) { setError(result.error); return; }
+      if (result?.notice) { setNotice(result.notice); return; }
+      closeAuthModal();
+      return;
+    }
     if (!parsedIdentifier) { setError("أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07."); return; }
     if (mode !== "recover" && password.length < 6) { setError("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); return; }
     if (phoneOtpRequired && !waitingForPhoneCode) { await requestPhoneCode(); return; }
@@ -946,17 +1026,16 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
           <button onClick={() => { resetPhoneVerification(); setMode("login"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "login" ? C.ink : "transparent", color: mode === "login" ? "#fff" : C.inkSoft }}>دخول</button>
           {allowRegistration && <button onClick={() => { resetPhoneVerification(); setMode("register"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "register" ? C.ink : "transparent", color: mode === "register" ? "#fff" : C.inkSoft }}>حساب جديد</button>}
         </div></>}
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input data-testid="auth-identifier-input" placeholder="رقم الهاتف أو البريد الإلكتروني" value={identifier} onChange={(e) => { resetPhoneVerification(); setIdentifier(e.target.value); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode={identifier.includes("@") ? "email" : "tel"} /></div>
-        <div id="firebase-phone-recaptcha" aria-hidden="true" />
+        {mode === "register" ? <div className="space-y-2"><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><User size={15} color={C.inkSoft} /><input aria-label="الاسم الكامل" placeholder="الاسم الكامل" value={fullName} onChange={(event) => setFullName(event.target.value)} className="flex-1 outline-none text-sm bg-transparent" autoComplete="name" /></div><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Mail size={15} color={C.inkSoft} /><input aria-label="البريد الإلكتروني" type="email" autoComplete="email" placeholder="name@example.com" value={registrationEmail} onChange={(event) => setRegistrationEmail(event.target.value)} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="email" /></div><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input aria-label="رقم الهاتف للتواصل" placeholder="0551234567" value={registrationPhone} onChange={(event) => setRegistrationPhone(event.target.value)} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="tel" autoComplete="tel" /></div><button type="button" disabled={isSubmitting} onClick={fillFromGoogle} className="w-full py-2.5 rounded-xl text-xs font-bold disabled:opacity-50" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}>تعبئة الاسم والبريد من Google</button></div> : <><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input data-testid="auth-identifier-input" placeholder="رقم الهاتف أو البريد الإلكتروني" value={identifier} onChange={(e) => { resetPhoneVerification(); setIdentifier(e.target.value); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode={identifier.includes("@") ? "email" : "tel"} /></div><div id="firebase-phone-recaptcha" aria-hidden="true" /></>}
         {phoneOtpRequired && <div data-testid="firebase-phone-otp" className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-xs leading-5 font-bold" style={{ color: C.ink }}>تم التعرف على رقم الهاتف <span dir="ltr">{parsedIdentifier.phone}</span>. {phoneAutoVerified ? "تم التحقق منه تلقائياً؛ يمكنك المتابعة." : waitingForPhoneCode ? "أدخل رمز SMS الذي وصلك من Firebase." : "أرسل رمز SMS لتأكيد ملكية الرقم قبل المتابعة."}</p>{waitingForPhoneCode && !phoneAutoVerified && <><input aria-label="رمز SMS من Firebase" value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="رمز SMS المكوّن من 6 أرقام" inputMode="numeric" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /><button type="button" disabled={isSubmitting} onClick={requestPhoneCode} className="text-xs font-bold" style={{ color: C.teal }}>إعادة إرسال رمز SMS</button></>}</div>}
         {mode !== "recover" && <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Lock size={15} color={C.inkSoft} /><input type="password" placeholder="كلمة المرور" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>}
         {error && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{error}</p>}
         {notice && <p className="text-xs font-bold" style={{ color: C.sage }}>{notice}</p>}
-        <button disabled={isSubmitting} onClick={submit} className="w-full py-3 rounded-xl font-black flex items-center justify-center gap-1.5 disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ المعالجة..." : mode === "login" ? <><LogIn size={16} /> تسجيل الدخول</> : mode === "recover" ? <><Phone size={16} /> بدء الاستعادة</> : <><UserPlus size={16} /> إنشاء حساب</>}</button>
-        {!adminOnly && <button onClick={() => { resetPhoneVerification(); setMode("recover"); setError(""); setNotice(""); }} className="w-full text-xs font-bold py-1" style={{ color: C.teal }}>هل نسيت كلمة المرور؟ ابدأ الاستعادة برقم الهاتف أو البريد</button>}
+        <button disabled={isSubmitting} onClick={submit} className="w-full py-3 rounded-xl font-black flex items-center justify-center gap-1.5 disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ المعالجة..." : mode === "login" ? <><LogIn size={16} /> تسجيل الدخول</> : mode === "recover" ? <><Phone size={16} /> استعادة الحساب</> : <><UserPlus size={16} /> تأكيد الحساب</>}</button>
+        {!adminOnly && <button onClick={() => { resetPhoneVerification(); setMode("recover"); setError(""); setNotice(""); }} className="w-full text-xs font-bold py-1" style={{ color: C.teal }}>استعادة الحساب</button>}
         {adminOnly && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>لا تتاح لوحة الإدارة إلا للحسابات المصرح لها في قاعدة البيانات.</p>}
-        {!adminOnly && mode === "register" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>{type === "merchant" ? "يمكنك البدء برقم الهاتف أو البريد، ثم تكمل بيانات محلك." : type === "courier" ? "يمكنك البدء برقم الهاتف أو البريد؛ بعد الموافقة تدخل لوحتك مباشرةً." : "يمكنك المتابعة برقم الهاتف أو البريد لإرسال الطلبات ومتابعتها بأمان."}</p>}
-        {!adminOnly && mode === "recover" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>تصل استعادة البريد إلى رابط إعادة التعيين، أما الهاتف فيُثبت برمز SMS من Firebase ثم يُسجَّل طلب استعادة آمن دون كشف وجود الحساب.</p>}
+        {!adminOnly && mode === "register" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>البريد ورقم الهاتف مطلوبان. بعد تأكيد الحساب تُفتح رسالة تأكيد جاهزة مع بقاء بياناتك داخل التطبيق.</p>}
+        {!adminOnly && mode === "recover" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>يرسل البريد رابط إعادة تعيين آمن. أما رقم الهاتف فيفتح طلب استعادة مباشر إلى الإدارة من دون كشف وجود الحساب.</p>}
       </div>
     </div>
   );
@@ -1358,7 +1437,7 @@ function MerchantQrPoster({ store, notify }) {
 function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId, setMyStoreId, notify, registerMerchant, createProduct, createBulkProducts, removeProductRemote, setProductAvailability, setMerchantOrderStatus, merchantConfirmSettlement, reportCustomerAccount, archiveOrder, archiveMessage, userId }) {
   const myStore = stores.find((s) => s.id === myStoreId);
   const [merchantMode, setMerchantMode] = useState("select");
-  const [form, setForm] = useState({ name: "", contact: "", phone: "", password: "", mockOtpCode: "", wilaya: "", commune: "", lat: 50, lng: 50 });
+  const [form, setForm] = useState({ name: "", contact: "", phone: "", password: "", wilaya: "", commune: "", lat: 50, lng: 50 });
   const [stage2, setStage2] = useState({ open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: true, deliveryCommunes: [], logoText: "", logoColor: C.teal, ccp: "", idDocName: "" });
   const [authError, setAuthError] = useState("");
   const [tab, setTab] = useState("products");
@@ -1368,7 +1447,6 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const contactIdentity = parseLoginIdentifier(form.contact);
-  const usesPhoneIdentity = contactIdentity?.kind === "phone";
 
   function updateStore(patch) { setStores((prev) => prev.map((s) => (s.id === myStoreId ? { ...s, ...patch } : s))); }
 
@@ -1378,10 +1456,9 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
     const operationalPhone = contactIdentity.phone || normalizeAlgerianMobile(form.phone);
     if (!operationalPhone) { setAuthError("أدخل رقم هاتف محمول جزائرياً للتواصل يبدأ بـ 05 أو 06 أو 07."); return; }
     if (form.password.length < 6) { setAuthError("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); return; }
-    if (usesPhoneIdentity && form.mockOtpCode !== "123456") { setAuthError("أدخل رمز OTP التجريبي 123456 لتأكيد رقم الهاتف."); return; }
     setAuthError("");
     setIsSubmitting(true);
-    const result = await registerMerchant({ ...form, phone: operationalPhone, phoneMockVerified: usesPhoneIdentity });
+    const result = await registerMerchant({ ...form, phone: operationalPhone, phoneMockVerified: Boolean(operationalPhone) });
     setIsSubmitting(false);
     if (result?.error) { setAuthError(result.error); return; }
     setMyStoreId(result.id);
@@ -2778,25 +2855,28 @@ export default function App() {
     return {};
   }
 
-  async function authenticate({ mode, type, identifier, password, firebasePhoneVerification = null }) {
+  async function authenticate({ mode, type, identifier, password, name = "", phone = "", firebasePhoneVerification = null }) {
     const credential = parseLoginIdentifier(identifier);
     if (!credential) return { error: "أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07." };
     if (mode === "register" && type === "admin") return { error: "إنشاء حسابات المشرفين متاح فقط عبر قاعدة البيانات." };
     if (mode === "register") {
-      if (credential.kind === "phone" && !firebasePhoneVerification) return { error: "أكمل تحقق Firebase عبر رمز SMS قبل إنشاء حساب بالهاتف." };
-      const created = await createSupabaseAccount({ identifier: credential.value, password, role: type, name: credential.email?.split("@")[0] || credential.phone, phone: credential.phone || "" });
+      const normalizedPhone = normalizeAlgerianMobile(phone);
+      if (type === "customer" && (!credential.email || !name.trim() || !normalizedPhone)) return { error: "الاسم والبريد الإلكتروني ورقم الهاتف حقول مطلوبة لإنشاء حساب العميل." };
+      const accountName = name.trim() || credential.email?.split("@")[0] || credential.phone;
+      const accountPhone = normalizedPhone || credential.phone || "";
+      const created = await createSupabaseAccount({ identifier: credential.value, password, role: type, name: accountName, phone: accountPhone });
       if (created.error || created.notice) return created;
       await applySupabaseSession(created.session);
-      const profile = await ensureSupabaseProfile({ user: created.user, role: type, name: credential.email?.split("@")[0] || credential.phone, phone: credential.phone || "" });
+      const profile = await ensureSupabaseProfile({ user: created.user, role: type, name: accountName, phone: accountPhone });
       if (profile.error) return profile;
       if (type === "courier") {
         const courierRequest = await ensureCourierReviewRequest(created.user.id);
         if (courierRequest.error) return courierRequest;
       }
-      const firebaseRecord = credential.kind === "phone" ? await linkVerifiedFirebasePhone(firebasePhoneVerification) : {};
+      const firebaseRecord = credential.kind === "phone" && firebasePhoneVerification ? await linkVerifiedFirebasePhone(firebasePhoneVerification) : {};
       notify(firebaseRecord.warning || (type === "courier"
         ? "تم إنشاء حساب الموصل وإرسال طلبه إلى لوحة الإدارة للمراجعة."
-        : "تم إنشاء الحساب وربط الهاتف المؤكد عبر Firebase بنجاح."));
+        : "تم إنشاء الحساب بنجاح. أكمل رسالة التأكيد الجاهزة لتسريع المراجعة."));
       return {};
     }
     if (credential.kind === "phone" && !firebasePhoneVerification) return { error: "أكمل تحقق Firebase عبر رمز SMS قبل تسجيل الدخول بالهاتف." };
@@ -2814,7 +2894,7 @@ export default function App() {
     return {};
   }
 
-  async function requestAccountRecovery({ identifier, firebasePhoneVerification = null }) {
+  async function requestAccountRecovery({ identifier }) {
     const credential = parseLoginIdentifier(identifier);
     if (!credential) return { error: "أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07." };
     if (credential.kind === "email") {
@@ -2822,8 +2902,8 @@ export default function App() {
       if (error) return { error: "تعذر إرسال رابط الاستعادة. تحقق من البريد وحاول لاحقاً." };
       return { notice: "إذا كان البريد مسجلاً، أُرسل رابط آمن لإعادة تعيين كلمة المرور إليه." };
     }
-    if (!firebasePhoneVerification) return { error: "أكمل تحقق Firebase عبر رمز SMS قبل متابعة استعادة الحساب بالهاتف." };
-    return { notice: "تم إثبات ملكية الرقم عبر Firebase دون كشف وجود الحساب. استعادة كلمة مرور الحساب ستحتاج مسار إدارة آمن قبل فتحها للهاتف." };
+    const opened = await openAdminContactLink("account_recovery", credential.phone).catch(() => false);
+    return { notice: opened ? "فُتحت رسالة استعادة الحساب الجاهزة إلى الإدارة." : "تم تجهيز طلب استعادة آمن. تعذر فتح تطبيق الرسائل على هذا الجهاز حالياً." };
   }
 
   async function requestPhoneChange(phone) {
@@ -2850,41 +2930,44 @@ export default function App() {
   }
 
   async function registerMerchant(form) {
-    const credential = parseLoginIdentifier(form.contact);
-    if (!credential) return { error: "أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07." };
-    if (credential.kind === "phone" && !form.phoneMockVerified) return { error: "أكمل رمز OTP التجريبي قبل إرسال طلب المحل." };
-    const created = await createSupabaseAccount({ identifier: credential.value, password: form.password, role: "merchant", name: form.name, phone: form.phone });
+    const credential = parseLoginIdentifier(form.email);
+    const phone = normalizeAlgerianMobile(form.phone);
+    if (!credential?.email || !phone) return { error: "أدخل بريداً إلكترونياً ورقم هاتف جزائرياً صالحين في الحقلين المخصصين." };
+    const created = await createSupabaseAccount({ identifier: credential.value, password: form.password, role: "merchant", name: form.name, phone });
     if (created.error || created.notice) return created;
-    const profile = await ensureSupabaseProfile({ user: created.user, role: "merchant", name: form.name, phone: form.phone });
+    const profile = await ensureSupabaseProfile({ user: created.user, role: "merchant", name: form.name, phone });
     if (profile.error) return profile;
     const merchant = {
       id: created.user.id,
       store_name: form.name,
       wilaya: form.wilaya,
       commune: form.commune,
-      phone: form.phone,
+      phone,
+      delivery_wilayas: form.deliveryWilayas || [form.wilaya],
       delivery_communes: form.deliveryCommunes || [],
+      nationwide_coverage: Boolean(form.nationwideCoverage),
       status: "pending_review",
     };
     const { error } = await supabase.from("merchants").insert(merchant);
     if (error) {
       return { error: "تعذر حفظ ملف المحل. بقي حساب الدخول صالحاً؛ طبّق ملف supabase/schema.sql ثم أرسل النموذج مجدداً لإكمال الملف." };
     }
-    const store = { id: created.user.id, name: form.name, phone: form.phone, email: credential.email || "", wilaya: form.wilaya, commune: form.commune, address: "", lat: form.lat, lng: form.lng, distance: "—", status: "pending_review", rating: 0, open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: true, deliveryCommunes: form.deliveryCommunes || [], approvedCourierIds: [], commissionType: "percentage", commissionRate: 10, subscriptionFee: 3000, duesPaid: 0, logo: { text: form.name.slice(0, 2), color: C.teal }, ccp: "", idDocName: "", products: [], reviews: [] };
+    const store = { id: created.user.id, name: form.name, phone, email: credential.email, wilaya: form.wilaya, commune: form.commune, address: "", lat: form.lat, lng: form.lng, distance: "—", status: "pending_review", rating: 0, open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: true, deliveryWilayas: form.deliveryWilayas || [form.wilaya], deliveryCommunes: form.deliveryCommunes || [], nationwideCoverage: Boolean(form.nationwideCoverage), approvedCourierIds: [], commissionType: "percentage", commissionRate: 10, subscriptionFee: 3000, duesPaid: 0, logo: { text: form.name.slice(0, 2), color: C.teal }, ccp: "", idDocName: "", products: [], reviews: [] };
     persistentSetStores((prev) => [...prev.filter((item) => item.id !== store.id), store]);
     await applySupabaseSession(created.session);
     setShowMerchantForm(false);
-    notify("تم إرسال طلب انضمام المحل، بانتظار موافقة المشرف.");
+    const contactOpened = await openAdminContactLink("membership_request", created.user.id).catch(() => false);
+    notify(contactOpened ? "تم حفظ طلب المحل وفتح رسالة التأكيد الجاهزة." : "تم إرسال طلب انضمام المحل، بانتظار موافقة المشرف.");
     return { id: created.user.id };
   }
 
   async function registerCourier(form) {
-    const credential = parseLoginIdentifier(form.contact);
-    if (!credential) return { error: "أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07." };
-    if (credential.kind === "phone" && !form.phoneMockVerified) return { error: "أكمل رمز OTP التجريبي قبل إرسال طلب الانضمام." };
-    const created = await createSupabaseAccount({ identifier: credential.value, password: form.password, role: "courier", name: form.name, phone: form.phone });
+    const credential = parseLoginIdentifier(form.email);
+    const phone = normalizeAlgerianMobile(form.phone);
+    if (!credential?.email || !phone) return { error: "أدخل بريداً إلكترونياً ورقم هاتف جزائرياً صالحين في الحقلين المخصصين." };
+    const created = await createSupabaseAccount({ identifier: credential.value, password: form.password, role: "courier", name: form.name, phone });
     if (created.error || created.notice) return created;
-    const profile = await ensureSupabaseProfile({ user: created.user, role: "courier", name: form.name, phone: form.phone });
+    const profile = await ensureSupabaseProfile({ user: created.user, role: "courier", name: form.name, phone });
     if (profile.error) return profile;
     const courier = {
       id: created.user.id,
@@ -2894,6 +2977,8 @@ export default function App() {
       availability: form.useCustomHours ? [form.hoursFrom, form.hoursTo] : form.availability,
       store_mode: form.storeMode,
       selected_store_ids: [],
+      coverage_level: form.deliveryScope || "local",
+      adjacent_wilayas: form.adjacentWilayas || [],
       status: "pending",
     };
     let activeSession = created.session;
@@ -2911,11 +2996,12 @@ export default function App() {
     if (courierError) {
       return { error: "تعذر حفظ ملف الموصل. بقي حساب الدخول صالحاً؛ طبّق ملف supabase/schema.sql ثم أرسل النموذج مجدداً لإكمال الملف." };
     }
-    const localCourier = { id: created.user.id, name: form.name, phone: form.phone, email: credential.email || "", vehicle: form.vehicle, wilaya: form.wilaya, commune: form.commune || "", communes: form.communes, availability: form.useCustomHours ? [] : form.availability, customHours: form.useCustomHours ? { from: form.hoursFrom, to: form.hoursTo } : null, timeLabel: form.timeLabel || "", coverageLabel: form.coverageLabel || "", storeMode: form.storeMode, selectedStoreIds: form.selectedStoreIds, status: "pending" };
+    const localCourier = { id: created.user.id, name: form.name, phone, email: credential.email, vehicle: form.vehicle, wilaya: form.wilaya, commune: form.commune || "", communes: form.communes, availability: form.useCustomHours ? [] : form.availability, customHours: form.useCustomHours ? { from: form.hoursFrom, to: form.hoursTo } : null, timeLabel: form.timeLabel || "", coverageLabel: form.coverageLabel || "", coverageLevel: form.deliveryScope || "local", adjacentWilayas: form.adjacentWilayas || [], storeMode: form.storeMode, selectedStoreIds: form.selectedStoreIds, status: "pending" };
     persistentSetCouriers((prev) => [...prev.filter((item) => item.id !== localCourier.id), localCourier]);
     await applySupabaseSession(activeSession);
     setShowCourierForm(false);
-    notify("تم إرسال طلب انضمامك كموصل، بانتظار موافقة المشرف");
+    const contactOpened = await openAdminContactLink("membership_request", created.user.id).catch(() => false);
+    notify(contactOpened ? "تم حفظ طلبك وفتح رسالة التأكيد الجاهزة." : "تم إرسال طلب انضمامك كموصل، بانتظار موافقة المشرف");
     return {};
   }
 
