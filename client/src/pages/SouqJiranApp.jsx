@@ -4,6 +4,7 @@ import {
   clearFirebasePhoneVerification,
   completeFirebasePhoneVerification,
   listenForNativeFcmToken,
+  listenForNativeOrderNotifications,
   requestNativeFcmToken,
 } from "@/lib/firebase";
 import { MapView as GoogleMapView } from "@/components/Map";
@@ -2098,6 +2099,22 @@ function RoleBenefitsPage({ onBack, onMerchant, onCourier }) {
 /* ===========================================================
    APP ROOT
 =========================================================== */
+function OrderDetailsOverlay({ order, onClose }) {
+  if (!order) return null;
+  const status = STATUS_MAP[order.status] || { label: order.status, color: C.inkSoft };
+  return (
+    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-5" style={{ background: "rgba(23,32,51,.44)" }} onClick={onClose} data-testid="order-notification-details">
+      <section className="w-full max-w-lg max-h-[88vh] overflow-y-auto rounded-t-[28px] sm:rounded-[28px] p-5 sm:p-6" style={{ background: "#fff", boxShadow: "0 24px 60px rgba(23,32,51,.24)" }} onClick={(event) => event.stopPropagation()} aria-label="تفاصيل الطلب من الإشعار">
+        <div className="flex items-start justify-between gap-4"><div><span className="text-[11px] font-black px-2.5 py-1 rounded-full" style={{ background: status.color + "18", color: status.color }}>تحديث فوري</span><h2 className="font-black text-xl mt-3" style={{ color: C.ink }}>تفاصيل الطلب</h2><p className="text-xs mt-1" style={{ color: C.inkSoft }}>رقم الطلب: {String(order.id).slice(0, 8)} · {order.storeName}</p></div><button onClick={onClose} className="p-2 rounded-xl" style={{ background: C.paper, color: C.inkSoft }} aria-label="إغلاق"><X size={18} /></button></div>
+        <div className="mt-5 p-4 rounded-2xl" style={{ background: status.color + "10", border: `1px solid ${status.color}2A` }}><div className="font-black" style={{ color: status.color }}>{status.label}</div><p className="text-xs mt-1.5 leading-5" style={{ color: C.inkSoft }}>{order.estimatedDeliveryMinutes ? `الزمن التقديري للتسليم: ${order.estimatedDeliveryMinutes} دقيقة.` : "ستظهر تحديثات التوصيل الجديدة هنا فور وصولها."}</p></div>
+        <div className="mt-5 space-y-2">{order.items.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 text-sm p-3 rounded-xl" style={{ background: C.paper }}><span className="font-bold" style={{ color: C.ink }}>{item.name} × {item.qty}</span><span style={{ color: C.inkSoft }}>{money(item.price * item.qty)}</span></div>)}</div>
+        <div className="mt-5 grid grid-cols-2 gap-3 text-sm"><div className="p-3 rounded-xl" style={{ border: `1px solid ${C.line}` }}><div className="text-[11px] font-bold" style={{ color: C.inkSoft }}>الإجمالي</div><div className="font-black mt-1" style={{ color: C.ink }}>{money(order.total)}</div></div><div className="p-3 rounded-xl" style={{ border: `1px solid ${C.line}` }}><div className="text-[11px] font-bold" style={{ color: C.inkSoft }}>التوصيل</div><div className="font-black mt-1" style={{ color: C.ink }}>{money(order.deliveryFee)}</div></div></div>
+        {order.deliveryLocation && <div className="mt-4 flex items-start gap-2 text-xs leading-5 p-3 rounded-xl" style={{ background: C.paper, color: C.inkSoft }}><MapPin size={15} color={C.teal} className="shrink-0 mt-0.5" />{order.deliveryLocation}</div>}
+      </section>
+    </div>
+  );
+}
+
 export default function App() {
   const [role, setRole] = useState("customer");
   const [stores, setStores] = useState([]);
@@ -2133,7 +2150,10 @@ export default function App() {
   const [showPhoneChange, setShowPhoneChange] = useState(false);
   const [adminLoginRequested, setAdminLoginRequested] = useState(false);
   const [showRoleGuide, setShowRoleGuide] = useState(false);
+  const [focusedOrderId, setFocusedOrderId] = useState(null);
   const prevOrdersRef = useRef(null);
+
+  const focusedOrder = useMemo(() => orders.find((order) => order.id === focusedOrderId) || null, [orders, focusedOrderId]);
 
   function notify(msg) { setToast(msg); setTimeout(() => setToast(""), 2400); }
   function pushNotification(message) { setNotifications((prev) => { const next = [{ id: "n" + Math.random().toString(36).slice(2, 7), message, time: new Date().toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" }), read: false }, ...prev].slice(0, 25); saveKey(STORAGE.notifications, next); return next; }); }
@@ -2146,6 +2166,9 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
+    // يطلب Android الإذن مرة واحدة فقط لكل تثبيت. لا نربط الرمز بحساب قبل
+    // وجود جلسة، ثم تعيد syncNativeFcmToken قراءته وحفظه بعد تسجيل الدخول.
+    void requestNativeFcmToken().catch(() => null);
     (async () => {
       const [loadedCart, loadedMyStoreId, loadedNotifications, loadedMockMessages] = await Promise.all([
         loadKey(STORAGE.cart, { storeId: null, items: [], address: null }), loadKey(STORAGE.myStoreId, null), loadKey(STORAGE.notifications, []), loadKey(STORAGE.mockMessaging, []),
@@ -2339,6 +2362,44 @@ export default function App() {
     void listenForNativeFcmToken((token) => { void syncNativeFcmToken(auth.id, token); }).then((handle) => { listener = handle; });
     return () => { void listener?.remove(); };
   }, [auth?.id]);
+
+  function getOrderIdFromPushData(data) {
+    if (!data || typeof data !== "object") return null;
+    const raw = data.order_id || data.orderId;
+    return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+  }
+
+  async function openOrderFromPush(data) {
+    const orderId = getOrderIdFromPushData(data);
+    if (!orderId) { notify("وصل إشعار جديد، لكن لا يحتوي على رقم طلب صالح."); return; }
+    await refreshSupabaseData(auth?.type);
+    setFocusedOrderId(orderId);
+  }
+
+  useEffect(() => {
+    if (!auth?.id) return undefined;
+    let listener;
+    void listenForNativeOrderNotifications(
+      (notification) => {
+        const heading = notification.title || "تحديث جديد على الطلب";
+        const body = notification.body || "اضغط على التنبيه لمراجعة تفاصيل الطلب.";
+        pushNotification(`${heading}: ${body}`);
+        notify(heading);
+        void refreshSupabaseData(auth.type);
+      },
+      (notification) => { void openOrderFromPush(notification.data); },
+    ).then((handle) => { listener = handle; });
+    return () => { void listener?.remove(); };
+  }, [auth?.id, auth?.type]);
+
+  useEffect(() => {
+    if (!auth?.id) return undefined;
+    const channel = supabase
+      .channel(`orders-live-${auth.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => { void refreshSupabaseData(auth.type); })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [auth?.id, auth?.type]);
 
   useEffect(() => {
     if (loading) return;
@@ -2873,6 +2934,10 @@ export default function App() {
   }
 
   async function signOut() {
+    // Token invalidation is best-effort: an older installation may not yet
+    // have the companion RPC while the user must still be able to sign out.
+    const { error: tokenError } = await supabase.rpc("clear_my_fcm_token");
+    if (tokenError && tokenError.code !== "42883") console.warn("تعذر إبطال رمز FCM عند الخروج:", tokenError.message);
     await supabase.auth.signOut();
     setAuth(null);
     setMyStoreId(null); persistentSetMyStoreId(null);
@@ -2955,6 +3020,7 @@ export default function App() {
       {showMerchantForm && <MerchantRegisterModal onSubmit={registerMerchant} onClose={() => setShowMerchantForm(false)} />}
       {showAuth && <AuthModal authenticate={authenticate} requestAccountRecovery={requestAccountRecovery} adminOnly={adminLoginRequested} initialType={authEntry.type} initialMode={authEntry.mode} lockRole onClose={() => { setShowAuth(false); setAdminLoginRequested(false); setAuthEntry({ type: "merchant", mode: "login" }); }} />}
       {showPhoneChange && <PhoneChangeModal currentPhone={auth?.phone} onRequest={requestPhoneChange} onConfirm={confirmPhoneChange} onClose={() => setShowPhoneChange(false)} />}
+      {focusedOrderId && <OrderDetailsOverlay order={focusedOrder} onClose={() => setFocusedOrderId(null)} />}
       {role !== "admin" && <button aria-label="دخول الإدارة" onClick={() => { setAdminLoginRequested(true); setShowAuth(true); }} className="fixed top-1 right-1 h-2 w-2 rounded-full opacity-15 transition-opacity hover:opacity-70 focus:opacity-100" style={{ background: C.ink }} />}
     </div>
   );

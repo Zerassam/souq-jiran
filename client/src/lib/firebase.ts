@@ -1,6 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
-import { FirebaseMessaging } from "@capacitor-firebase/messaging";
+import { FirebaseMessaging, Importance } from "@capacitor-firebase/messaging";
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import {
   getAuth,
@@ -271,7 +271,10 @@ export async function getFirebaseMessaging(): Promise<Messaging | null> {
 
 export async function requestNativeFcmToken(): Promise<string | null> {
   if (!isNativeFirebaseRuntime()) return null;
-  const permission = await FirebaseMessaging.requestPermissions();
+  const current = await FirebaseMessaging.checkPermissions();
+  const permission = current.receive === "prompt"
+    ? await FirebaseMessaging.requestPermissions()
+    : current;
   if (permission.receive !== "granted") return null;
   const result = await FirebaseMessaging.getToken();
   return result.token || null;
@@ -280,4 +283,40 @@ export async function requestNativeFcmToken(): Promise<string | null> {
 export async function listenForNativeFcmToken(onToken: (token: string) => void) {
   if (!isNativeFirebaseRuntime()) return null;
   return FirebaseMessaging.addListener("tokenReceived", ({ token }) => onToken(token));
+}
+
+type NativeOrderNotification = {
+  title?: string;
+  body?: string;
+  data?: unknown;
+};
+
+export async function listenForNativeOrderNotifications(
+  onForeground: (notification: NativeOrderNotification) => void,
+  onAction: (notification: NativeOrderNotification) => void,
+) {
+  if (!isNativeFirebaseRuntime()) return null;
+  // Android requires an explicit high-importance channel for lock-screen
+  // alerts, sound, and heads-up presentation. iOS safely ignores this call.
+  try {
+    await FirebaseMessaging.createChannel({
+      id: "order_updates",
+      name: "تحديثات الطلبات",
+      description: "تنبيهات تغيّر حالة طلبات سوق الجيران",
+      importance: Importance.High,
+      sound: "default",
+      visibility: 1,
+      vibration: true,
+    });
+  } catch {
+    // The delivery path still works when a platform does not expose channels.
+  }
+  const foreground = await FirebaseMessaging.addListener("notificationReceived", ({ notification }) => onForeground(notification));
+  const action = await FirebaseMessaging.addListener("notificationActionPerformed", ({ notification }) => onAction(notification));
+  return {
+    remove: async () => {
+      await foreground.remove();
+      await action.remove();
+    },
+  };
 }
