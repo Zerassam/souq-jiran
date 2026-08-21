@@ -18,7 +18,10 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled false
+            // فعال في النشر فقط: يقلّص الشفرة والموارد ويصعّب هندسة APK عكسياً.
+            minifyEnabled true
+            shrinkResources true
+            debuggable false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
