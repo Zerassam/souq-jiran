@@ -233,3 +233,4 @@
 - [ ] تهيئة Google Sign-In في Firebase Console وAndroid (معرف عميل OAuth وبصمات SHA) ثم اختبار الملء التلقائي للاسم والبريد على جهاز فعلي.
 - [x] تنفيذ `20260902_registration_geography_scopes.sql` في Supabase SQL Editor لتفعيل الحقول الموسعة على البيانات الحية.
 - [x] استبدال `android/app/google-services.json` بالنسخة المحدّثة بعد تفعيل Google Sign-In، والتحقق من توافقها مع الحزمة `com.souqjiran.app` ثم مزامنة وبناء Android.
+- [x] إعداد سياسة خصوصية عربية لـ«سوق الجيران» تعكس استخدام Supabase وFirebase والموقع والإشعارات، وتكون جاهزة للنشر عبر GitHub Pages.
