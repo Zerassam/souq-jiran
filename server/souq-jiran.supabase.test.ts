@@ -27,6 +27,18 @@ describe("Souq Jiran Supabase integration", () => {
     expect(authModalSource).not.toContain("resetPhoneVerification");
   });
 
+  it("uses the configured eight-digit Supabase email OTP length without truncating it", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(appSource).toContain("const EMAIL_OTP_LENGTH = 8;");
+    expect(appSource).toContain("otpCode.length !== EMAIL_OTP_LENGTH");
+    expect(appSource).toContain("slice(0, EMAIL_OTP_LENGTH)");
+    expect(appSource).not.toContain("otpCode.length !== 6");
+    expect(appSource).not.toContain("slice(0, 6)");
+    expect(appSource).not.toContain("رمز من 6 أرقام");
+    expect(appSource).not.toContain("من ستة أرقام");
+  });
+
   it("keeps FCM tokens restricted to the active Supabase profile and configures Android permission support", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
     const firebaseSource = readFileSync(resolve(projectRoot, "client/src/lib/firebase.ts"), "utf8");

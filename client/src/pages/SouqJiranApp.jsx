@@ -35,6 +35,7 @@ const LOGO_COLORS = [C.teal, C.rust, C.ochre, C.sage, C.purple];
 const PLATFORM_COURIER_FEE = 120;
 const MAX_DISCOVERY_STORES = 6;
 const MAX_DISCOVERY_COURIERS = 2;
+const EMAIL_OTP_LENGTH = 8;
 const WILAYA_MAP_CENTERS = {
   "الجزائر": { lat: 36.7538, lng: 3.0588 }, "البليدة": { lat: 36.4700, lng: 2.8290 },
   "سطيف": { lat: 36.1911, lng: 5.4137 }, "أم البواقي": { lat: 35.8754, lng: 7.1135 },
@@ -758,14 +759,14 @@ function ProviderEmailOtpModal({ registration, onVerified, onClose }) {
       });
       if (otpError) throw otpError;
       setRequested(true); setOtpCode("");
-      setNotice("أُرسل رمز تحقق من ستة أرقام إلى بريدك. لن يُحفظ طلب الانضمام قبل إدخال الرمز الصحيح.");
+      setNotice(`أُرسل رمز تحقق من ${EMAIL_OTP_LENGTH} أرقام إلى بريدك. لن يُحفظ طلب الانضمام قبل إدخال الرمز الصحيح.`);
     } catch (otpError) { setError(otpError?.message || "تعذر إرسال الرمز. تحقق من إعداد SMTP في Supabase ثم حاول مجدداً."); }
     finally { setIsSubmitting(false); }
   }
 
   async function verify() {
     if (!requested) { await requestOtp(); return; }
-    if (otpCode.length !== 6) { setError("أدخل رمز البريد المكوّن من ستة أرقام."); return; }
+    if (otpCode.length !== EMAIL_OTP_LENGTH) { setError(`أدخل رمز البريد المكوّن من ${EMAIL_OTP_LENGTH} أرقام.`); return; }
     setError(""); setNotice(""); setIsSubmitting(true);
     try {
       const { data, error: verifyError } = await supabase.auth.verifyOtp({ email, token: otpCode, type: "email" });
@@ -781,7 +782,7 @@ function ProviderEmailOtpModal({ registration, onVerified, onClose }) {
     <div onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl p-5 space-y-3" style={{ background: C.paper }}>
       <div className="flex items-center justify-between gap-3"><div><h3 className="font-black flex items-center gap-1.5" style={{ color: C.ink }}><Mail size={18} color={isMerchant ? C.rust : C.teal} /> تحقق من بريد {isMerchant ? "التاجر" : "الموصل"}</h3><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>سيُنشأ طلب الانضمام بعد توثيق البريد فقط.</p></div><button onClick={onClose} aria-label="إغلاق"><X size={18} color={C.inkSoft} /></button></div>
       <div className="p-3 rounded-xl text-xs" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}35`, color: C.ink }}><b dir="ltr">{email}</b><br />رقم الهاتف يبقى مخصصاً للتواصل فقط، ولا يُستخدم Firebase أو SMS في هذا المسار.</div>
-      {requested && <input aria-label="رمز تحقق بريد الانضمام" value={otpCode} onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="رمز من 6 أرقام" inputMode="numeric" autoComplete="one-time-code" className="w-full px-3 py-2.5 rounded-xl text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} />}
+      {requested && <input aria-label="رمز تحقق بريد الانضمام" value={otpCode} onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, "").slice(0, EMAIL_OTP_LENGTH))} placeholder={`رمز من ${EMAIL_OTP_LENGTH} أرقام`} inputMode="numeric" autoComplete="one-time-code" className="w-full px-3 py-2.5 rounded-xl text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} />}
       {error && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{error}</p>}
       {notice && <p className="text-xs font-bold" style={{ color: C.sage }}>{notice}</p>}
       <button disabled={isSubmitting} onClick={verify} className="w-full py-3 rounded-xl font-black disabled:opacity-50" style={{ background: isMerchant ? C.rust : C.teal, color: "#fff" }}>{isSubmitting ? "جارٍ المعالجة..." : requested ? "تأكيد البريد وإرسال الطلب" : "إرسال رمز البريد"}</button>
@@ -846,7 +847,7 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
       if (otpError) throw otpError;
       setEmailOtpRequested(true);
       setOtpCode("");
-      setNotice("أُرسل رمز تحقق من ستة أرقام إلى بريدك الإلكتروني. أدخله لإكمال العملية.");
+      setNotice(`أُرسل رمز تحقق من ${EMAIL_OTP_LENGTH} أرقام إلى بريدك الإلكتروني. أدخله لإكمال العملية.`);
     } catch (requestError) {
       setError(requestError?.message || "تعذر إرسال رمز البريد. تحقق من إعداد SMTP في Supabase ثم حاول مجدداً.");
     } finally {
@@ -880,7 +881,7 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
     if (!emailCredential?.email) { setError("أدخل بريداً إلكترونياً صالحاً. أرقام الهاتف للتواصل فقط ولا تُستخدم للدخول."); return; }
     if (mode === "register" && (!fullName.trim() || !normalizedPhone)) { setError("أدخل الاسم ورقم الهاتف في الحقول المخصصة."); return; }
     if (!emailOtpRequested) { await requestEmailOtp(); return; }
-    if (otpCode.length !== 6) { setError("أدخل رمز البريد المكوّن من ستة أرقام."); return; }
+    if (otpCode.length !== EMAIL_OTP_LENGTH) { setError(`أدخل رمز البريد المكوّن من ${EMAIL_OTP_LENGTH} أرقام.`); return; }
     setError(""); setNotice("");
     setIsSubmitting(true);
     let result;
@@ -912,7 +913,7 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
           {allowRegistration && <button onClick={() => { resetEmailOtp(); setMode("register"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "register" ? C.ink : "transparent", color: mode === "register" ? "#fff" : C.inkSoft }}>حساب جديد</button>}
         </div></>}
         {mode === "register" ? <div className="space-y-2"><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><User size={15} color={C.inkSoft} /><input aria-label="الاسم الكامل" placeholder="الاسم الكامل" value={fullName} onChange={(event) => { resetEmailOtp(); setFullName(event.target.value); }} className="flex-1 outline-none text-sm bg-transparent" autoComplete="name" /></div><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Mail size={15} color={C.inkSoft} /><input aria-label="البريد الإلكتروني" type="email" autoComplete="email" placeholder="name@example.com" value={registrationEmail} onChange={(event) => { resetEmailOtp(); setRegistrationEmail(event.target.value); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="email" /></div><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input aria-label="رقم الهاتف للتواصل" placeholder="0551234567" value={registrationPhone} onChange={(event) => { resetEmailOtp(); setRegistrationPhone(event.target.value); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="tel" autoComplete="tel" /></div><button type="button" disabled={isSubmitting} onClick={fillFromGoogle} className="w-full py-2.5 rounded-xl text-xs font-bold disabled:opacity-50" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}>تعبئة الاسم والبريد من Google</button></div> : <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Mail size={15} color={C.inkSoft} /><input data-testid="auth-identifier-input" type="email" autoComplete="email" placeholder="البريد الإلكتروني" value={identifier} onChange={(e) => { resetEmailOtp(); setIdentifier(e.target.value); }} onKeyDown={(e) => e.key === "Enter" && submit()} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="email" /></div>}
-        {emailOtpRequested && <div data-testid="email-otp" className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-xs leading-5 font-bold" style={{ color: C.ink }}>أدخل رمز التحقق الذي وصلك إلى بريدك الإلكتروني.</p><input aria-label="رمز التحقق البريدي" value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="رمز من 6 أرقام" inputMode="numeric" autoComplete="one-time-code" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /><button type="button" disabled={isSubmitting} onClick={requestEmailOtp} className="text-xs font-bold" style={{ color: C.teal }}>إعادة إرسال رمز البريد</button></div>}
+        {emailOtpRequested && <div data-testid="email-otp" className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-xs leading-5 font-bold" style={{ color: C.ink }}>أدخل رمز التحقق الذي وصلك إلى بريدك الإلكتروني.</p><input aria-label="رمز التحقق البريدي" value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, EMAIL_OTP_LENGTH))} placeholder={`رمز من ${EMAIL_OTP_LENGTH} أرقام`} inputMode="numeric" autoComplete="one-time-code" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /><button type="button" disabled={isSubmitting} onClick={requestEmailOtp} className="text-xs font-bold" style={{ color: C.teal }}>إعادة إرسال رمز البريد</button></div>}
         {error && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{error}</p>}
         {notice && <p className="text-xs font-bold" style={{ color: C.sage }}>{notice}</p>}
         <button disabled={isSubmitting} onClick={submit} className="w-full py-3 rounded-xl font-black flex items-center justify-center gap-1.5 disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ المعالجة..." : !emailOtpRequested ? <><Mail size={16} /> إرسال رمز البريد</> : mode === "register" ? <><UserPlus size={16} /> تأكيد الحساب</> : <><LogIn size={16} /> تأكيد الدخول</>}</button>
