@@ -46,6 +46,23 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain('shouldCreateUser: mode === "register"');
   });
 
+  it("leaves Arabic name entry under the platform keyboard without intercepting user keystrokes", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const authModalStart = appSource.indexOf("function AuthModal");
+    const authModalEnd = appSource.indexOf("\nfunction ", authModalStart + 1);
+    const authModalSource = appSource.slice(authModalStart, authModalEnd);
+    const registrationSource = authModalSource.slice(
+      authModalSource.indexOf('{mode === "register"'),
+      authModalSource.indexOf(' : <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl"'),
+    );
+
+    expect(registrationSource).toContain('aria-label="الاسم الكامل" type="text" lang="ar" dir="auto" inputMode="text"');
+    expect(registrationSource).toContain('setFullName(event.target.value)');
+    expect(registrationSource).toContain('type="tel"');
+    expect(registrationSource).not.toContain("onKeyDown");
+    expect(registrationSource).not.toContain("preventDefault");
+  });
+
   it("keeps FCM tokens restricted to the active Supabase profile and configures Android permission support", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
     const firebaseSource = readFileSync(resolve(projectRoot, "client/src/lib/firebase.ts"), "utf8");
