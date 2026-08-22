@@ -18,9 +18,11 @@ describe("تسجيل الحساب ونطاقات التغطية", () => {
     expect(appSource).toContain('openAdminContactLink("membership_request"');
   });
 
-  it("يعالج استعادة البريد عبر Supabase واستعادة الهاتف برابط الإدارة الآمن", () => {
-    expect(appSource).toContain("supabase.auth.resetPasswordForEmail");
-    expect(appSource).toContain('openAdminContactLink("account_recovery"');
+  it("يعالج استعادة الحساب بإعادة إرسال بريد OTP آمن من Supabase", () => {
+    expect(appSource).toContain("options: { shouldCreateUser: false }");
+    expect(appSource).toContain("أُرسل رمز دخول جديد إليه");
+    expect(appSource).not.toContain("supabase.auth.resetPasswordForEmail");
+    expect(appSource).not.toContain('openAdminContactLink("account_recovery"');
     expect(appSource).toContain("استعادة الحساب");
   });
 

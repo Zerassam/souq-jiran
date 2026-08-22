@@ -1,8 +1,5 @@
-import { firebaseSupabase, supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import {
-  beginFirebasePhoneVerification,
-  clearFirebasePhoneVerification,
-  completeFirebasePhoneVerification,
   listenForNativeFcmToken,
   listenForNativeOrderNotifications,
   requestGoogleProfilePrefill,
@@ -181,11 +178,7 @@ function parseLoginIdentifier(value = "") {
     const email = identifier.toLowerCase();
     return { kind: "email", value: email, email, authEmail: email };
   }
-  const phone = normalizeAlgerianMobile(identifier);
-  if (!phone) return null;
-  // يبقى OTP تجريبياً حالياً؛ يستعمل هذا الاسم الداخلي فقط لربط كلمة المرور
-  // بحساب Supabase إلى أن يهيئ المشرف مزود هاتف/WhatsApp فعلياً.
-  return { kind: "phone", value: phone, phone, authEmail: `phone-${phone.replace(/\D/g, "")}@phone.souqjiran.local` };
+  return null;
 }
 
 async function openAdminContactLink(action, reference) {
@@ -234,117 +227,9 @@ const STORE_STATUS = {
 };
 
 /* ---------------------------------------------------------
-   Mock data
+   Production data
+   All accounts, shops, orders and couriers are loaded from Supabase.
 --------------------------------------------------------- */
-const initialStores = [
-  {
-    id: "s1", name: "سوبر ماركت الأمل", phone: "0555 12 34 56",
-    wilaya: "البليدة", commune: "البليدة", address: "شارع الاستقلال",
-    lat: 52, lng: 47, distance: "350 م", status: "approved", rating: null,
-    open: 7, close: 22, minOrder: 500, deliveryFee: 150, hasOwnDelivery: true,
-    deliveryCommunes: ["البليدة", "بوفاريك"], approvedCourierIds: ["c1"],
-    commissionType: "percentage", commissionRate: 10, subscriptionFee: 3000, duesPaid: 0,
-    logo: { text: "سأ", color: C.teal }, ccp: "0079999912 45", idDocName: "سجل_تجاري.pdf",
-    reviews: [],
-    products: [
-      { id: "p1", name: "خبز تقليدي", price: 25, unit: "الوحدة", department: "bakery", available: true },
-      { id: "p2", name: "حليب طازج 1ل", price: 90, unit: "العلبة", department: "dairy", available: true },
-      { id: "p3", name: "طماطم", price: 80, unit: "الكيلوغرام", department: "veggies", available: true },
-      { id: "p4", name: "عصير برتقال 1ل", price: 220, unit: "العلبة", department: "drinks", available: true },
-      { id: "p5", name: "مسحوق غسيل 3 كغ", price: 890, unit: "العلبة", department: "cleaning", available: true },
-      { id: "p6", name: "أرز 5 كغ", price: 780, unit: "الكيس", department: "pantry", available: true },
-    ],
-  },
-  {
-    id: "s2", name: "سوبر ماركت النور", phone: "0661 22 33 44",
-    wilaya: "البليدة", commune: "بوفاريك", address: "نهج بن باديس",
-    lat: 55, lng: 50, distance: "700 م", status: "approved", rating: null,
-    open: 6, close: 21, minOrder: 300, deliveryFee: 100, hasOwnDelivery: false,
-    deliveryCommunes: [], approvedCourierIds: ["c1"],
-    commissionType: "percentage", commissionRate: 8, subscriptionFee: 2500, duesPaid: 0,
-    logo: { text: "نر", color: C.rust }, ccp: "0088888844 12", idDocName: "سجل_تجاري.pdf",
-    reviews: [],
-    products: [
-      { id: "p7", name: "جبن أبيض 500غ", price: 340, unit: "العلبة", department: "dairy", available: true },
-      { id: "p8", name: "كرواسون زبدة", price: 40, unit: "الوحدة", department: "bakery", available: true },
-      { id: "p9", name: "خيار", price: 60, unit: "الكيلوغرام", department: "veggies", available: true },
-      { id: "p10", name: "مياه معدنية 1.5ل", price: 45, unit: "القارورة", department: "drinks", available: true },
-    ],
-  },
-  {
-    id: "s3", name: "سوبر ماركت العاصمة", phone: "0770 55 66 77",
-    wilaya: "الجزائر", commune: "باب الوادي", address: "شارع العربي بن مهيدي",
-    lat: 38, lng: 30, distance: "—", status: "approved", rating: null,
-    open: 8, close: 22, minOrder: 600, deliveryFee: 200, hasOwnDelivery: true,
-    deliveryCommunes: ["باب الوادي", "حسين داي"], approvedCourierIds: [],
-    commissionType: "subscription", commissionRate: 10, subscriptionFee: 4000, duesPaid: 0,
-    logo: { text: "عص", color: C.ochre }, ccp: "0011223344 78", idDocName: "سجل_تجاري.pdf",
-    reviews: [],
-    products: [
-      { id: "p11", name: "سكر أبيض 2 كغ", price: 260, unit: "الكيس", department: "pantry", available: true },
-      { id: "p12", name: "معجون طماطم", price: 130, unit: "العلبة", department: "pantry", available: true },
-      { id: "p13", name: "معقم أسطح", price: 310, unit: "القارورة", department: "cleaning", available: true },
-    ],
-  },
-  {
-    id: "s4", name: "سوبر ماركت وهران المركزي", phone: "0540 88 99 00",
-    wilaya: "وهران", commune: "وهران", address: "الطريق الوطني رقم 2",
-    lat: 70, lng: 78, distance: "—", status: "approved", rating: null,
-    open: 8, close: 23, minOrder: 400, deliveryFee: 180, hasOwnDelivery: false,
-    deliveryCommunes: [], approvedCourierIds: ["c2"],
-    commissionType: "percentage", commissionRate: 12, subscriptionFee: 3500, duesPaid: 0,
-    logo: { text: "وه", color: C.sage }, ccp: "0099887766 33", idDocName: "سجل_تجاري.pdf",
-    reviews: [],
-    products: [
-      { id: "p14", name: "بيض بلدي (12)", price: 320, unit: "الطبق", department: "dairy", available: true },
-      { id: "p15", name: "بطاطا", price: 70, unit: "الكيلوغرام", department: "veggies", available: true },
-      { id: "p16", name: "شاي أخضر", price: 180, unit: "العلبة", department: "pantry", available: true },
-    ],
-  },
-  {
-    id: "s5", name: "سوبر ماركت قسنطينة الجديد", phone: "0666 44 55 66",
-    wilaya: "قسنطينة", commune: "قسنطينة", address: "",
-    lat: 24, lng: 18, distance: "—", status: "awaiting_profile", rating: null,
-    open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: true,
-    deliveryCommunes: [], approvedCourierIds: [],
-    commissionType: "percentage", commissionRate: 10, subscriptionFee: 3000, duesPaid: 0,
-    logo: { text: "قج", color: C.teal }, ccp: "", idDocName: "",
-    reviews: [], products: [],
-  },
-];
-
-const initialOrders = [
-  { id: "o1", storeId: "s1", storeName: "سوبر ماركت الأمل", customer: "سارة ب.", items: [{ id: "p2", name: "حليب طازج 1ل", price: 90, qty: 2 }], subtotal: 180, deliveryFee: 150, total: 330, status: "preparing", createdAt: "10:12", rated: false, deliveryType: "store", courier: null, confirmed: false },
-  { id: "o2", storeId: "s2", storeName: "سوبر ماركت النور", customer: "يوسف ك.", items: [{ id: "p7", name: "جبن أبيض 500غ", price: 340, qty: 1 }], subtotal: 340, deliveryFee: 120, total: 460, status: "pending", createdAt: "10:40", rated: false, deliveryType: "courier", courier: { id: "c1", name: "رضا ب.", phone: "0555 66 77 88" }, confirmed: false },
-  { id: "o3", storeId: "s4", storeName: "سوبر ماركت وهران المركزي", customer: "أمينة ز.", items: [{ id: "p14", name: "بيض بلدي (12)", price: 320, qty: 1 }, { id: "p15", name: "بطاطا", price: 70, qty: 3 }], subtotal: 530, deliveryFee: 0, total: 530, status: "delivered", createdAt: "أمس", rated: true, deliveryType: "pickup", courier: null, confirmed: true },
-];
-
-const pendingStoreSeed = {
-  id: "s6", name: "سوبر ماركت الجيران", phone: "0555 99 00 11",
-  wilaya: "البليدة", commune: "الأربعاء", address: "",
-  lat: 48, lng: 53, distance: "—", status: "pending_review", rating: null,
-  open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: true,
-  deliveryCommunes: [], approvedCourierIds: [],
-  commissionType: "percentage", commissionRate: 10, subscriptionFee: 3000, duesPaid: 0,
-  logo: { text: "سج", color: C.rust }, ccp: "", idDocName: "",
-  reviews: [], products: [],
-};
-
-const initialCouriers = [
-  { id: "c1", name: "رضا ب.", phone: "0555 66 77 88", vehicle: "دراجة نارية", wilaya: "البليدة", communes: ["البليدة", "بوفاريك"], availability: ["morning", "afternoon"], customHours: null, storeMode: "all", selectedStoreIds: [], status: "approved" },
-  { id: "c2", name: "كريم س.", phone: "0666 11 22 33", vehicle: "سيارة", wilaya: "وهران", communes: ["وهران", "السانيا"], availability: ["afternoon", "evening"], customHours: null, storeMode: "selected", selectedStoreIds: ["s4"], status: "approved" },
-  { id: "c3", name: "محمد ر.", phone: "0777 44 55 66", vehicle: "دراجة هوائية", wilaya: "البليدة", communes: ["البليدة"], availability: ["morning"], customHours: null, storeMode: "all", selectedStoreIds: [], status: "pending" },
-];
-
-// حسابات تجريبية جاهزة: إيميل + كلمة سر (الجميع: 1234)
-const initialAccounts = [
-  { type: "merchant", email: "s1@example.com", password: "1234", storeId: "s1", name: "سوبر ماركت الأمل" },
-  { type: "merchant", email: "s2@example.com", password: "1234", storeId: "s2", name: "سوبر ماركت النور" },
-  { type: "merchant", email: "s3@example.com", password: "1234", storeId: "s3", name: "محل التوفير" },
-  { type: "merchant", email: "s4@example.com", password: "1234", storeId: "s4", name: "سوبر ماركت وهران المركزي" },
-  { type: "courier", email: "c1@example.com", password: "1234", courierId: "c1", name: "رضا ب." },
-  { type: "courier", email: "c2@example.com", password: "1234", courierId: "c2", name: "كريم س." },
-];
 
 const PROMOS = [
   { code: "AHLAN20", title: "خصم الترحيب", discount: 20, desc: "خصم 20% على أول طلب لك", color: C.rust },
@@ -625,7 +510,7 @@ function BulkImportModal({ onConfirm, onClose }) {
    تسجيل موصّل — مواقيت، نطاق تغطية، اختيار المحلات
 --------------------------------------------------------- */
 function CourierRegisterModal({ stores, onSubmit, onClose }) {
-  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", vehicle: VEHICLES[0], wilaya: "", commune: "", communes: [], deliveryScope: "local", adjacentWilayas: [], availability: [], useCustomHours: false, hoursFrom: "08:00", hoursTo: "18:00", storeMode: "all", selectedStoreIds: [] });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", vehicle: VEHICLES[0], wilaya: "", commune: "", communes: [], deliveryScope: "local", adjacentWilayas: [], availability: [], useCustomHours: false, hoursFrom: "08:00", hoursTo: "18:00", storeMode: "all", selectedStoreIds: [] });
   const [step, setStep] = useState(1);
   const [authError, setAuthError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -656,12 +541,12 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
   async function submit() {
     if (!form.name || !parseLoginIdentifier(form.email)?.email || !normalizeAlgerianMobile(form.phone)) { setAuthError("أدخل الاسم والبريد الإلكتروني ورقم الهاتف الجزائري في الحقول المخصصة."); setStep(1); return; }
     if (!form.wilaya || (form.deliveryScope === "local" && !form.commune) || (form.deliveryScope === "inter_wilaya" && form.adjacentWilayas.length === 0)) { setAuthError("أكمل نطاق التوصيل قبل إرسال الطلب."); setStep(2); return; }
-    if (form.password.length < 6) { setAuthError("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); setStep(1); return; }
     setAuthError("");
     setIsSubmitting(true);
     const result = await onSubmit({ ...form, phone: normalizeAlgerianMobile(form.phone), coverageLabel, timeLabel });
     setIsSubmitting(false);
-    if (result?.error) { setAuthError(result.error); setStep(1); }
+    if (result?.error) { setAuthError(result.error); setStep(1); return; }
+    if (result?.pendingOtp) onClose();
   }
 
   return (
@@ -679,10 +564,9 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
             <input required placeholder="الاسم الكامل" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
             <input required type="email" autoComplete="email" data-testid="courier-email-input" placeholder="البريد الإلكتروني" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} dir="ltr" />
             <input required placeholder="رقم الهاتف للتواصل (05/06/07)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} inputMode="tel" dir="ltr" />
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Lock size={15} color={C.inkSoft} /><input type="password" placeholder="كلمة المرور (4 أحرف على الأقل)" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>
             <select value={form.vehicle} onChange={(e) => setForm({ ...form, vehicle: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }}>{VEHICLES.map((v) => <option key={v} value={v}>{v}</option>)}</select>
             {authError && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{authError}</p>}
-            <button onClick={() => { if (!form.name || !parseLoginIdentifier(form.email)?.email || !normalizeAlgerianMobile(form.phone) || form.password.length < 6) { setAuthError("أكمل جميع بيانات الحساب المطلوبة بكلمة مرور من ستة أحرف على الأقل."); return; } setAuthError(""); setStep(2); }} className="w-full py-3 rounded-xl font-black" style={{ background: C.teal, color: "#fff" }}>التالي: بيانات الموصل</button>
+            <button onClick={() => { if (!form.name || !parseLoginIdentifier(form.email)?.email || !normalizeAlgerianMobile(form.phone)) { setAuthError("أكمل الاسم والبريد الإلكتروني ورقم الهاتف في الحقول المخصصة."); return; } setAuthError(""); setStep(2); }} className="w-full py-3 rounded-xl font-black" style={{ background: C.teal, color: "#fff" }}>التالي: بيانات الموصل</button>
           </div>
         )}
 
@@ -760,7 +644,7 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
    تسجيل تاجر — بيانات الحساب ثم بيانات المحل ونطاق التوصيل
 --------------------------------------------------------- */
 function MerchantRegisterModal({ onSubmit, onClose }) {
-  const [form, setForm] = useState({ ownerName: "", email: "", phone: "", password: "", storeName: "", wilaya: "", commune: "", deliveryWilayas: [], deliveryCommunes: [], nationwideCoverage: false });
+  const [form, setForm] = useState({ ownerName: "", email: "", phone: "", storeName: "", wilaya: "", commune: "", deliveryWilayas: [], deliveryCommunes: [], nationwideCoverage: false });
   const [step, setStep] = useState(1);
   const [authError, setAuthError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -782,12 +666,12 @@ function MerchantRegisterModal({ onSubmit, onClose }) {
   async function submit() {
     if (!form.storeName || !form.wilaya || !form.commune || (!form.nationwideCoverage && form.deliveryWilayas.length === 0)) { setAuthError("أكمل اسم المحل والولاية والبلدية وحدد ولاية تغطية واحدة على الأقل أو كامل التراب الوطني."); setStep(2); return; }
     if (!form.ownerName || !parseLoginIdentifier(form.email)?.email || !normalizeAlgerianMobile(form.phone)) { setAuthError("أدخل اسم صاحب المحل والبريد الإلكتروني ورقم الهاتف الجزائري في الحقول المخصصة."); setStep(1); return; }
-    if (form.password.length < 6) { setAuthError("كلمة المرور يجب أن تكون 6 أحرف على الأقل."); setStep(1); return; }
     setAuthError("");
     setIsSubmitting(true);
     const result = await onSubmit({ ...form, name: form.storeName, phone: normalizeAlgerianMobile(form.phone), deliveryWilayas: form.nationwideCoverage ? [...WILAYAS] : form.deliveryWilayas });
     setIsSubmitting(false);
-    if (result?.error) { setAuthError(result.error); setStep(1); }
+    if (result?.error) { setAuthError(result.error); setStep(1); return; }
+    if (result?.pendingOtp) onClose();
   }
 
   return (
@@ -803,9 +687,8 @@ function MerchantRegisterModal({ onSubmit, onClose }) {
           <input required aria-label="اسم صاحب المحل" placeholder="اسم صاحب المحل" value={form.ownerName} onChange={(event) => setForm({ ...form, ownerName: event.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
           <input required type="email" autoComplete="email" data-testid="merchant-email-input" placeholder="البريد الإلكتروني" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} dir="ltr" />
           <input required aria-label="هاتف التواصل للتاجر" placeholder="رقم الهاتف للتواصل (05/06/07)" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} inputMode="tel" dir="ltr" />
-          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Lock size={15} color={C.inkSoft} /><input type="password" placeholder="كلمة المرور (6 أحرف على الأقل)" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>
           {authError && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{authError}</p>}
-          <button onClick={() => { if (!form.ownerName || !parseLoginIdentifier(form.email)?.email || !normalizeAlgerianMobile(form.phone) || form.password.length < 6) { setAuthError("أكمل جميع بيانات الحساب المطلوبة بكلمة مرور من ستة أحرف على الأقل."); return; } setAuthError(""); setStep(2); }} className="w-full py-3 rounded-xl font-black" style={{ background: C.rust, color: "#fff" }}>التالي: بيانات المحل</button>
+          <button onClick={() => { if (!form.ownerName || !parseLoginIdentifier(form.email)?.email || !normalizeAlgerianMobile(form.phone)) { setAuthError("أكمل اسم صاحب المحل والبريد الإلكتروني ورقم الهاتف في الحقول المخصصة."); return; } setAuthError(""); setStep(2); }} className="w-full py-3 rounded-xl font-black" style={{ background: C.rust, color: "#fff" }}>التالي: بيانات المحل</button>
         </div>}
         {step === 2 && <div className="space-y-4">
           <div><label className="text-xs font-bold flex items-center gap-1 mb-1.5" style={{ color: C.ink }}><Store size={13} /> بيانات المحل</label><input aria-label="اسم المحل" placeholder="اسم المحل" value={form.storeName} onChange={(event) => setForm({ ...form, storeName: event.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /></div>
@@ -823,48 +706,21 @@ function MerchantRegisterModal({ onSubmit, onClose }) {
 /* ---------------------------------------------------------
    استعادة الحساب / تغيير رقم الهاتف
 --------------------------------------------------------- */
-function PhoneChangeModal({ currentPhone, onRequest, onConfirm, onClose }) {
+function PhoneChangeModal({ currentPhone, onConfirm, onClose }) {
   const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
-  const [phoneVerification, setPhoneVerification] = useState(null);
-  const [phoneChallenge, setPhoneChallenge] = useState(null);
-  const [requested, setRequested] = useState(false);
-  const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const normalizedPhone = normalizeAlgerianMobile(phone);
 
-  async function requestCode() {
-    if (!normalizedPhone) { setError("أدخل رقم هاتف محمول جزائرياً يبدأ بـ 05 أو 06 أو 07."); return; }
-    setError(""); setFeedback(""); setIsSubmitting(true);
-    try {
-      const result = await onRequest(normalizedPhone);
-      if (result?.error) { setError(result.error); return; }
-      const verification = await beginFirebasePhoneVerification(normalizedPhone, "firebase-phone-change-recaptcha");
-      setPhoneVerification(verification);
-      setPhoneChallenge(result?.challenge || null);
-      setOtp("");
-      setRequested(true);
-      setFeedback(verification.platform === "native" && verification.completedUser
-        ? "تم التحقق من رقم الهاتف تلقائياً بواسطة Firebase. أكد حفظ الرقم الجديد."
-        : "أُرسل رمز التحقق عبر رسالة SMS من Firebase. أدخله لتأكيد الرقم الجديد.");
-    } catch (requestError) {
-      setError(requestError?.message || "تعذر إرسال رمز Firebase. تحقق من إعداد Phone Authentication وحاول مجدداً.");
-    } finally { setIsSubmitting(false); }
-  }
-
   async function confirmChange() {
-    if (!normalizedPhone || !phoneVerification || !phoneChallenge) { setError("أرسل رمز Firebase أولاً ثم أكمل التحقق."); return; }
+    if (!normalizedPhone) { setError("أدخل رقم هاتف محمول جزائرياً يبدأ بـ 05 أو 06 أو 07."); return; }
     setError(""); setIsSubmitting(true);
     try {
-      const verification = phoneVerification.platform === "native" && phoneVerification.completedUser
-        ? phoneVerification
-        : await completeFirebasePhoneVerification(phoneVerification, otp);
-      const result = await onConfirm({ phone: normalizedPhone, firebasePhoneVerification: verification, challenge: phoneChallenge });
+      const result = await onConfirm({ phone: normalizedPhone });
       if (result?.error) { setError(result.error); return; }
       onClose();
-    } catch (verificationError) {
-      setError(verificationError?.message || "رمز Firebase غير صحيح أو انتهت صلاحيته. أعد طلب رمز جديد.");
+    } catch (changeError) {
+      setError(changeError?.message || "تعذر حفظ رقم التواصل. حاول مجدداً.");
     } finally { setIsSubmitting(false); }
   }
 
@@ -872,15 +728,66 @@ function PhoneChangeModal({ currentPhone, onRequest, onConfirm, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(35,32,27,0.55)" }} onClick={onClose}>
       <div onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl p-5 space-y-3" style={{ background: C.paper }}>
         <div className="flex items-center justify-between gap-3"><div><h3 className="font-black flex items-center gap-1.5" style={{ color: C.ink }}><Phone size={18} color={C.teal} /> تغيير رقم الهاتف</h3><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>رقمك الحالي: <span dir="ltr">{currentPhone || "غير مضاف"}</span></p></div><button onClick={onClose} aria-label="إغلاق"><X size={18} color={C.inkSoft} /></button></div>
-        <p className="text-xs leading-5 p-3 rounded-xl" style={{ background: C.ochre + "12", color: C.ink, border: `1px solid ${C.ochre}42` }}>ستتحقق من الرقم الجديد عبر رسالة SMS من Firebase قبل حفظه في ملفك.</p>
-        <div id="firebase-phone-change-recaptcha" aria-hidden="true" />
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input aria-label="رقم الهاتف الجديد" placeholder="0551234567 أو +213551234567" value={phone} onChange={(event) => { setPhone(event.target.value); setRequested(false); setPhoneVerification(null); setOtp(""); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="tel" /></div>
-        {!requested ? <button disabled={isSubmitting} onClick={requestCode} className="w-full py-3 rounded-xl font-black text-sm disabled:opacity-50" style={{ background: C.teal, color: "#fff" }}>{isSubmitting ? "جارٍ إرسال الرمز..." : "إرسال رمز Firebase"}</button> : <><input aria-label="رمز تأكيد تغيير الهاتف" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="رمز التحقق عبر SMS" inputMode="numeric" disabled={phoneVerification?.platform === "native" && phoneVerification?.completedUser} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none bg-white disabled:opacity-50" style={{ border: `1px solid ${C.line}` }} /><button disabled={isSubmitting} onClick={confirmChange} className="w-full py-3 rounded-xl font-black text-sm disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ حفظ الرقم..." : "تأكيد الرقم الجديد"}</button></>}
-        {feedback && <p className="text-xs font-bold" style={{ color: C.sage }}>{feedback}</p>}
+        <p className="text-xs leading-5 p-3 rounded-xl" style={{ background: C.ochre + "12", color: C.ink, border: `1px solid ${C.ochre}42` }}>جلسة حسابك موثّقة بالبريد الإلكتروني. احفظ رقم التواصل الجديد، ولا يُستخدم إرسال SMS أو Firebase في هذا المسار.</p>
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input aria-label="رقم الهاتف الجديد" placeholder="0551234567 أو +213551234567" value={phone} onChange={(event) => setPhone(event.target.value)} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="tel" /></div>
+        <button disabled={isSubmitting} onClick={confirmChange} className="w-full py-3 rounded-xl font-black text-sm disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ حفظ الرقم..." : "حفظ رقم التواصل"}</button>
         {error && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{error}</p>}
       </div>
     </div>
   );
+}
+
+/* ---------------------------------------------------------
+   تأكيد بريد الانضمام للتاجر أو الموصل قبل إنشاء الملفات
+--------------------------------------------------------- */
+function ProviderEmailOtpModal({ registration, onVerified, onClose }) {
+  const [otpCode, setOtpCode] = useState("");
+  const [requested, setRequested] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isMerchant = registration.type === "merchant";
+  const email = registration.form.email.trim().toLowerCase();
+
+  async function requestOtp() {
+    setError(""); setNotice(""); setIsSubmitting(true);
+    try {
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: true, data: { role: registration.type, name: registration.form.name, phone: normalizeAlgerianMobile(registration.form.phone), contact_email: email } },
+      });
+      if (otpError) throw otpError;
+      setRequested(true); setOtpCode("");
+      setNotice("أُرسل رمز تحقق من ستة أرقام إلى بريدك. لن يُحفظ طلب الانضمام قبل إدخال الرمز الصحيح.");
+    } catch (otpError) { setError(otpError?.message || "تعذر إرسال الرمز. تحقق من إعداد SMTP في Supabase ثم حاول مجدداً."); }
+    finally { setIsSubmitting(false); }
+  }
+
+  async function verify() {
+    if (!requested) { await requestOtp(); return; }
+    if (otpCode.length !== 6) { setError("أدخل رمز البريد المكوّن من ستة أرقام."); return; }
+    setError(""); setNotice(""); setIsSubmitting(true);
+    try {
+      const { data, error: verifyError } = await supabase.auth.verifyOtp({ email, token: otpCode, type: "email" });
+      if (verifyError || !data.session) throw verifyError || new Error("تعذر فتح جلسة آمنة بعد التحقق من الرمز.");
+      const result = await onVerified({ ...registration, verifiedSession: data.session });
+      if (result?.error) { setError(result.error); return; }
+      onClose();
+    } catch (verifyError) { setError(verifyError?.message || "تعذر إكمال التحقق. حاول مجدداً."); }
+    finally { setIsSubmitting(false); }
+  }
+
+  return <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(35,32,27,.55)" }} onClick={onClose}>
+    <div onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl p-5 space-y-3" style={{ background: C.paper }}>
+      <div className="flex items-center justify-between gap-3"><div><h3 className="font-black flex items-center gap-1.5" style={{ color: C.ink }}><Mail size={18} color={isMerchant ? C.rust : C.teal} /> تحقق من بريد {isMerchant ? "التاجر" : "الموصل"}</h3><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>سيُنشأ طلب الانضمام بعد توثيق البريد فقط.</p></div><button onClick={onClose} aria-label="إغلاق"><X size={18} color={C.inkSoft} /></button></div>
+      <div className="p-3 rounded-xl text-xs" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}35`, color: C.ink }}><b dir="ltr">{email}</b><br />رقم الهاتف يبقى مخصصاً للتواصل فقط، ولا يُستخدم Firebase أو SMS في هذا المسار.</div>
+      {requested && <input aria-label="رمز تحقق بريد الانضمام" value={otpCode} onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="رمز من 6 أرقام" inputMode="numeric" autoComplete="one-time-code" className="w-full px-3 py-2.5 rounded-xl text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} />}
+      {error && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{error}</p>}
+      {notice && <p className="text-xs font-bold" style={{ color: C.sage }}>{notice}</p>}
+      <button disabled={isSubmitting} onClick={verify} className="w-full py-3 rounded-xl font-black disabled:opacity-50" style={{ background: isMerchant ? C.rust : C.teal, color: "#fff" }}>{isSubmitting ? "جارٍ المعالجة..." : requested ? "تأكيد البريد وإرسال الطلب" : "إرسال رمز البريد"}</button>
+      {requested && <button type="button" disabled={isSubmitting} onClick={requestOtp} className="w-full py-1 text-xs font-bold" style={{ color: isMerchant ? C.rust : C.teal }}>إعادة إرسال رمز البريد بعد الانتظار دقيقة واحدة</button>}
+    </div>
+  </div>;
 }
 
 /* ---------------------------------------------------------
@@ -893,50 +800,56 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
   const [fullName, setFullName] = useState("");
   const [registrationEmail, setRegistrationEmail] = useState("");
   const [registrationPhone, setRegistrationPhone] = useState("");
-  const [password, setPassword] = useState("");
   const [otpCode, setOtpCode] = useState("");
-  const [phoneVerification, setPhoneVerification] = useState(null);
+  const [emailOtpRequested, setEmailOtpRequested] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const phoneRequestInFlightRef = useRef(false);
   const parsedIdentifier = parseLoginIdentifier(identifier);
-  const phoneOtpRequired = mode === "login" && !adminOnly && parsedIdentifier?.kind === "phone";
-  const waitingForPhoneCode = Boolean(phoneVerification);
-  const phoneAutoVerified = Boolean(phoneVerification?.platform === "native" && phoneVerification?.completedUser);
 
-  function resetPhoneVerification() {
-    clearFirebasePhoneVerification("firebase-phone-recaptcha");
+  function resetEmailOtp() {
     setOtpCode("");
-    setPhoneVerification(null);
+    setEmailOtpRequested(false);
   }
 
   function closeAuthModal() {
-    resetPhoneVerification();
+    resetEmailOtp();
     onClose();
   }
 
-  useEffect(() => () => clearFirebasePhoneVerification("firebase-phone-recaptcha"), []);
-
-  async function requestPhoneCode() {
-    if (!parsedIdentifier?.phone) return;
-    if (phoneRequestInFlightRef.current) return;
-    phoneRequestInFlightRef.current = true;
+  async function requestEmailOtp() {
+    const email = mode === "register" ? parseLoginIdentifier(registrationEmail)?.email : parsedIdentifier?.email;
+    if (!email) {
+      setError("أدخل بريداً إلكترونياً صالحاً. التحقق عبر البريد فقط.");
+      return;
+    }
+    if (mode === "register" && (!fullName.trim() || !normalizeAlgerianMobile(registrationPhone))) {
+      setError("أدخل الاسم ورقم الهاتف قبل طلب رمز البريد.");
+      return;
+    }
     setError("");
     setNotice("");
     setIsSubmitting(true);
     try {
-      resetPhoneVerification();
-      const verification = await beginFirebasePhoneVerification(parsedIdentifier.phone, "firebase-phone-recaptcha");
-      setPhoneVerification(verification);
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: mode === "register",
+          data: mode === "register" ? {
+            role: type,
+            name: fullName.trim(),
+            phone: normalizeAlgerianMobile(registrationPhone),
+            contact_email: email,
+          } : undefined,
+        },
+      });
+      if (otpError) throw otpError;
+      setEmailOtpRequested(true);
       setOtpCode("");
-      setNotice(verification.platform === "native" && verification.completedUser
-        ? "تم التحقق من رقم الهاتف تلقائياً بواسطة Firebase. تابع لإكمال العملية."
-        : "أُرسل رمز التحقق عبر رسالة SMS. أدخله لإكمال العملية.");
+      setNotice("أُرسل رمز تحقق من ستة أرقام إلى بريدك الإلكتروني. أدخله لإكمال العملية.");
     } catch (requestError) {
-      setError(requestError?.message || "تعذر إرسال رمز Firebase. تحقق من إعداد Phone Authentication وحاول مجدداً.");
+      setError(requestError?.message || "تعذر إرسال رمز البريد. تحقق من إعداد SMTP في Supabase ثم حاول مجدداً.");
     } finally {
-      phoneRequestInFlightRef.current = false;
       setIsSubmitting(false);
     }
   }
@@ -953,7 +866,7 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
       }
       setRegistrationEmail(profile.email);
       setFullName(profile.name || fullName);
-      setNotice("تمت تعبئة الاسم والبريد. أكمل رقم الهاتف وكلمة المرور للمتابعة.");
+      setNotice("تمت تعبئة الاسم والبريد. أكمل رقم الهاتف ثم اطلب رمز البريد للمتابعة.");
     } catch (googleError) {
       setError(googleError?.message || "تعذر الاتصال بـ Google حالياً. يمكنك متابعة التسجيل يدوياً.");
     } finally {
@@ -962,49 +875,19 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
   }
 
   async function submit() {
-    if (mode === "register") {
-      const emailCredential = parseLoginIdentifier(registrationEmail);
-      const normalizedPhone = normalizeAlgerianMobile(registrationPhone);
-      if (!fullName.trim() || !emailCredential?.email || !normalizedPhone) {
-        setError("أدخل الاسم والبريد الإلكتروني ورقم الهاتف في الحقول المخصصة.");
-        return;
-      }
-      if (password.length < 6) { setError("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); return; }
-      setError(""); setNotice(""); setIsSubmitting(true);
-      let result;
-      try {
-        result = await authenticate({ mode, type, identifier: emailCredential.email, password, name: fullName.trim(), phone: normalizedPhone });
-        if (!result?.error && !result?.notice) {
-          const contactOpened = await openAdminContactLink("account_confirmation", emailCredential.email).catch(() => false);
-          if (contactOpened) {
-            setNotice("تم إنشاء الحساب وفتح رسالة التأكيد الجاهزة.");
-            return;
-          }
-        }
-      } catch (submissionError) {
-        result = { error: submissionError?.message || "تعذر إكمال التسجيل. حاول مرة أخرى." };
-      } finally {
-        setIsSubmitting(false);
-      }
-      if (result?.error) { setError(result.error); return; }
-      if (result?.notice) { setNotice(result.notice); return; }
-      closeAuthModal();
-      return;
-    }
-    if (!parsedIdentifier) { setError("أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07."); return; }
-    if (mode !== "recover" && password.length < 6) { setError("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); return; }
-    if (phoneOtpRequired && !waitingForPhoneCode) { await requestPhoneCode(); return; }
-    if (phoneOtpRequired && !phoneAutoVerified && otpCode.length !== 6) { setError("أدخل رمز SMS المكوّن من ستة أرقام."); return; }
+    const emailCredential = mode === "register" ? parseLoginIdentifier(registrationEmail) : parsedIdentifier;
+    const normalizedPhone = normalizeAlgerianMobile(registrationPhone);
+    if (!emailCredential?.email) { setError("أدخل بريداً إلكترونياً صالحاً. أرقام الهاتف للتواصل فقط ولا تُستخدم للدخول."); return; }
+    if (mode === "register" && (!fullName.trim() || !normalizedPhone)) { setError("أدخل الاسم ورقم الهاتف في الحقول المخصصة."); return; }
+    if (!emailOtpRequested) { await requestEmailOtp(); return; }
+    if (otpCode.length !== 6) { setError("أدخل رمز البريد المكوّن من ستة أرقام."); return; }
     setError(""); setNotice("");
     setIsSubmitting(true);
     let result;
     try {
-      const firebasePhoneVerification = phoneOtpRequired
-        ? await completeFirebasePhoneVerification(phoneVerification, otpCode)
-        : null;
-      result = mode === "recover"
-        ? await requestAccountRecovery({ identifier: parsedIdentifier.value, firebasePhoneVerification })
-        : await authenticate({ mode, type, identifier: parsedIdentifier.value, password, firebasePhoneVerification });
+      const { data, error: verifyError } = await supabase.auth.verifyOtp({ email: emailCredential.email, token: otpCode, type: "email" });
+      if (verifyError || !data.session) throw verifyError || new Error("تعذر فتح جلسة آمنة بعد التحقق من الرمز.");
+      result = await authenticate({ mode, type, identifier: emailCredential.email, name: fullName.trim(), phone: normalizedPhone, verifiedSession: data.session });
     } catch (submissionError) {
       result = { error: submissionError?.message || "تعذر إكمال العملية. حاول مرة أخرى." };
     } finally {
@@ -1025,19 +908,18 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
           <button onClick={() => setType("customer")} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: type === "customer" ? C.teal : "transparent", color: type === "customer" ? "#fff" : C.inkSoft }}><User size={15} /> عميل</button>
         </div>}
         <div className="flex gap-2 p-1 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
-          <button onClick={() => { resetPhoneVerification(); setMode("login"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "login" ? C.ink : "transparent", color: mode === "login" ? "#fff" : C.inkSoft }}>دخول</button>
-          {allowRegistration && <button onClick={() => { resetPhoneVerification(); setMode("register"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "register" ? C.ink : "transparent", color: mode === "register" ? "#fff" : C.inkSoft }}>حساب جديد</button>}
+          <button onClick={() => { resetEmailOtp(); setMode("login"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "login" ? C.ink : "transparent", color: mode === "login" ? "#fff" : C.inkSoft }}>دخول بالبريد</button>
+          {allowRegistration && <button onClick={() => { resetEmailOtp(); setMode("register"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "register" ? C.ink : "transparent", color: mode === "register" ? "#fff" : C.inkSoft }}>حساب جديد</button>}
         </div></>}
-        {mode === "register" ? <div className="space-y-2"><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><User size={15} color={C.inkSoft} /><input aria-label="الاسم الكامل" placeholder="الاسم الكامل" value={fullName} onChange={(event) => setFullName(event.target.value)} className="flex-1 outline-none text-sm bg-transparent" autoComplete="name" /></div><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Mail size={15} color={C.inkSoft} /><input aria-label="البريد الإلكتروني" type="email" autoComplete="email" placeholder="name@example.com" value={registrationEmail} onChange={(event) => setRegistrationEmail(event.target.value)} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="email" /></div><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input aria-label="رقم الهاتف للتواصل" placeholder="0551234567" value={registrationPhone} onChange={(event) => setRegistrationPhone(event.target.value)} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="tel" autoComplete="tel" /></div><button type="button" disabled={isSubmitting} onClick={fillFromGoogle} className="w-full py-2.5 rounded-xl text-xs font-bold disabled:opacity-50" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}>تعبئة الاسم والبريد من Google</button></div> : <><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input data-testid="auth-identifier-input" placeholder="رقم الهاتف أو البريد الإلكتروني" value={identifier} onChange={(e) => { resetPhoneVerification(); setIdentifier(e.target.value); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode={identifier.includes("@") ? "email" : "tel"} /></div><div id="firebase-phone-recaptcha" aria-hidden="true" /></>}
-        {phoneOtpRequired && <div data-testid="firebase-phone-otp" className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-xs leading-5 font-bold" style={{ color: C.ink }}>تم التعرف على رقم الهاتف <span dir="ltr">{parsedIdentifier.phone}</span>. {phoneAutoVerified ? "تم التحقق منه تلقائياً؛ يمكنك المتابعة." : waitingForPhoneCode ? "أدخل رمز SMS الذي وصلك من Firebase." : "أرسل رمز SMS لتأكيد ملكية الرقم قبل المتابعة."}</p>{waitingForPhoneCode && !phoneAutoVerified && <><input aria-label="رمز SMS من Firebase" value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="رمز SMS المكوّن من 6 أرقام" inputMode="numeric" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /><button type="button" disabled={isSubmitting} onClick={requestPhoneCode} className="text-xs font-bold" style={{ color: C.teal }}>إعادة إرسال رمز SMS</button></>}</div>}
-        {mode !== "recover" && <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Lock size={15} color={C.inkSoft} /><input type="password" placeholder="كلمة المرور" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>}
+        {mode === "register" ? <div className="space-y-2"><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><User size={15} color={C.inkSoft} /><input aria-label="الاسم الكامل" placeholder="الاسم الكامل" value={fullName} onChange={(event) => { resetEmailOtp(); setFullName(event.target.value); }} className="flex-1 outline-none text-sm bg-transparent" autoComplete="name" /></div><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Mail size={15} color={C.inkSoft} /><input aria-label="البريد الإلكتروني" type="email" autoComplete="email" placeholder="name@example.com" value={registrationEmail} onChange={(event) => { resetEmailOtp(); setRegistrationEmail(event.target.value); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="email" /></div><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input aria-label="رقم الهاتف للتواصل" placeholder="0551234567" value={registrationPhone} onChange={(event) => { resetEmailOtp(); setRegistrationPhone(event.target.value); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="tel" autoComplete="tel" /></div><button type="button" disabled={isSubmitting} onClick={fillFromGoogle} className="w-full py-2.5 rounded-xl text-xs font-bold disabled:opacity-50" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}>تعبئة الاسم والبريد من Google</button></div> : <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Mail size={15} color={C.inkSoft} /><input data-testid="auth-identifier-input" type="email" autoComplete="email" placeholder="البريد الإلكتروني" value={identifier} onChange={(e) => { resetEmailOtp(); setIdentifier(e.target.value); }} onKeyDown={(e) => e.key === "Enter" && submit()} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="email" /></div>}
+        {emailOtpRequested && <div data-testid="email-otp" className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-xs leading-5 font-bold" style={{ color: C.ink }}>أدخل رمز التحقق الذي وصلك إلى بريدك الإلكتروني.</p><input aria-label="رمز التحقق البريدي" value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="رمز من 6 أرقام" inputMode="numeric" autoComplete="one-time-code" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /><button type="button" disabled={isSubmitting} onClick={requestEmailOtp} className="text-xs font-bold" style={{ color: C.teal }}>إعادة إرسال رمز البريد</button></div>}
         {error && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{error}</p>}
         {notice && <p className="text-xs font-bold" style={{ color: C.sage }}>{notice}</p>}
-        <button disabled={isSubmitting} onClick={submit} className="w-full py-3 rounded-xl font-black flex items-center justify-center gap-1.5 disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ المعالجة..." : mode === "login" ? <><LogIn size={16} /> تسجيل الدخول</> : mode === "recover" ? <><Phone size={16} /> استعادة الحساب</> : <><UserPlus size={16} /> تأكيد الحساب</>}</button>
-        {!adminOnly && <button onClick={() => { resetPhoneVerification(); setMode("recover"); setError(""); setNotice(""); }} className="w-full text-xs font-bold py-1" style={{ color: C.teal }}>استعادة الحساب</button>}
+        <button disabled={isSubmitting} onClick={submit} className="w-full py-3 rounded-xl font-black flex items-center justify-center gap-1.5 disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ المعالجة..." : !emailOtpRequested ? <><Mail size={16} /> إرسال رمز البريد</> : mode === "register" ? <><UserPlus size={16} /> تأكيد الحساب</> : <><LogIn size={16} /> تأكيد الدخول</>}</button>
+        {!adminOnly && <button onClick={() => { resetEmailOtp(); setMode("recover"); setError(""); setNotice(""); }} className="w-full text-xs font-bold py-1" style={{ color: C.teal }}>الدخول برمز البريد</button>}
         {adminOnly && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>لا تتاح لوحة الإدارة إلا للحسابات المصرح لها في قاعدة البيانات.</p>}
-        {!adminOnly && mode === "register" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>البريد ورقم الهاتف مطلوبان. بعد تأكيد الحساب تُفتح رسالة تأكيد جاهزة مع بقاء بياناتك داخل التطبيق.</p>}
-        {!adminOnly && mode === "recover" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>يرسل البريد رابط إعادة تعيين آمن. أما رقم الهاتف فيفتح طلب استعادة مباشر إلى الإدارة من دون كشف وجود الحساب.</p>}
+        {!adminOnly && mode === "register" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>البريد ورقم الهاتف مطلوبان. رقم الهاتف للتواصل فقط؛ التحقق والدخول يتمان برمز يُرسل إلى البريد.</p>}
+        {!adminOnly && mode === "recover" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>أدخل بريد الحساب؛ يرسل التطبيق رمز دخول آمن بدلاً من كلمة مرور أو رسالة SMS.</p>}
       </div>
     </div>
   );
@@ -1092,7 +974,7 @@ function ReferralRewardsPanel({ referralCode, rewardCoupons, notify, claimReferr
 /* ===========================================================
    CUSTOMER VIEW
 =========================================================== */
-function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, couriers, placeOrder, notify, customerId, customerConfirmDelivery, quoteDelivery, confirmCustomerPhoneVerification, requestCustomerPhoneVerification, referralCode = "", rewardCoupons = [], claimReferralCode }) {
+function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, couriers, placeOrder, notify, customerId, customerConfirmDelivery, quoteDelivery, referralCode = "", rewardCoupons = [], claimReferralCode }) {
   const [tab, setTab] = useState("browse");
   const [browseMode, setBrowseMode] = useState("list");
   const [query, setQuery] = useState("");
@@ -1110,11 +992,6 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const [deliveryQuote, setDeliveryQuote] = useState(null);
   const [quoteError, setQuoteError] = useState("");
   const [quoteLoading, setQuoteLoading] = useState(false);
-  const [mockPhone, setMockPhone] = useState("");
-  const [phoneVerified, setPhoneVerified] = useState(false);
-  const [otpSending, setOtpSending] = useState(false);
-  const [otpCooldown, setOtpCooldown] = useState(0);
-  const [otpStatus, setOtpStatus] = useState("");
   const [rewardCouponInput, setRewardCouponInput] = useState("");
   const [appliedReward, setAppliedReward] = useState(null);
 
@@ -1155,7 +1032,8 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const finalTotal = Math.max(0, cartSubtotal - discountAmount + deliveryFee);
   const belowMinOrder = cartStore && cartStore.minOrder && cartSubtotal < cartStore.minOrder;
   const isInterwilaya = Boolean(deliveryQuote?.isInterwilaya || (cart.address?.wilaya && cartStore?.wilaya && cart.address.wilaya !== cartStore.wilaya));
-  const requiresPhoneVerification = deliveryChoice === "courier" && (finalTotal >= 10000 || isInterwilaya);
+  const requiresVerifiedEmail = deliveryChoice === "courier" && (finalTotal >= 10000 || isInterwilaya);
+  const emailVerified = Boolean(customerId);
 
   // The customer chooses the platform delivery service, not a named courier.
   // Assignment occurs after the merchant marks the order ready, preserving courier privacy.
@@ -1176,12 +1054,6 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
     return () => { cancelled = true; };
   }, [deliveryChoice, cartStore?.id, cart.address?.wilaya, cart.address?.commune, cart.address?.label, cart.items, quoteDelivery]);
 
-  useEffect(() => {
-    if (otpCooldown <= 0) return undefined;
-    const timer = window.setInterval(() => setOtpCooldown((remaining) => Math.max(0, remaining - 1)), 1000);
-    return () => window.clearInterval(timer);
-  }, [otpCooldown]);
-
   function addToCart(store, product) {
     setCart((prev) => {
       const sameStore = prev.storeId === store.id || prev.items.length === 0;
@@ -1196,7 +1068,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   function changeQty(id, delta) { setCart((prev) => ({ ...prev, items: prev.items.map((i) => (i.id === id ? { ...i, qty: i.qty + delta } : i)).filter((i) => i.qty > 0) })); }
   function applyPromo() { const match = PROMOS.find((p) => p.code.toLowerCase() === promoInput.trim().toLowerCase()); if (!match) { notify("كود الخصم غير صالح"); return; } setAppliedPromo(match); notify(`تم تطبيق خصم ${match.discount}%`); }
   function applyRewardCoupon() { const coupon = rewardCoupons.find((item) => item.status === "available" && item.code.toUpperCase() === rewardCouponInput.trim().toUpperCase()); if (!coupon) { notify("قسيمة المكافأة غير متاحة أو غير صالحة."); return; } if (cartSubtotal < Number(coupon.minimumOrderTotal || 0)) { notify(`هذه القسيمة تتطلب طلباً بقيمة ${money(coupon.minimumOrderTotal)} على الأقل.`); return; } setAppliedReward(coupon); notify(`تم حجز خصم المكافأة بقيمة ${money(coupon.amount)} للطلب.`); }
-  function updateAddress(values) { setCart((prev) => ({ ...prev, address: { ...(prev.address || {}), ...values } })); setPhoneVerified(false); }
+  function updateAddress(values) { setCart((prev) => ({ ...prev, address: { ...(prev.address || {}), ...values } })); }
   function requestCurrentLocation() {
     if (!navigator.geolocation) { notify("لا يدعم متصفحك تحديد الموقع الجغرافي."); return; }
     navigator.geolocation.getCurrentPosition(
@@ -1204,20 +1076,6 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
       () => notify("تعذر الوصول إلى GPS. راجع أذونات الموقع أو حدد الموقع على الخريطة."),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 },
     );
-  }
-  async function verifyMockPhone(method) {
-    if (!mockPhone.trim()) { notify("أدخل رقم هاتفك أولاً."); return; }
-    const ok = await confirmCustomerPhoneVerification(mockPhone.trim(), method);
-    if (ok) setPhoneVerified(true);
-  }
-  async function requestOtp(channel) {
-    if (!mockPhone.trim()) { notify("أدخل رقم هاتفك أولاً قبل طلب الرمز."); return; }
-    setOtpSending(true);
-    const result = await requestCustomerPhoneVerification(mockPhone.trim(), channel);
-    setOtpSending(false);
-    if (!result?.ok) { setOtpStatus(result?.message || "تعذر طلب رمز التحقق."); setOtpCooldown(Number(result?.retryAfter || 0)); return; }
-    setOtpCooldown(Number(result.cooldownSeconds || 60));
-    setOtpStatus(result.message || "تم تجهيز مسار التحقق التجريبي.");
   }
   function submitReview(order, stars, comment) {
     setStores((prev) => prev.map((s) => { if (s.id !== order.storeId) return s; const reviews = [...(s.reviews || []), { id: "r" + Math.random().toString(36).slice(2, 7), customer: "أنت", authorRole: "زبون", stars, comment, date: "الآن", verified: false }]; return { ...s, reviews }; }));
@@ -1355,7 +1213,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                 {deliveryChoice === "courier" && quoteLoading && <p className="text-xs mb-3" style={{ color: C.inkSoft }}>جارٍ احتساب رسوم التوصيل من الخادم…</p>}
                 {deliveryChoice === "courier" && deliveryQuote && <div className="mb-3 p-3 rounded-xl text-xs" style={{ background: C.teal + "0F", border: `1px solid ${C.teal}30`, color: C.ink }}><div className="font-bold" style={{ color: C.teal }}>تسعير محسوب من الخادم</div><div className="mt-1">المسافة التقديرية: {Number(deliveryQuote.distanceKm || 0).toFixed(1)} كم · الوصول المتوقع: {deliveryQuote.etaMinutes || "—"} دقيقة{deliveryQuote.isInterwilaya ? " · توصيل بين الولايات" : ""}</div></div>}
                 {deliveryChoice === "courier" && quoteError && <p className="text-xs font-bold mb-3" style={{ color: "#8B3A2A" }}>{quoteError}</p>}
-                {requiresPhoneVerification && <div className="mb-3 p-3 rounded-xl" style={{ background: C.ochre + "16", border: `1px solid ${C.ochre}40` }}><div className="flex items-center justify-between gap-2"><div className="text-xs font-black" style={{ color: "#8A6318" }}>تحقق الهاتف مطلوب لهذا الطلب</div><span className="text-[10px] font-black px-2 py-1 rounded-full" style={{ background: "#fff", color: C.ochre }}>وضع تجريبي</span></div><p className="text-[11px] mt-1 leading-5" style={{ color: C.inkSoft }}>سيصلك رمز التحقق عبر تطبيق واتساب/فايبر عند تفعيل القنوات لاحقاً. حالياً لا يُرسل رمز حقيقي؛ نستعمل تأكيداً تجريبياً واضحاً كي لا يتعطل طلبك.</p><div className="flex gap-2 mt-2"><input value={mockPhone} onChange={(e) => { setMockPhone(e.target.value); setPhoneVerified(false); setOtpStatus(""); }} inputMode="tel" placeholder="رقم الهاتف" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /><button disabled={phoneVerified} onClick={() => verifyMockPhone("mock_otp")} className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-50" style={{ background: C.ochre, color: "#fff" }}>{phoneVerified ? "تم التحقق" : "تأكيد الرمز التجريبي"}</button></div><div className="flex flex-wrap gap-2 mt-2"><button disabled={otpSending || otpCooldown > 0} onClick={() => requestOtp("whatsapp")} className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg disabled:opacity-50" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}55` }}>{otpSending ? "جارٍ تجهيز التحقق…" : otpCooldown ? `إعادة الإرسال بعد ${otpCooldown}ث` : "إرسال عبر WhatsApp"}</button><button disabled={otpSending || otpCooldown > 0} onClick={() => requestOtp("viber")} className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg disabled:opacity-50" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}55` }}>التحويل إلى Viber</button><a href="mailto:support@souqjiran.dz?subject=OTP%20support" className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.line}` }}>لم يصلك الرمز؟ تواصل مع الدعم</a></div>{otpStatus && <p className="text-[11px] mt-2" role="status" style={{ color: C.inkSoft }}>{otpStatus}</p>}</div>}
+                {requiresVerifiedEmail && <div className="mb-3 p-3 rounded-xl" style={{ background: C.teal + "12", border: `1px solid ${C.teal}35` }}><div className="text-xs font-black" style={{ color: C.teal }}>تأكيد الحساب عبر البريد الإلكتروني</div><p className="text-[11px] mt-1 leading-5" style={{ color: C.inkSoft }}>{emailVerified ? "هذا الحساب موثّق ببريد إلكتروني. يمكنك متابعة الطلب." : "سجّل الدخول وأكمل رمز البريد الإلكتروني قبل متابعة هذا الطلب."}</p></div>}
 
                 <div className="flex gap-2 mb-3"><input value={promoInput} onChange={(e) => setPromoInput(e.target.value)} placeholder="أدخل كود الخصم" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /><button onClick={applyPromo} className="px-4 py-2 rounded-xl text-xs font-bold" style={{ background: C.ochre, color: "#fff" }}>تطبيق</button></div>
                 {appliedPromo && <p className="text-xs font-bold mb-3 flex items-center gap-1" style={{ color: C.sage }}><Tag size={12} /> تم تطبيق خصم {appliedPromo.discount}% ({appliedPromo.code})</p>}
@@ -1371,7 +1229,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                   <div className="flex items-center justify-between pt-1"><span className="font-bold text-sm" style={{ color: C.ink }}>يُدفع نقداً عند الاستلام</span><PriceTag amount={finalTotal} size="lg" /></div>
                 </div>
                 {belowMinOrder && <p className="text-xs font-bold mb-3" style={{ color: "#8B3A2A" }}>الحد الأدنى للطلب من هذا المحل هو {money(cartStore.minOrder)}.</p>}
-                <button disabled={belowMinOrder || quoteLoading || (deliveryChoice === "courier" && (!cart.address?.wilaya || !cart.address?.commune || !cart.address?.label || !deliveryQuote || (requiresPhoneVerification && !phoneVerified)))} onClick={async () => { const ok = await placeOrder(cartStore, appliedPromo, discountAmount, cart.address, deliveryChoice, deliveryFee, appliedReward?.code); if (!ok) return; setAppliedPromo(null); setAppliedReward(null); setPromoInput(""); setRewardCouponInput(""); setShowCart(false); setTab("orders"); setDeliveryChoice("pickup"); setDeliveryChoice("pickup"); setDeliveryQuote(null); setPhoneVerified(false); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>تأكيد الطلب (دفع نقدي)</button>
+                <button disabled={belowMinOrder || quoteLoading || (deliveryChoice === "courier" && (!cart.address?.wilaya || !cart.address?.commune || !cart.address?.label || !deliveryQuote || (requiresVerifiedEmail && !emailVerified)))} onClick={async () => { const ok = await placeOrder(cartStore, appliedPromo, discountAmount, cart.address, deliveryChoice, deliveryFee, appliedReward?.code); if (!ok) return; setAppliedPromo(null); setAppliedReward(null); setPromoInput(""); setRewardCouponInput(""); setShowCart(false); setTab("orders"); setDeliveryChoice("pickup"); setDeliveryChoice("pickup"); setDeliveryQuote(null); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>تأكيد الطلب (دفع نقدي)</button>
               </>
             )}
           </div>
@@ -1436,36 +1294,15 @@ function MerchantQrPoster({ store, notify }) {
   </section>;
 }
 
-function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId, setMyStoreId, notify, registerMerchant, createProduct, createBulkProducts, removeProductRemote, setProductAvailability, setMerchantOrderStatus, merchantConfirmSettlement, reportCustomerAccount, archiveOrder, archiveMessage, userId }) {
+function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId, setMyStoreId, notify, onStartMerchantRegistration, createProduct, createBulkProducts, removeProductRemote, setProductAvailability, setMerchantOrderStatus, merchantConfirmSettlement, reportCustomerAccount, archiveOrder, archiveMessage, userId }) {
   const myStore = stores.find((s) => s.id === myStoreId);
-  const [merchantMode, setMerchantMode] = useState("select");
-  const [form, setForm] = useState({ name: "", contact: "", phone: "", password: "", wilaya: "", commune: "", lat: 50, lng: 50 });
   const [stage2, setStage2] = useState({ open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: true, deliveryCommunes: [], logoText: "", logoColor: C.teal, ccp: "", idDocName: "" });
-  const [authError, setAuthError] = useState("");
   const [tab, setTab] = useState("products");
   const [newProduct, setNewProduct] = useState({ name: "", price: "", unit: "الوحدة", department: "pantry" });
-  const [showMapPicker, setShowMapPicker] = useState(false);
   const [invoiceOrder, setInvoiceOrder] = useState(null);
   const [showBulkImport, setShowBulkImport] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const contactIdentity = parseLoginIdentifier(form.contact);
 
   function updateStore(patch) { setStores((prev) => prev.map((s) => (s.id === myStoreId ? { ...s, ...patch } : s))); }
-
-  async function registerStore() {
-    if (!form.name || !form.wilaya || !form.commune) { notify("يرجى إدخال اسم المحل والولاية والبلدية"); return; }
-    if (!contactIdentity) { setAuthError("أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07."); return; }
-    const operationalPhone = contactIdentity.phone || normalizeAlgerianMobile(form.phone);
-    if (!operationalPhone) { setAuthError("أدخل رقم هاتف محمول جزائرياً للتواصل يبدأ بـ 05 أو 06 أو 07."); return; }
-    if (form.password.length < 6) { setAuthError("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); return; }
-    setAuthError("");
-    setIsSubmitting(true);
-    const result = await registerMerchant({ ...form, phone: operationalPhone, phoneMockVerified: Boolean(operationalPhone) });
-    setIsSubmitting(false);
-    if (result?.error) { setAuthError(result.error); return; }
-    setMyStoreId(result.id);
-    notify(result?.notice || "تم إرسال طلب التسجيل الأولي، بانتظار الموافقة المبدئية من المشرف");
-  }
 
   function completeProfile() {
     if (!stage2.logoText) { notify("أدخل حرفين على الأقل لشعار محلك"); return; }
@@ -1496,28 +1333,11 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
 
   if (!myStore) {
     return (
-      <div className="max-w-md mx-auto space-y-4">
-        <div className="flex gap-2 p-1 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
-          <button onClick={() => setMerchantMode("select")} className="flex-1 px-3 py-2 rounded-xl text-sm font-bold" style={{ background: merchantMode === "select" ? C.teal : "transparent", color: merchantMode === "select" ? "#fff" : C.inkSoft }}>إدارة محل موجود</button>
-          <button onClick={() => setMerchantMode("register")} className="flex-1 px-3 py-2 rounded-xl text-sm font-bold" style={{ background: merchantMode === "register" ? C.teal : "transparent", color: merchantMode === "register" ? "#fff" : C.inkSoft }}>تسجيل محل جديد</button>
-        </div>
-        {merchantMode === "select" && (<div className="p-5 rounded-2xl space-y-3" style={{ background: "#fff", border: `1px solid ${C.line}` }}><h3 className="font-black text-lg" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>اختر محلك للتجربة</h3><div className="space-y-2">{stores.map((s) => (<button key={s.id} onClick={() => setMyStoreId(s.id)} className="w-full flex items-center justify-between p-3 rounded-xl text-right" style={{ border: `1px solid ${C.line}` }}><div className="flex items-center gap-2.5"><StoreAvatar logo={s.logo} size={32} /><div><div className="text-sm font-bold" style={{ color: C.ink }}>{s.name}</div><div className="text-xs" style={{ color: C.inkSoft }}>{s.wilaya} · {s.commune}</div></div></div><span className="text-xs font-bold px-2 py-0.5 rounded-full shrink-0" style={{ background: STORE_STATUS[s.status].color + "25", color: STORE_STATUS[s.status].color }}>{STORE_STATUS[s.status].label}</span></button>))}</div></div>)}
-        {merchantMode === "register" && (
-          <div className="p-6 rounded-2xl space-y-4" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
-            <h3 className="font-black text-lg" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>سجّل محلك — المرحلة 1</h3>
-            <input placeholder="اسم السوبر ماركت" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input data-testid="merchant-identifier-input" placeholder="رقم الهاتف أو البريد الإلكتروني" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value, mockOtpCode: "" })} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode={form.contact.includes("@") ? "email" : "tel"} /></div>
-            {!usesPhoneIdentity && <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input placeholder="رقم الهاتف للتواصل (05/06/07)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="flex-1 outline-none text-sm bg-transparent" inputMode="tel" /></div>}
-            {usesPhoneIdentity && <div className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-[11px] font-bold" style={{ color: C.ink }}>تأكيد الهاتف في وضع OTP التجريبي. الرمز: 123456</p><input aria-label="رمز OTP التجريبي للتاجر" value={form.mockOtpCode} onChange={(e) => setForm({ ...form, mockOtpCode: e.target.value.replace(/\D/g, "").slice(0, 6) })} placeholder="رمز OTP التجريبي" inputMode="numeric" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /></div>}
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Lock size={15} color={C.inkSoft} /><input type="password" placeholder="كلمة المرور (4 أحرف على الأقل)" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" /></div>
-            <WilayaCommuneSelect wilaya={form.wilaya} commune={form.commune} onChange={({ wilaya, commune }) => setForm({ ...form, wilaya, commune })} />
-            <div><div className="flex items-center justify-between mb-1.5"><span className="text-xs font-bold flex items-center gap-1" style={{ color: C.ink }}><MapPin size={13} /> موقع المحل</span><button type="button" onClick={() => setShowMapPicker(true)} className="text-xs font-bold" style={{ color: C.teal }}>تحديد / تعديل</button></div><MapPreview x={form.lng} y={form.lat} height={70} /></div>
-            {authError && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{authError}</p>}
-            <button disabled={isSubmitting} onClick={registerStore} className="w-full py-3 rounded-xl font-black disabled:opacity-50" style={{ background: C.teal, color: "#fff" }}>{isSubmitting ? "جارٍ إنشاء الحساب..." : "إرسال طلب التسجيل"}</button>
-            <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>يمكنك الدخول برقم الهاتف أو البريد الإلكتروني؛ OTP تجريبي حتى تهيئة خدمة رسائل فعلية.</p>
-            {showMapPicker && <MapPicker title="حدد موقع محلك" initial={{ x: form.lng, y: form.lat }} onConfirm={(pos) => setForm((f) => ({ ...f, lat: pos.y, lng: pos.x }))} onClose={() => setShowMapPicker(false)} />}
-          </div>
-        )}
+      <div className="max-w-md mx-auto p-6 rounded-2xl space-y-4 text-center" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+        <Store size={32} color={C.rust} style={{ margin: "0 auto" }} />
+        <h3 className="font-black text-lg" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>لا يوجد محل مرتبط بهذا الحساب</h3>
+        <p className="text-sm leading-6" style={{ color: C.inkSoft }}>سجّل بيانات محلك، ثم وثّق بريدك برمز من Supabase قبل إنشاء طلب الانضمام. لا توجد حسابات أو بيانات تجريبية في هذه البوابة.</p>
+        <button onClick={onStartMerchantRegistration} className="w-full py-3 rounded-xl font-black" style={{ background: C.rust, color: "#fff" }}>إرسال طلب انضمام كتاجر</button>
       </div>
     );
   }
@@ -1887,7 +1707,7 @@ function CourierHoursEditor({ courier, onSave }) {
 /* ===========================================================
    ADMIN VIEW
 =========================================================== */
-function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], archiveNotifications = [], orderNotifications = [], mockMessages = [], archiveAlertSettings, testAccountCandidates = [], testAccountReviewAuditLogs = [], customerReports = [], customerBlacklist = [], deliveryPricing, referralAnalytics = { totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0, redeemedValue: 0 }, notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently, deleteTestAccount, markArchiveNotificationRead, markOrderNotificationRead, markAllOrderNotificationsRead, saveArchiveAlertSettings, setCustomerBlacklist, saveDeliveryPricing }) {
+function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], archiveNotifications = [], orderNotifications = [], archiveAlertSettings, testAccountCandidates = [], testAccountReviewAuditLogs = [], customerReports = [], customerBlacklist = [], deliveryPricing, referralAnalytics = { totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0, redeemedValue: 0 }, notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently, deleteTestAccount, markArchiveNotificationRead, markOrderNotificationRead, markAllOrderNotificationsRead, saveArchiveAlertSettings, setCustomerBlacklist, saveDeliveryPricing }) {
   const pendingReview = stores.filter((s) => s.status === "pending_review");
   const awaitingProfile = stores.filter((s) => s.status === "awaiting_profile");
   const approved = stores.filter((s) => s.status === "approved");
@@ -2003,13 +1823,6 @@ function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], 
         <div className="pt-3" style={{ borderTop: `1px solid ${C.line}` }}><h4 className="font-black text-sm" style={{ color: C.ink }}>الحسابات المحظورة</h4><div className="space-y-2 mt-2">{customerBlacklist.filter((entry) => !entry.revokedAt).map((entry) => <div key={entry.customerId} className="p-3 rounded-xl flex items-center justify-between gap-3" style={{ background: C.rust + "10" }}><div><p className="text-xs font-bold" style={{ color: C.ink }}>{entry.reason}</p><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>معرّف العميل: {entry.customerId.slice(0, 8)}</p></div><button onClick={() => setCustomerBlacklist(entry.customerId, entry.reason, false)} className="text-xs px-2.5 py-1.5 rounded-lg font-bold" style={{ border: `1px solid ${C.rust}`, color: C.rust }}>رفع الحظر</button></div>)}{customerBlacklist.filter((entry) => !entry.revokedAt).length === 0 && <p className="text-xs py-2" style={{ color: C.inkSoft }}>لا توجد حسابات محظورة حالياً.</p>}</div></div>
       </section>
 
-      <section className="p-4 sm:p-5 rounded-2xl space-y-3" style={{ background: "linear-gradient(135deg, #FFFFFF 0%, #EEF0FF 100%)", border: `1px solid ${C.teal}30` }} data-testid="admin-mock-messaging-panel">
-        <div className="flex items-start justify-between gap-3 flex-wrap"><div className="flex items-start gap-3"><span className="flex items-center justify-center rounded-xl shrink-0" style={{ width: 40, height: 40, background: C.teal, color: "#fff" }}><MessageCircle size={19} /></span><div><h3 className="font-black" style={{ color: C.ink }}>قنوات الرسائل والأتمتة</h3><p className="text-xs mt-1 leading-5" style={{ color: C.inkSoft }}>وضع الاختبار مفعل: تُحاكى رسائل WhatsApp وViber وسجلها هنا، ولا تُرسل أي رسالة خارج التطبيق.</p></div></div><span className="text-[11px] font-black px-2.5 py-1 rounded-full" style={{ background: C.ochre + "20", color: C.ochre }}>Mock Mode</span></div>
-        <div className="grid sm:grid-cols-3 gap-2 text-xs"><div className="p-3 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><p className="font-black" style={{ color: C.ink }}>WhatsApp Business</p><p className="mt-1" style={{ color: C.inkSoft }}>جاهز للمفتاح لاحقاً</p></div><div className="p-3 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><p className="font-black" style={{ color: C.ink }}>Viber Bot</p><p className="mt-1" style={{ color: C.inkSoft }}>جاهز للمفتاح لاحقاً</p></div><div className="p-3 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><p className="font-black" style={{ color: C.ink }}>CallMeBot</p><p className="mt-1" style={{ color: C.inkSoft }}>اختياري للتجارب فقط</p></div></div>
-        <p className="text-[11px]" style={{ color: C.inkSoft }}>عند جاهزية مفاتيح القناة، سيُفعّلها المشرف من الإعدادات الآمنة. لا تحفظ المفاتيح في هذه الشاشة أو في window.storage.</p>
-        <div className="space-y-2">{mockMessages.length === 0 && <p className="text-xs py-3 text-center rounded-xl" style={{ color: C.inkSoft, background: "rgba(255,255,255,.72)", border: `1px dashed ${C.line}` }}>لم تُحاكَ رسائل بعد. أرسل طلباً تجريبياً لتظهر أحداث الرسائل هنا.</p>}{mockMessages.slice(0, 12).map((message) => <div key={message.id} className="p-3 rounded-xl flex items-start justify-between gap-3" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="min-w-0"><p className="text-xs font-black" style={{ color: C.ink }}>{message.recipient} · {message.channel}</p><p className="text-xs mt-1 leading-5" style={{ color: C.inkSoft }}>{message.body}</p></div><span className="text-[10px] shrink-0" style={{ color: C.inkSoft }}>{message.createdAt}</span></div>)}</div>
-      </section>
-
       <section className="p-4 sm:p-5 rounded-2xl space-y-3" style={{ background: "linear-gradient(135deg, #FFFFFF 0%, #F5F3FF 100%)", border: `1px solid ${C.purple}35` }} data-testid="admin-order-notifications-panel">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="flex items-start gap-3"><span className="flex items-center justify-center rounded-xl shrink-0" style={{ width: 40, height: 40, background: C.purple, color: "#fff" }}><Bell size={19} /></span><div><h3 className="font-black flex items-center gap-2" style={{ color: C.ink }}>إشعارات الطلبات <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: unreadOrderNotificationsCount ? C.rust : C.paperDark, color: unreadOrderNotificationsCount ? "#fff" : C.inkSoft }}>{unreadOrderNotificationsCount} غير مقروء</span></h3><p className="text-xs mt-1" style={{ color: C.inkSoft }}>تظهر هنا فوراً الطلبات الجديدة والطلبات المسلّمة مع المبلغ الإجمالي.</p></div></div>
@@ -2121,7 +1934,6 @@ const STORAGE = {
   cart: { key: "souq-jiran:cart:v4", shared: false },
   myStoreId: { key: "souq-jiran:my-store-id:v4", shared: false },
   notifications: { key: "souq-jiran:notifications:v4", shared: false },
-  mockMessaging: { key: "souq-jiran:mock-messaging:v1", shared: true },
 };
 async function loadKey({ key, shared }, fallback) {
   try {
@@ -2207,7 +2019,6 @@ export default function App() {
   const [customerReports, setCustomerReports] = useState([]);
   const [customerBlacklist, setCustomerBlacklist] = useState([]);
   const [deliveryPricing, setDeliveryPricing] = useState(null);
-  const [mockMessages, setMockMessages] = useState([]);
   const [referralCode, setReferralCode] = useState("");
   const [pendingReferralCode, setPendingReferralCode] = useState(() => new URLSearchParams(window.location.search).get("ref")?.trim().toUpperCase() || "");
   const [rewardCoupons, setRewardCoupons] = useState([]);
@@ -2221,10 +2032,10 @@ export default function App() {
   const [notifications, setNotifications] = useState([]);
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showCourierForm, setShowCourierForm] = useState(false);
   const [showMerchantForm, setShowMerchantForm] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
+  const [pendingProviderRegistration, setPendingProviderRegistration] = useState(null);
   const [authEntry, setAuthEntry] = useState({ type: "merchant", mode: "login" });
   const [showPhoneChange, setShowPhoneChange] = useState(false);
   const [adminLoginRequested, setAdminLoginRequested] = useState(false);
@@ -2237,25 +2048,19 @@ export default function App() {
   function notify(msg) { setToast(msg); setTimeout(() => setToast(""), 2400); }
   function pushNotification(message) { setNotifications((prev) => { const next = [{ id: "n" + Math.random().toString(36).slice(2, 7), message, time: new Date().toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" }), read: false }, ...prev].slice(0, 25); saveKey(STORAGE.notifications, next); return next; }); }
   function markAllRead() { setNotifications((prev) => { const next = prev.map((n) => ({ ...n, read: true })); saveKey(STORAGE.notifications, next); return next; }); }
-  function recordMockMessage({ recipient, body, orderId = null, channel = "WhatsApp/Viber (تجريبي)" }) {
-    const entry = { id: `mock-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, recipient, body, orderId, channel, createdAt: new Date().toLocaleString("ar-DZ", { dateStyle: "short", timeStyle: "short" }) };
-    setMockMessages((previous) => { const next = [entry, ...previous].slice(0, 80); saveKey(STORAGE.mockMessaging, next); return next; });
-    if ((recipient === "العميل" && auth?.type === "customer") || (recipient === "التاجر" && auth?.type === "merchant") || (recipient === "الموصل" && auth?.type === "courier")) pushNotification(`[تجريبي] ${body}`);
-  }
-
   useEffect(() => {
     let cancelled = false;
     // يطلب Android الإذن مرة واحدة فقط لكل تثبيت. لا نربط الرمز بحساب قبل
     // وجود جلسة، ثم تعيد syncNativeFcmToken قراءته وحفظه بعد تسجيل الدخول.
     void requestNativeFcmToken().catch(() => null);
     (async () => {
-      const [loadedCart, loadedMyStoreId, loadedNotifications, loadedMockMessages] = await Promise.all([
-        loadKey(STORAGE.cart, { storeId: null, items: [], address: null }), loadKey(STORAGE.myStoreId, null), loadKey(STORAGE.notifications, []), loadKey(STORAGE.mockMessaging, []),
+      const [loadedCart, loadedMyStoreId, loadedNotifications] = await Promise.all([
+        loadKey(STORAGE.cart, { storeId: null, items: [], address: null }), loadKey(STORAGE.myStoreId, null), loadKey(STORAGE.notifications, []),
       ]);
       if (cancelled) return;
       setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]);
       setAccounts([]); setAuth(null); setReferralCode(""); setRewardCoupons([]); setReferralAnalytics({ totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0, redeemedValue: 0 });
-      setCart(loadedCart); setMyStoreId(loadedMyStoreId); setNotifications(loadedNotifications); setMockMessages(loadedMockMessages);
+      setCart(loadedCart); setMyStoreId(loadedMyStoreId); setNotifications(loadedNotifications);
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -2271,7 +2076,7 @@ export default function App() {
     // The metadata fallback keeps sign-in usable while the user applies schema.sql manually.
     const type = profile?.role || metadata.role || "customer";
     const phone = profile?.phone || metadata.phone || user.phone || "";
-    const email = metadata.contact_email || (user.email?.endsWith("@phone.souqjiran.local") ? "" : user.email) || "";
+    const email = metadata.contact_email || user.email || "";
     return {
       type,
       id: user.id,
@@ -2511,14 +2316,11 @@ export default function App() {
       else {
         const { error: couponError } = await supabase.rpc("redeem_reward_coupon", { p_order_id: createdOrder.data.id, p_coupon_code: rewardCouponCode });
         if (couponError) { notify("تم إنشاء الطلب، لكن لم تُطبّق القسيمة: " + couponError.message); }
-        else recordMockMessage({ recipient: "العميل", orderId: createdOrder.data.id, body: `تم تطبيق قسيمة المكافأة ${rewardCouponCode} على طلبك التجريبي.` });
+        else notify(`تم تطبيق قسيمة المكافأة ${rewardCouponCode} على طلبك.`);
       }
     }
     persistentSetCart({ storeId: null, items: [], address: null });
     await refreshSupabaseData();
-    recordMockMessage({ recipient: "التاجر", body: `طلب جديد من العميل بانتظار المراجعة لدى ${store.name}.` });
-    const needsMockOtp = deliveryType === "courier" && (cart.items.reduce((total, item) => total + Number(item.price || 0) * Number(item.qty || 0), 0) >= 10000 || Boolean(address?.wilaya && store.wilaya && address.wilaya !== store.wilaya));
-    if (needsMockOtp) recordMockMessage({ recipient: "العميل", body: "رمز OTP تجريبي: 123456 لتأكيد طلب التوصيل. لا تُرسل رسالة فعلية في وضع الاختبار." });
     notify("تم إرسال طلبك — الدفع نقداً عند الاستلام");
     return true;
   }
@@ -2528,8 +2330,7 @@ export default function App() {
     const normalized = String(code || "").trim().toUpperCase();
     if (!normalized) { if (!silent) notify("أدخل كود دعوة صحيحاً."); return false; }
     const { error } = await supabase.rpc("claim_customer_referral", { p_referral_code: normalized });
-    if (error) { if (!silent) notify(error.message?.includes("PHONE_VERIFICATION_REQUIRED") ? "أكّد رقم هاتفك أولاً؛ سنربط الدعوة تلقائياً فور نجاح التحقق." : "تعذر تفعيل الدعوة: " + error.message); return false; }
-    recordMockMessage({ recipient: "العميل", body: `تم تفعيل كود الدعوة ${normalized}. ستُمنح المكافآت بعد أول طلب مكتمل.` });
+    if (error) { if (!silent) notify(error.message?.includes("PHONE_VERIFICATION_REQUIRED") ? "أكّد بريدك الإلكتروني أولاً، ثم أعد المحاولة." : "تعذر تفعيل الدعوة: " + error.message); return false; }
     await refreshSupabaseData("customer");
     if (!silent) notify("تم تفعيل الدعوة بنجاح.");
     return true;
@@ -2570,9 +2371,6 @@ export default function App() {
     const { error } = await supabase.rpc("set_merchant_order_status", { p_order_id: orderId, p_status: status });
     if (error) { notify("تعذر تحديث الطلب: " + error.message); return false; }
     await refreshSupabaseData();
-    const order = orders.find((item) => item.id === orderId);
-    if (status === "ready") recordMockMessage({ recipient: "الموصل", orderId, body: `طلب ${order?.storeName || "محل الحي"} أصبح جاهزاً للاستلام${order?.isInterwilaya ? ` لمسار ${order.originWilaya || "المصدر"} إلى ${order.destinationWilaya || "الوجهة"}` : ""}.` });
-    else recordMockMessage({ recipient: "العميل", orderId, body: `تم تحديث طلبك من ${order?.storeName || "محل الحي"} إلى «${STATUS_MAP[status]?.label || status}».` });
     return true;
   }
 
@@ -2580,9 +2378,6 @@ export default function App() {
     const { error } = await supabase.rpc("claim_ready_order", { p_order_id: orderId });
     if (error) { notify("تعذر قبول الطلب: " + error.message); return false; }
     await refreshSupabaseData();
-    const order = orders.find((item) => item.id === orderId);
-    recordMockMessage({ recipient: "التاجر", orderId, body: `تم إسناد طلب ${order?.storeName || "محل الحي"} إلى موصل معتمد.` });
-    recordMockMessage({ recipient: "العميل", orderId, body: "تم إسناد طلبك إلى موصل. لن تظهر بيانات الموصل حفاظاً على الخصوصية." });
     notify("تم قبول الطلب — توجه إلى المحل لاستلامه");
     return true;
   }
@@ -2599,17 +2394,6 @@ export default function App() {
     const { error } = await supabase.rpc(rpcName, { p_order_id: orderId });
     if (error) { notify("تعذر تحديث مرحلة الطلب: " + error.message); return false; }
     await refreshSupabaseData();
-    const order = orders.find((item) => item.id === orderId);
-    const messagesByAction = {
-      courier_confirm_pickup: { recipient: "العميل", body: "استلم الموصل طلبك من المحل رسمياً." },
-      courier_start_delivery: { recipient: "العميل", body: "طلبك في الطريق إليك الآن." },
-      courier_confirm_delivery: { recipient: "العميل", body: "تم تسجيل التسليم. يرجى تأكيد الاستلام والدفع من التطبيق." },
-      customer_confirm_delivery: { recipient: "الموصل", body: "أكد العميل الاستلام والدفع. يمكنك تحويل مستحقات التاجر." },
-      courier_confirm_remittance: { recipient: "التاجر", body: "أكد الموصل تحويل مستحقات طلبك. يرجى تأكيد الاستلام لإغلاق الدورة." },
-      merchant_confirm_settlement: { recipient: "العميل", body: "اكتملت تسوية طلبك بنجاح. شكراً لاستخدام سوق الجيران." },
-    };
-    const message = messagesByAction[rpcName];
-    if (message) recordMockMessage({ ...message, orderId, body: `${message.body}${order?.storeName ? ` (${order.storeName})` : ""}` });
     notify(successMessage);
     return true;
   }
@@ -2626,29 +2410,6 @@ export default function App() {
     if (error) return { ok: false, message: error.message };
     const quote = Array.isArray(data) ? data[0] : data;
     return { ok: Boolean(quote), quote: quote ? { fee: Number(quote.fee || 0), distanceKm: Number(quote.distance_km || 0), etaMinutes: quote.eta_minutes, isInterwilaya: Boolean(quote.is_interwilaya) } : null };
-  }
-
-  async function confirmCustomerPhoneVerification(phone, method = "mock_otp") {
-    const { error } = await supabase.rpc("confirm_customer_phone_verification", { p_phone: phone, p_method: method });
-    if (error) { notify("تعذر حفظ التحقق التجريبي: " + error.message); return false; }
-    recordMockMessage({ recipient: "العميل", channel: "OTP تجريبي", body: `تم تسجيل تأكيد الرقم عبر ${method}. لم يُرسل رمز فعلي.` });
-    if (pendingReferralCode) {
-      const joined = await claimCustomerReferral(pendingReferralCode, true);
-      if (joined) setPendingReferralCode("");
-    }
-    notify("تم تسجيل التحقق في الوضع التجريبي؛ لم يُرسل OTP فعلي.");
-    return true;
-  }
-
-  async function requestCustomerPhoneVerification(phone, channel = "whatsapp") {
-    const { data, error } = await supabase.rpc("request_customer_phone_verification", { p_phone: phone, p_channel: channel });
-    if (error) {
-      const cooldown = /OTP_RESEND_COOLDOWN:(\d+)/.exec(error.message || "")?.[1];
-      return { ok: false, message: cooldown ? `انتظر ${cooldown} ثانية قبل إعادة الإرسال.` : error.message || "تعذر تجهيز التحقق.", retryAfter: cooldown ? Number(cooldown) : 0 };
-    }
-    const result = Array.isArray(data) ? data[0] : data;
-    recordMockMessage({ recipient: "العميل", channel: "OTP تجريبي", body: `طُلب التحقق عبر ${channel === "whatsapp" ? "WhatsApp" : channel === "viber" ? "Viber" : "وضع الاختبار"}. تم تفعيل المسار البديل التجريبي دون إرسال خارجي.` });
-    return { ok: true, cooldownSeconds: Number(result?.cooldown_seconds || 60), message: result?.message || "تم تجهيز التحقق في وضع الاختبار." };
   }
 
   async function archiveOrderForCurrentUser(orderId) {
@@ -2780,48 +2541,6 @@ export default function App() {
     return true;
   }
 
-  async function createSupabaseAccount({ identifier, password, role: authRole, name, phone }) {
-    const credential = parseLoginIdentifier(identifier);
-    if (!credential) return { error: "أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07." };
-    const normalizedPhone = normalizeAlgerianMobile(phone) || credential.phone || "";
-    const { data: existing } = await supabase.auth.getSession();
-    if (existing.session) {
-      if (existing.session.user.email?.toLowerCase() !== credential.authEmail.toLowerCase()) {
-        return { error: "سجّل الخروج من حسابك الحالي قبل إنشاء حساب جديد." };
-      }
-      return { user: existing.session.user, session: existing.session, resumed: true };
-    }
-    const { data, error } = await supabase.auth.signUp({
-      email: credential.authEmail,
-      password,
-      options: { data: { role: authRole, name, phone: normalizedPhone, contact_email: credential.kind === "email" ? credential.email : "", login_identifier_type: credential.kind } },
-    });
-    if (error) return { error: error.message };
-    if (!data.user) return { error: "تعذر إنشاء الحساب. حاول مجدداً." };
-    if (data.user.identities?.length === 0) return { error: "هذه الهوية مسجلة بالفعل. سجّل الدخول لإكمال ملفك." };
-    if (!data.session) {
-      return { user: data.user, notice: "تم إنشاء الحساب. تحقق من بريدك الإلكتروني لتأكيده، ثم سجّل الدخول." };
-    }
-    return { user: data.user, session: data.session };
-  }
-
-  async function linkVerifiedFirebasePhone(firebasePhoneVerification, challenge = null) {
-    const verifiedPhone = normalizeAlgerianMobile(firebasePhoneVerification?.phoneNumber);
-    if (!firebasePhoneVerification?.firebaseUid || !verifiedPhone) {
-      return { warning: "تعذر التحقق من رقم Firebase الموثق." };
-    }
-    let phoneChallenge = challenge;
-    if (!phoneChallenge) {
-      const { data, error } = await supabase.rpc("request_my_firebase_phone_link", { p_phone: verifiedPhone });
-      if (error?.code === "42883") return { warning: "يلزم تطبيق ترحيل 20260830_secure_firebase_phone_link.sql لتأمين ربط الهاتف عبر Firebase." };
-      if (error) return { warning: "تعذر تجهيز الربط الآمن للهاتف: " + error.message };
-      phoneChallenge = data;
-    }
-    const { error } = await firebaseSupabase.rpc("confirm_my_firebase_phone_link", { p_challenge: phoneChallenge });
-    if (error) return { warning: "تم إثبات ملكية الهاتف عبر Firebase، لكن تعذر ربطه بالملف بأمان: " + error.message };
-    return {};
-  }
-
   async function ensureSupabaseProfile({ user, role: profileRole, name, phone }) {
     const { data: existing, error: lookupError } = await supabase
       .from("profiles")
@@ -2857,77 +2576,66 @@ export default function App() {
     return {};
   }
 
-  async function authenticate({ mode, type, identifier, password, name = "", phone = "", firebasePhoneVerification = null }) {
+  async function authenticate({ mode, type, identifier, name = "", phone = "", verifiedSession = null }) {
     const credential = parseLoginIdentifier(identifier);
-    if (!credential) return { error: "أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07." };
+    if (!credential?.email) return { error: "التحقق والدخول متاحان عبر بريد إلكتروني صالح فقط." };
+    if (!verifiedSession?.user || verifiedSession.user.email?.toLowerCase() !== credential.email.toLowerCase()) {
+      return { error: "انتهت جلسة التحقق أو لا تطابق البريد المدخل. اطلب رمزاً جديداً." };
+    }
     if (mode === "register" && type === "admin") return { error: "إنشاء حسابات المشرفين متاح فقط عبر قاعدة البيانات." };
     if (mode === "register") {
       const normalizedPhone = normalizeAlgerianMobile(phone);
       if (type === "customer" && (!credential.email || !name.trim() || !normalizedPhone)) return { error: "الاسم والبريد الإلكتروني ورقم الهاتف حقول مطلوبة لإنشاء حساب العميل." };
       const accountName = name.trim() || credential.email?.split("@")[0] || credential.phone;
       const accountPhone = normalizedPhone || credential.phone || "";
-      const created = await createSupabaseAccount({ identifier: credential.value, password, role: type, name: accountName, phone: accountPhone });
-      if (created.error || created.notice) return created;
-      await applySupabaseSession(created.session);
-      const profile = await ensureSupabaseProfile({ user: created.user, role: type, name: accountName, phone: accountPhone });
+      const signedIn = await resolveSupabaseUser(verifiedSession.user);
+      if (signedIn.type && signedIn.type !== type) {
+        await supabase.auth.signOut();
+        return { error: "هذا البريد مرتبط بدور مختلف. اختر بوابة الحساب الصحيحة أو استخدم بريداً جديداً." };
+      }
+      await applySupabaseSession(verifiedSession);
+      const profile = await ensureSupabaseProfile({ user: verifiedSession.user, role: type, name: accountName, phone: accountPhone });
       if (profile.error) return profile;
       if (type === "courier") {
-        const courierRequest = await ensureCourierReviewRequest(created.user.id);
+        const courierRequest = await ensureCourierReviewRequest(verifiedSession.user.id);
         if (courierRequest.error) return courierRequest;
       }
-      const firebaseRecord = credential.kind === "phone" && firebasePhoneVerification ? await linkVerifiedFirebasePhone(firebasePhoneVerification) : {};
-      notify(firebaseRecord.warning || (type === "courier"
+      notify(type === "courier"
         ? "تم إنشاء حساب الموصل وإرسال طلبه إلى لوحة الإدارة للمراجعة."
-        : "تم إنشاء الحساب بنجاح. أكمل رسالة التأكيد الجاهزة لتسريع المراجعة."));
+        : "تم إنشاء الحساب والتحقق من بريدك الإلكتروني بنجاح.");
       return {};
     }
-    if (credential.kind === "phone" && !firebasePhoneVerification) return { error: "أكمل تحقق Firebase عبر رمز SMS قبل تسجيل الدخول بالهاتف." };
-    const { data, error } = await supabase.auth.signInWithPassword({ email: credential.authEmail, password });
-    if (error || !data.session) return { error: "تعذر تسجيل الدخول. تحقق من رقم الهاتف أو البريد الإلكتروني وكلمة المرور." };
-    const signedIn = await resolveSupabaseUser(data.session.user);
+    const signedIn = await resolveSupabaseUser(verifiedSession.user);
     if (signedIn.type !== type) {
       await supabase.auth.signOut();
       return { error: "نوع الحساب لا يطابق البوابة المحددة. اختر بوابة حسابك الصحيحة." };
     }
-    await applySupabaseSession(data.session);
-    const firebaseRecord = credential.kind === "phone" ? await linkVerifiedFirebasePhone(firebasePhoneVerification) : {};
-    if (firebaseRecord.warning) notify(firebaseRecord.warning);
+    await applySupabaseSession(verifiedSession);
     if (signedIn.profileUnavailable) notify("تم الدخول. أكمل تطبيق ملف الترحيل في Supabase لتفعيل ملفات الأدوار.");
     return {};
   }
 
   async function requestAccountRecovery({ identifier }) {
     const credential = parseLoginIdentifier(identifier);
-    if (!credential) return { error: "أدخل بريداً إلكترونياً صالحاً أو رقم هاتف جزائرياً يبدأ بـ 05 أو 06 أو 07." };
-    if (credential.kind === "email") {
-      const { error } = await supabase.auth.resetPasswordForEmail(credential.email, { redirectTo: window.location.origin });
-      if (error) return { error: "تعذر إرسال رابط الاستعادة. تحقق من البريد وحاول لاحقاً." };
-      return { notice: "إذا كان البريد مسجلاً، أُرسل رابط آمن لإعادة تعيين كلمة المرور إليه." };
-    }
-    const opened = await openAdminContactLink("account_recovery", credential.phone).catch(() => false);
-    return { notice: opened ? "فُتحت رسالة استعادة الحساب الجاهزة إلى الإدارة." : "تم تجهيز طلب استعادة آمن. تعذر فتح تطبيق الرسائل على هذا الجهاز حالياً." };
+    if (!credential || credential.kind !== "email") return { error: "أدخل البريد الإلكتروني المرتبط بحسابك لإرسال رمز دخول جديد." };
+    const { error } = await supabase.auth.signInWithOtp({
+      email: credential.email,
+      options: { shouldCreateUser: false },
+    });
+    if (error) return { error: "تعذر إرسال رمز الدخول. تحقق من البريد وحاول لاحقاً." };
+    return { notice: "إذا كان البريد مسجلاً، أُرسل رمز دخول جديد إليه. أدخله في نافذة الدخول لإكمال التحقق." };
   }
 
-  async function requestPhoneChange(phone) {
+  async function confirmPhoneChange({ phone }) {
     if (!auth?.id) return { error: "سجّل الدخول أولاً لتغيير رقم الهاتف." };
     const normalizedPhone = normalizeAlgerianMobile(phone);
     if (!normalizedPhone) return { error: "أدخل رقم هاتف محمول جزائرياً صحيحاً." };
-    const { data, error } = await supabase.rpc("request_my_firebase_phone_link", { p_phone: normalizedPhone });
-    if (error) return { error: "تعذر تجهيز طلب تغيير الرقم. طبّق الترحيل 20260830_secure_firebase_phone_link.sql في Supabase ثم حاول مجدداً." };
-    return { challenge: data };
-  }
-
-  async function confirmPhoneChange({ phone, firebasePhoneVerification, challenge }) {
-    if (!auth?.id) return { error: "سجّل الدخول أولاً لتغيير رقم الهاتف." };
-    const normalizedPhone = normalizeAlgerianMobile(phone);
-    if (!normalizedPhone || !firebasePhoneVerification?.firebaseUid || !challenge) return { error: "أكمل تحقق Firebase عبر رمز SMS قبل حفظ الرقم." };
-    if (firebasePhoneVerification.phoneNumber !== normalizedPhone) return { error: "رمز Firebase مرتبط برقم مختلف. أعد طلب رمز الرقم الجديد." };
-    const firebaseRecord = await linkVerifiedFirebasePhone(firebasePhoneVerification, challenge);
-    if (firebaseRecord.warning) return { error: firebaseRecord.warning };
+    const { error: profileError } = await supabase.from("profiles").update({ phone: normalizedPhone }).eq("id", auth.id);
+    if (profileError) return { error: "تعذر تحديث رقم التواصل في ملفك: " + profileError.message };
     const { error: metadataError } = await supabase.auth.updateUser({ data: { phone: normalizedPhone } });
     if (metadataError) return { error: "تم تحديث الرقم في الملف، لكن تعذر مزامنة بيانات الجلسة. سجّل الخروج ثم ادخل مجدداً." };
     setAuth((current) => current ? { ...current, phone: normalizedPhone, identity: normalizedPhone } : current);
-    notify("تم تغيير رقم الهاتف بعد تحقق Firebase.");
+    notify("تم تغيير رقم التواصل ضمن جلسة بريد إلكتروني موثقة.");
     return {};
   }
 
@@ -2935,12 +2643,15 @@ export default function App() {
     const credential = parseLoginIdentifier(form.email);
     const phone = normalizeAlgerianMobile(form.phone);
     if (!credential?.email || !phone) return { error: "أدخل بريداً إلكترونياً ورقم هاتف جزائرياً صالحين في الحقلين المخصصين." };
-    const created = await createSupabaseAccount({ identifier: credential.value, password: form.password, role: "merchant", name: form.name, phone });
-    if (created.error || created.notice) return created;
-    const profile = await ensureSupabaseProfile({ user: created.user, role: "merchant", name: form.name, phone });
+    if (!form.verifiedSession?.user) { setPendingProviderRegistration({ type: "merchant", form }); return { pendingOtp: true }; }
+    if (form.verifiedSession.user.email?.toLowerCase() !== credential.email.toLowerCase()) return { error: "جلسة التحقق لا تطابق البريد المدخل. اطلب رمزاً جديداً." };
+    const { data: existingProfile, error: profileLookupError } = await supabase.from("profiles").select("role").eq("id", form.verifiedSession.user.id).maybeSingle();
+    if (profileLookupError) return { error: "تعذر التحقق من دور الحساب. حاول مرة أخرى بعد تسجيل الدخول." };
+    if (existingProfile?.role && existingProfile.role !== "merchant") return { error: "هذا البريد مرتبط بدور مختلف. استخدم بريداً آخر أو بوابة الحساب الصحيحة." };
+    const profile = await ensureSupabaseProfile({ user: form.verifiedSession.user, role: "merchant", name: form.ownerName || form.name, phone });
     if (profile.error) return profile;
     const merchant = {
-      id: created.user.id,
+      id: form.verifiedSession.user.id,
       store_name: form.name,
       wilaya: form.wilaya,
       commune: form.commune,
@@ -2954,25 +2665,28 @@ export default function App() {
     if (error) {
       return { error: "تعذر حفظ ملف المحل. بقي حساب الدخول صالحاً؛ طبّق ملف supabase/schema.sql ثم أرسل النموذج مجدداً لإكمال الملف." };
     }
-    const store = { id: created.user.id, name: form.name, phone, email: credential.email, wilaya: form.wilaya, commune: form.commune, address: "", lat: form.lat, lng: form.lng, distance: "—", status: "pending_review", rating: 0, open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: true, deliveryWilayas: form.deliveryWilayas || [form.wilaya], deliveryCommunes: form.deliveryCommunes || [], nationwideCoverage: Boolean(form.nationwideCoverage), approvedCourierIds: [], commissionType: "percentage", commissionRate: 10, subscriptionFee: 3000, duesPaid: 0, logo: { text: form.name.slice(0, 2), color: C.teal }, ccp: "", idDocName: "", products: [], reviews: [] };
+    const store = { id: form.verifiedSession.user.id, name: form.name, phone, email: credential.email, wilaya: form.wilaya, commune: form.commune, address: "", lat: form.lat, lng: form.lng, distance: "—", status: "pending_review", rating: 0, open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: true, deliveryWilayas: form.deliveryWilayas || [form.wilaya], deliveryCommunes: form.deliveryCommunes || [], nationwideCoverage: Boolean(form.nationwideCoverage), approvedCourierIds: [], commissionType: "percentage", commissionRate: 10, subscriptionFee: 3000, duesPaid: 0, logo: { text: form.name.slice(0, 2), color: C.teal }, ccp: "", idDocName: "", products: [], reviews: [] };
     persistentSetStores((prev) => [...prev.filter((item) => item.id !== store.id), store]);
-    await applySupabaseSession(created.session);
+    await applySupabaseSession(form.verifiedSession);
     setShowMerchantForm(false);
-    const contactOpened = await openAdminContactLink("membership_request", created.user.id).catch(() => false);
+    const contactOpened = await openAdminContactLink("membership_request", form.verifiedSession.user.id).catch(() => false);
     notify(contactOpened ? "تم حفظ طلب المحل وفتح رسالة التأكيد الجاهزة." : "تم إرسال طلب انضمام المحل، بانتظار موافقة المشرف.");
-    return { id: created.user.id };
+    return { id: form.verifiedSession.user.id };
   }
 
   async function registerCourier(form) {
     const credential = parseLoginIdentifier(form.email);
     const phone = normalizeAlgerianMobile(form.phone);
     if (!credential?.email || !phone) return { error: "أدخل بريداً إلكترونياً ورقم هاتف جزائرياً صالحين في الحقلين المخصصين." };
-    const created = await createSupabaseAccount({ identifier: credential.value, password: form.password, role: "courier", name: form.name, phone });
-    if (created.error || created.notice) return created;
-    const profile = await ensureSupabaseProfile({ user: created.user, role: "courier", name: form.name, phone });
+    if (!form.verifiedSession?.user) { setPendingProviderRegistration({ type: "courier", form }); return { pendingOtp: true }; }
+    if (form.verifiedSession.user.email?.toLowerCase() !== credential.email.toLowerCase()) return { error: "جلسة التحقق لا تطابق البريد المدخل. اطلب رمزاً جديداً." };
+    const { data: existingProfile, error: profileLookupError } = await supabase.from("profiles").select("role").eq("id", form.verifiedSession.user.id).maybeSingle();
+    if (profileLookupError) return { error: "تعذر التحقق من دور الحساب. حاول مرة أخرى بعد تسجيل الدخول." };
+    if (existingProfile?.role && existingProfile.role !== "courier") return { error: "هذا البريد مرتبط بدور مختلف. استخدم بريداً آخر أو بوابة الحساب الصحيحة." };
+    const profile = await ensureSupabaseProfile({ user: form.verifiedSession.user, role: "courier", name: form.name, phone });
     if (profile.error) return profile;
     const courier = {
-      id: created.user.id,
+      id: form.verifiedSession.user.id,
       vehicle: form.vehicle,
       wilaya: form.wilaya,
       communes: form.communes,
@@ -2983,7 +2697,7 @@ export default function App() {
       adjacent_wilayas: form.adjacentWilayas || [],
       status: "pending",
     };
-    let activeSession = created.session;
+    let activeSession = form.verifiedSession;
     let { error: courierError } = await supabase.from("couriers").insert(courier);
     // قد يصل حساب جديد بجلسة سابقة لإنشاء صفّ profiles في trigger، فتفشل سياسة RLS
     // مؤقتاً رغم صحة الدور. نجدد الجلسة مرة واحدة ثم نعيد محاولة الإدراج نفسه فقط.
@@ -2998,27 +2712,13 @@ export default function App() {
     if (courierError) {
       return { error: "تعذر حفظ ملف الموصل. بقي حساب الدخول صالحاً؛ طبّق ملف supabase/schema.sql ثم أرسل النموذج مجدداً لإكمال الملف." };
     }
-    const localCourier = { id: created.user.id, name: form.name, phone, email: credential.email, vehicle: form.vehicle, wilaya: form.wilaya, commune: form.commune || "", communes: form.communes, availability: form.useCustomHours ? [] : form.availability, customHours: form.useCustomHours ? { from: form.hoursFrom, to: form.hoursTo } : null, timeLabel: form.timeLabel || "", coverageLabel: form.coverageLabel || "", coverageLevel: form.deliveryScope || "local", adjacentWilayas: form.adjacentWilayas || [], storeMode: form.storeMode, selectedStoreIds: form.selectedStoreIds, status: "pending" };
+    const localCourier = { id: form.verifiedSession.user.id, name: form.name, phone, email: credential.email, vehicle: form.vehicle, wilaya: form.wilaya, commune: form.commune || "", communes: form.communes, availability: form.useCustomHours ? [] : form.availability, customHours: form.useCustomHours ? { from: form.hoursFrom, to: form.hoursTo } : null, timeLabel: form.timeLabel || "", coverageLabel: form.coverageLabel || "", coverageLevel: form.deliveryScope || "local", adjacentWilayas: form.adjacentWilayas || [], storeMode: form.storeMode, selectedStoreIds: form.selectedStoreIds, status: "pending" };
     persistentSetCouriers((prev) => [...prev.filter((item) => item.id !== localCourier.id), localCourier]);
     await applySupabaseSession(activeSession);
     setShowCourierForm(false);
-    const contactOpened = await openAdminContactLink("membership_request", created.user.id).catch(() => false);
+    const contactOpened = await openAdminContactLink("membership_request", form.verifiedSession.user.id).catch(() => false);
     notify(contactOpened ? "تم حفظ طلبك وفتح رسالة التأكيد الجاهزة." : "تم إرسال طلب انضمامك كموصل، بانتظار موافقة المشرف");
     return {};
-  }
-
-  function resetDemoData() {
-    persistentSetStores([...initialStores, pendingStoreSeed]);
-    persistentSetOrders(initialOrders);
-    persistentSetCouriers(initialCouriers);
-    setAuth(null); void supabase.auth.signOut();
-    persistentSetCart({ storeId: null, items: [], address: null });
-    persistentSetMyStoreId(null);
-    setNotifications([]); saveKey(STORAGE.notifications, []);
-    prevOrdersRef.current = initialOrders;
-    setShowResetConfirm(false);
-    setRole("customer");
-    notify("تمت إعادة ضبط البيانات");
   }
 
   async function signOut() {
@@ -3074,10 +2774,10 @@ export default function App() {
         {role !== "admin" && <p className="text-xs mt-3 mb-1 flex items-center gap-1.5 font-medium" style={{ color: C.inkSoft }}><PackageCheck size={13} color={C.sage} /> تُحفَظ بياناتك تلقائياً وتبقى الخصوصية تحت تحكمك.</p>}
 
         <div className="mt-4">
-          {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else setShowMerchantForm(true); }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} confirmCustomerPhoneVerification={confirmCustomerPhoneVerification} requestCustomerPhoneVerification={requestCustomerPhoneVerification} referralCode={referralCode} rewardCoupons={rewardCoupons} claimReferralCode={claimCustomerReferral} />)}
-          {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} registerMerchant={registerMerchant} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} merchantConfirmSettlement={merchantConfirmSettlement} reportCustomerAccount={reportCustomerAccount} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
+          {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else setShowMerchantForm(true); }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} referralCode={referralCode} rewardCoupons={rewardCoupons} claimReferralCode={claimCustomerReferral} />)}
+          {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} onStartMerchantRegistration={() => setShowMerchantForm(true)} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} merchantConfirmSettlement={merchantConfirmSettlement} reportCustomerAccount={reportCustomerAccount} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} messages={messages} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} courierConfirmPickup={courierConfirmPickup} courierStartDelivery={courierStartDelivery} courierConfirmDelivery={courierConfirmDelivery} courierConfirmRemittance={courierConfirmRemittance} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
-          {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} orderNotifications={adminOrderNotifications} mockMessages={mockMessages} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} customerReports={customerReports} customerBlacklist={customerBlacklist} deliveryPricing={deliveryPricing} referralAnalytics={referralAnalytics} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} markOrderNotificationRead={markOrderNotificationRead} markAllOrderNotificationsRead={markAllOrderNotificationsRead} saveArchiveAlertSettings={saveArchiveAlertSettings} setCustomerBlacklist={setCustomerBlacklistStatus} saveDeliveryPricing={saveDeliveryPricingConfig} />}
+          {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} orderNotifications={adminOrderNotifications} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} customerReports={customerReports} customerBlacklist={customerBlacklist} deliveryPricing={deliveryPricing} referralAnalytics={referralAnalytics} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} markOrderNotificationRead={markOrderNotificationRead} markAllOrderNotificationsRead={markAllOrderNotificationsRead} saveArchiveAlertSettings={saveArchiveAlertSettings} setCustomerBlacklist={setCustomerBlacklistStatus} saveDeliveryPricing={saveDeliveryPricingConfig} />}
         </div>
 
         {role === "customer" && !showRoleGuide && (
@@ -3103,11 +2803,11 @@ export default function App() {
 
       <Toast message={toast} />
 
-      {showResetConfirm && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(35,32,27,0.5)" }} onClick={() => setShowResetConfirm(false)}><div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-2xl p-5" style={{ background: C.paper }}><div className="flex items-center gap-2 mb-2"><AlertCircle size={20} color={C.rust} /><h3 className="font-black" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>تأكيد إعادة الضبط</h3></div><p className="text-sm mb-5" style={{ color: C.inkSoft }}>سيتم إرجاع كل البيانات إلى حالتها الافتراضية.</p><div className="flex gap-2"><button onClick={() => setShowResetConfirm(false)} className="flex-1 py-2.5 rounded-xl font-bold text-sm" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}>إلغاء</button><button onClick={resetDemoData} className="flex-1 py-2.5 rounded-xl font-black text-sm" style={{ background: C.rust, color: "#fff" }}>نعم، إعادة الضبط</button></div></div></div>)}
       {showCourierForm && <CourierRegisterModal stores={stores} onSubmit={registerCourier} onClose={() => setShowCourierForm(false)} />}
       {showMerchantForm && <MerchantRegisterModal onSubmit={registerMerchant} onClose={() => setShowMerchantForm(false)} />}
+      {pendingProviderRegistration && <ProviderEmailOtpModal registration={pendingProviderRegistration} onVerified={({ type, form, verifiedSession }) => type === "merchant" ? registerMerchant({ ...form, verifiedSession }) : registerCourier({ ...form, verifiedSession })} onClose={() => setPendingProviderRegistration(null)} />}
       {showAuth && <AuthModal authenticate={authenticate} requestAccountRecovery={requestAccountRecovery} adminOnly={adminLoginRequested} initialType={authEntry.type} initialMode={authEntry.mode} lockRole onClose={() => { setShowAuth(false); setAdminLoginRequested(false); setAuthEntry({ type: "merchant", mode: "login" }); }} />}
-      {showPhoneChange && <PhoneChangeModal currentPhone={auth?.phone} onRequest={requestPhoneChange} onConfirm={confirmPhoneChange} onClose={() => setShowPhoneChange(false)} />}
+      {showPhoneChange && <PhoneChangeModal currentPhone={auth?.phone} onConfirm={confirmPhoneChange} onClose={() => setShowPhoneChange(false)} />}
       {focusedOrderId && <OrderDetailsOverlay order={focusedOrder} onClose={() => setFocusedOrderId(null)} />}
       {role !== "admin" && <button aria-label="دخول الإدارة" onClick={() => { setAdminLoginRequested(true); setShowAuth(true); }} className="fixed top-1 right-1 h-2 w-2 rounded-full opacity-15 transition-opacity hover:opacity-70 focus:opacity-100" style={{ background: C.ink }} />}
     </div>

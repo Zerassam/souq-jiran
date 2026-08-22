@@ -5,28 +5,26 @@ import { describe, expect, it } from "vitest";
 const projectRoot = resolve(import.meta.dirname, "..");
 
 describe("Souq Jiran Supabase integration", () => {
-  it("uses Firebase SMS verification in the unified authentication modal instead of its former demo code", () => {
+  it("uses verified Supabase email OTP in the unified authentication modal without Firebase SMS or demo codes", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
     const authModalStart = appSource.indexOf("function AuthModal");
     const authModalEnd = appSource.indexOf("\nfunction ", authModalStart + 1);
     const authModalSource = appSource.slice(authModalStart, authModalEnd);
-    const firebaseSource = readFileSync(resolve(projectRoot, "client/src/lib/firebase.ts"), "utf8");
     const supabaseSource = readFileSync(resolve(projectRoot, "client/src/lib/supabase.ts"), "utf8");
 
-    expect(authModalSource).toContain("beginFirebasePhoneVerification");
-    expect(authModalSource).toContain("completeFirebasePhoneVerification");
-    expect(authModalSource).toContain("رمز SMS");
+    expect(authModalSource).toContain("supabase.auth.signInWithOtp");
+    expect(authModalSource).toContain("supabase.auth.verifyOtp");
+    expect(authModalSource).toContain('type: "email"');
+    expect(authModalSource).toContain("أدخل رمز التحقق الذي وصلك إلى بريدك الإلكتروني.");
+    expect(authModalSource).toContain("verifiedSession");
+    expect(authModalSource).not.toContain("beginFirebasePhoneVerification");
+    expect(authModalSource).not.toContain("completeFirebasePhoneVerification");
+    expect(authModalSource).not.toContain("رمز SMS");
     expect(authModalSource).not.toContain("mockOtpCode");
     expect(authModalSource).not.toContain('"123456"');
-    expect(firebaseSource).toContain("FirebaseAuthentication.signInWithPhoneNumber");
-    expect(firebaseSource).toContain("RecaptchaVerifier");
-    expect(firebaseSource).toContain("FirebaseAuthentication.confirmVerificationCode");
-    expect(supabaseSource).toContain("firebaseSupabase");
-    expect(supabaseSource).toContain("accessToken: async () => getFirebaseIdToken(false)");
-    expect(firebaseSource).toContain("clearFirebasePhoneVerification");
-    expect(firebaseSource).toContain("webPhoneVerificationRequests");
-    expect(authModalSource).toContain("phoneRequestInFlightRef");
-    expect(authModalSource).toContain("resetPhoneVerification");
+    expect(supabaseSource).not.toContain("firebaseSupabase");
+    expect(authModalSource).not.toContain("phoneRequestInFlightRef");
+    expect(authModalSource).not.toContain("resetPhoneVerification");
   });
 
   it("keeps FCM tokens restricted to the active Supabase profile and configures Android permission support", () => {
@@ -40,6 +38,10 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain("listenForNativeFcmToken");
     expect(firebaseSource).toContain("FirebaseMessaging.requestPermissions");
     expect(firebaseSource).toContain("FirebaseMessaging.getToken");
+    expect(firebaseSource).toContain("requestGoogleProfilePrefill");
+    expect(firebaseSource).not.toContain("signInWithPhoneNumber");
+    expect(firebaseSource).not.toContain("RecaptchaVerifier");
+    expect(firebaseSource).not.toContain("FirebaseAuthentication.confirmVerificationCode");
     expect(migration).toContain("phone_verified_at timestamptz");
     expect(migration).toContain("fcm_token text");
     expect(migration).toContain("record_my_firebase_phone");
@@ -67,11 +69,13 @@ describe("Souq Jiran Supabase integration", () => {
     expect(schema).toContain("listportail@gmail.com");
   });
 
-  it("uses Supabase Auth instead of a browser-stored password lookup", () => {
+  it("uses Supabase email OTP instead of browser-stored credentials or password login", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
 
-    expect(appSource).toContain("supabase.auth.signInWithPassword");
-    expect(appSource).toContain("supabase.auth.signUp");
+    expect(appSource).toContain("supabase.auth.signInWithOtp");
+    expect(appSource).toContain("supabase.auth.verifyOtp");
+    expect(appSource).not.toContain("supabase.auth.signInWithPassword");
+    expect(appSource).not.toContain("supabase.auth.signUp");
     expect(appSource).toContain("supabase.auth.onAuthStateChange");
     expect(appSource).not.toContain("STORAGE.auth");
     expect(appSource).not.toContain("STORAGE.accounts");
@@ -79,6 +83,20 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain("supabase.rpc(\"admin_set_provider_status\"");
     expect(appSource).not.toContain("ADMIN_PASSWORD");
     expect(appSource).not.toContain("AdminGateModal");
+  });
+
+  it("creates merchant and courier records only after a verified email OTP session", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(appSource).toContain("function ProviderEmailOtpModal");
+    expect(appSource).toContain("onVerified={({ type, form, verifiedSession })");
+    expect(appSource).toContain('if (!form.verifiedSession?.user) { setPendingProviderRegistration({ type: "merchant", form }); return { pendingOtp: true }; }');
+    expect(appSource).toContain('if (!form.verifiedSession?.user) { setPendingProviderRegistration({ type: "courier", form }); return { pendingOtp: true }; }');
+    expect(appSource).toContain('supabase.auth.verifyOtp({ email, token: otpCode, type: "email" })');
+    expect(appSource).not.toContain('type="password"');
+    expect(appSource).not.toContain("form.password");
+    expect(appSource).not.toContain("OTP تجريبي");
+    expect(appSource).not.toContain("اختر محلك للتجربة");
   });
 
   it("retries the initial courier profile insertion once after refreshing a newly created session", () => {
@@ -313,19 +331,19 @@ describe("Souq Jiran Supabase integration", () => {
     expect(migration).toContain("is_interwilaya");
   });
 
-  it("wires the customer, courier, and merchant interfaces to the advanced lifecycle without real OTP claims", () => {
+  it("wires the customer, courier, and merchant interfaces to the advanced lifecycle with verified email eligibility", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
     const customerView = appSource.match(/function CustomerView[\s\S]*?(?=function OrderTracker)/)?.[0] ?? "";
 
     expect(customerView).toContain("تسعير محسوب من الخادم");
-    expect(customerView).toContain("سيصلك رمز التحقق عبر تطبيق واتساب/فايبر");
-    expect(customerView).toContain("إعادة الإرسال بعد");
-    expect(customerView).toContain("التحويل إلى Viber");
-    expect(customerView).toContain("تواصل مع الدعم");
+    expect(customerView).toContain("تأكيد الحساب عبر البريد الإلكتروني");
+    expect(customerView).toContain("emailVerified");
+    expect(customerView).not.toContain("واتساب/فايبر");
+    expect(customerView).not.toContain("التحويل إلى Viber");
     expect(customerView).toContain("customerConfirmDelivery");
     expect(appSource).toContain('supabase.rpc("quote_delivery"');
-    expect(appSource).toContain('supabase.rpc("confirm_customer_phone_verification"');
-    expect(appSource).toContain('supabase.rpc("request_customer_phone_verification"');
+    expect(appSource).not.toContain('supabase.rpc("confirm_customer_phone_verification"');
+    expect(appSource).not.toContain('supabase.rpc("request_customer_phone_verification"');
     expect(appSource).toContain('"courier_confirm_pickup"');
     expect(appSource).toContain('"courier_start_delivery"');
     expect(appSource).toContain('"courier_confirm_delivery"');
@@ -349,21 +367,20 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain("auth?.type !== \"admin\"");
   });
 
-  it("keeps automated messaging in an explicit local mock mode until a provider is configured", () => {
+  it("removes local mock messaging and sample OTP values from production account flows", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
 
-    expect(appSource).toContain('mockMessaging: { key: "souq-jiran:mock-messaging:v1", shared: true }');
-    expect(appSource).toContain("function recordMockMessage");
-    expect(appSource).toContain('data-testid="admin-mock-messaging-panel"');
-    expect(appSource).toContain("لا تُرسل أي رسالة خارج التطبيق");
-    expect(appSource).toContain("لا تحفظ المفاتيح في هذه الشاشة أو في window.storage");
+    expect(appSource).not.toContain('mockMessaging: { key: "souq-jiran:mock-messaging:v1", shared: true }');
+    expect(appSource).not.toContain("function recordMockMessage");
+    expect(appSource).not.toContain('data-testid="admin-mock-messaging-panel"');
+    expect(appSource).not.toContain("لا تُرسل أي رسالة خارج التطبيق");
     expect(appSource).toContain("courier_confirm_pickup");
     expect(appSource).toContain("courier_start_delivery");
     expect(appSource).toContain("courier_confirm_delivery");
     expect(appSource).toContain("customer_confirm_delivery");
     expect(appSource).toContain("courier_confirm_remittance");
     expect(appSource).toContain("merchant_confirm_settlement");
-    expect(appSource).toContain("رمز OTP تجريبي: 123456");
+    expect(appSource).not.toContain("رمز OTP تجريبي: 123456");
   });
 
   it("defines privacy-preserving QR, referral, and reward flows tied to a settled first order", () => {
@@ -384,7 +401,7 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain("ReferralRewardsPanel");
     expect(appSource).toContain('supabase.rpc("claim_customer_referral"');
     expect(appSource).toContain('supabase.rpc("redeem_reward_coupon"');
-    expect(appSource).toContain("recordMockMessage");
+    expect(appSource).not.toContain("recordMockMessage");
   });
 
   it("provides monthly CSV export and configurable coupon redemption rate alert for admin", () => {
@@ -426,28 +443,21 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).not.toContain("رمز OTP التجريبي 123456");
   });
 
-  it("provides privacy-conscious account recovery and verified phone change through Firebase SMS", () => {
+  it("provides account recovery and communication-phone updates within an email-verified session", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
 
     expect(appSource).toContain("function requestAccountRecovery");
-    expect(appSource).toContain("resetPasswordForEmail");
+    expect(appSource).toContain("options: { shouldCreateUser: false }");
+    expect(appSource).not.toContain("resetPasswordForEmail");
     expect(appSource).toContain("function PhoneChangeModal");
     expect(appSource).toContain('aria-label="رقم الهاتف الجديد"');
-    expect(appSource).toContain("request_my_firebase_phone_link");
-    expect(appSource).toContain("confirm_my_firebase_phone_link");
-    expect(appSource).toContain("firebaseSupabase.rpc");
-    expect(appSource).toContain('"firebase-phone-change-recaptcha"');
-    expect(appSource).toContain('id="firebase-phone-change-recaptcha"');
-    expect(appSource).toContain("completeFirebasePhoneVerification(phoneVerification, otp)");
-    expect(appSource).toContain("phoneChallenge");
-    expect(appSource).toContain("firebasePhoneVerification.phoneNumber !== normalizedPhone");
-    const secureMigration = readFileSync(resolve(projectRoot, "supabase/migrations/20260831_fix_firebase_phone_link_identity.sql"), "utf8");
-    expect(secureMigration).toContain("firebase_phone_link_challenges");
-    expect(secureMigration).toContain("auth.jwt() ->> 'phone_number'");
-    expect(secureMigration).toContain("v_profile_id uuid := auth.uid()");
-    expect(secureMigration).toContain("where id = v_challenge.profile_id");
-    expect(secureMigration).not.toContain("where id = auth.uid()");
-    expect(secureMigration).toContain("Firebase phone does not match the requested number");
+    expect(appSource).toContain('supabase.from("profiles").update({ phone: normalizedPhone })');
+    expect(appSource).toContain("supabase.auth.updateUser({ data: { phone: normalizedPhone } })");
+    expect(appSource).toContain("ضمن جلسة بريد إلكتروني موثقة");
+    expect(appSource).not.toContain("request_my_firebase_phone_link");
+    expect(appSource).not.toContain("confirm_my_firebase_phone_link");
+    expect(appSource).not.toContain('"firebase-phone-change-recaptcha"');
+    expect(appSource).not.toContain("completeFirebasePhoneVerification(phoneVerification, otp)");
   });
 
   it("validates the supplied Firebase Auth API key without creating an account", async () => {
@@ -469,27 +479,16 @@ describe("Souq Jiran Supabase integration", () => {
     expect(JSON.stringify(payload)).toContain("MISSING_ID_TOKEN");
   }, 12_000);
 
-  it("surfaces Firebase phone failures, normalizes Algerian numbers, and accepts native auto-verification", () => {
+  it("does not expose Firebase SMS verification in production account flows", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
-    const firebaseSource = readFileSync(resolve(projectRoot, "client/src/lib/firebase.ts"), "utf8");
 
-    expect(firebaseSource).toContain("normalizeFirebasePhoneNumber");
-    expect(firebaseSource).toContain("phoneVerificationFailed");
-    expect(firebaseSource).toContain("phoneVerificationCompleted");
-    expect(firebaseSource).toContain("لم يصل رد من Firebase خلال دقيقة");
-    expect(firebaseSource).toContain("completedUser");
-    expect(firebaseSource).toContain("webRecaptchaVerifiers");
-    expect(firebaseSource).toContain("clearWebRecaptchaVerifier");
-    expect(firebaseSource).toContain("__souqJiranRecaptchaVerifiers");
-    expect(firebaseSource).toContain("__souqJiranPhoneVerificationRequests");
-    expect(firebaseSource).toContain("legacyVerifier.clear");
-    expect(firebaseSource).toContain("createFreshRecaptchaMount");
-    expect(firebaseSource).toContain("firebaseRecaptchaMount");
-    expect(firebaseSource).toContain("recaptchaContainerId}-mount-");
-    expect(firebaseSource).toContain("auth/internal-error");
-    expect(appSource).toContain("const phoneAutoVerified");
-    expect(appSource).toContain("تم التحقق منه تلقائياً؛ يمكنك المتابعة.");
-    expect(appSource).toContain("!phoneAutoVerified && otpCode.length !== 6");
+    expect(appSource).toContain("supabase.auth.signInWithOtp");
+    expect(appSource).toContain("supabase.auth.verifyOtp");
+    expect(appSource).not.toContain("beginFirebasePhoneVerification");
+    expect(appSource).not.toContain("completeFirebasePhoneVerification");
+    expect(appSource).not.toContain("Firebase SMS");
+    expect(appSource).not.toContain("رمز SMS");
+    expect(appSource).not.toContain("firebase-phone-change-recaptcha");
   });
 
   it("creates a pending courier review request from unified registration and exposes it to administrators", () => {
