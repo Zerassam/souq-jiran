@@ -15,7 +15,8 @@ describe("تسجيل الحساب ونطاقات التغطية", () => {
     expect(appSource).toContain("التالي: بيانات المحل");
     expect(appSource).toContain("التالي: بيانات الموصل");
     expect(appSource).toContain("إرسال طلب الانضمام");
-    expect(appSource).toContain('openAdminContactLink("membership_request"');
+    expect(appSource).toContain('openAdminContactLink("merchant_membership_request"');
+    expect(appSource).toContain('openAdminContactLink("courier_membership_request"');
   });
 
   it("يعالج استعادة الحساب بإعادة إرسال بريد OTP آمن من Supabase", () => {

@@ -21,16 +21,19 @@ async function startContactEndpoint() {
 }
 
 describe("admin contact endpoint", () => {
-  it("uses the configured administrative phone only through the server-side deep-link endpoint", async () => {
+  it("uses the configured administrative phone only through the server-side WhatsApp deep-link endpoint", async () => {
     expect(process.env.ADMIN_PHONE_NUMBER).toMatch(/^\+213[567]\d{8}$/);
     const endpoint = await startContactEndpoint();
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "membership_request", reference: "req_12345" }),
+      body: JSON.stringify({ action: "merchant_membership_request", reference: "req_12345" }),
     });
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({ url: expect.stringMatching(/^sms:\+213[567]\d{8}\?body=/) });
+    const payload = await response.json();
+    expect(payload).toMatchObject({ url: expect.stringMatching(/^https:\/\/wa\.me\/213[567]\d{8}\?text=/) });
+    expect(decodeURIComponent(payload.url)).toContain("طلب انضمام تاجر جديد");
+    expect(decodeURIComponent(payload.url)).toContain("req_12345");
   });
 });

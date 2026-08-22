@@ -2669,8 +2669,8 @@ export default function App() {
     persistentSetStores((prev) => [...prev.filter((item) => item.id !== store.id), store]);
     await applySupabaseSession(form.verifiedSession);
     setShowMerchantForm(false);
-    const contactOpened = await openAdminContactLink("membership_request", form.verifiedSession.user.id).catch(() => false);
-    notify(contactOpened ? "تم حفظ طلب المحل وفتح رسالة التأكيد الجاهزة." : "تم إرسال طلب انضمام المحل، بانتظار موافقة المشرف.");
+    const contactOpened = await openAdminContactLink("merchant_membership_request", form.verifiedSession.user.id).catch(() => false);
+    notify(contactOpened ? "تم حفظ طلب المحل Pending وفتح ملخص WhatsApp الجاهز للإدارة." : "تم حفظ طلب انضمام المحل Pending، بانتظار موافقة المشرف.");
     return { id: form.verifiedSession.user.id };
   }
 
@@ -2716,8 +2716,8 @@ export default function App() {
     persistentSetCouriers((prev) => [...prev.filter((item) => item.id !== localCourier.id), localCourier]);
     await applySupabaseSession(activeSession);
     setShowCourierForm(false);
-    const contactOpened = await openAdminContactLink("membership_request", form.verifiedSession.user.id).catch(() => false);
-    notify(contactOpened ? "تم حفظ طلبك وفتح رسالة التأكيد الجاهزة." : "تم إرسال طلب انضمامك كموصل، بانتظار موافقة المشرف");
+    const contactOpened = await openAdminContactLink("courier_membership_request", form.verifiedSession.user.id).catch(() => false);
+    notify(contactOpened ? "تم حفظ طلبك Pending وفتح ملخص WhatsApp الجاهز للإدارة." : "تم حفظ طلب انضمامك كموصل Pending، بانتظار موافقة المشرف.");
     return {};
   }
 

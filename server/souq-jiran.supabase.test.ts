@@ -511,7 +511,7 @@ describe("Souq Jiran Supabase integration", () => {
 
     expect(appSource).toContain("function MerchantRegisterModal");
     expect(appSource).toContain("setShowMerchantForm(true)");
-    expect(appSource).toContain("إرسال طلب انضمام المحل");
+    expect(appSource).toContain("إرسال طلب انضمام كتاجر");
     expect(appSource).toContain("QRCode.toDataURL(deepLink");
     expect(appSource).toContain("رمز QR الخاص بملف الموصل");
     expect(appSource).toContain("normalizeSearchText");
