@@ -2795,7 +2795,7 @@ export default function App() {
               </article>
               <article data-testid="customer-role-button" className="role-join-card group text-right p-5 rounded-[22px]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(51,59,120,.06)", "--role-accent": C.ochre }}>
                 <span className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ background: C.ochre + "16", color: C.ochre }}><User size={22} /></span><h3 className="font-black mt-4" style={{ color: C.ink }}>حساب الزبون</h3><p className="text-xs leading-5 mt-1.5" style={{ color: C.inkSoft }}>تابع طلباتك وعناوينك وقسائمك من بوابتك الخاصة.</p>
-                <button onClick={() => { setAdminLoginRequested(false); setAuthEntry({ type: "customer", mode: "login" }); setShowAuth(true); }} className="mt-4 w-full py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5" style={{ background: C.ochre, color: "#fff" }}><UserPlus size={14} /> دخول أو إنشاء حساب</button>
+                <button onClick={() => { setAdminLoginRequested(false); setAuthEntry({ type: "customer", mode: "register" }); setShowAuth(true); }} className="mt-4 w-full py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5" style={{ background: C.ochre, color: "#fff" }}><UserPlus size={14} /> دخول أو إنشاء حساب</button>
               </article>
             </div>
           </section>

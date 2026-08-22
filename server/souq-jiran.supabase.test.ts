@@ -39,6 +39,13 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).not.toContain("من ستة أرقام");
   });
 
+  it("opens the customer gateway in registration mode so a new customer can receive an Email OTP", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(appSource).toContain('setAuthEntry({ type: "customer", mode: "register" })');
+    expect(appSource).toContain('shouldCreateUser: mode === "register"');
+  });
+
   it("keeps FCM tokens restricted to the active Supabase profile and configures Android permission support", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
     const firebaseSource = readFileSync(resolve(projectRoot, "client/src/lib/firebase.ts"), "utf8");
