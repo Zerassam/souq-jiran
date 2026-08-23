@@ -121,6 +121,64 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).not.toContain("AdminGateModal");
   });
 
+  it("replaces static platform promotions with an accessible merchant-offers marquee", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const cssSource = readFileSync(resolve(projectRoot, "client/src/index.css"), "utf8");
+
+    expect(appSource).toContain("function OfferMarquee");
+    expect(appSource).toContain('aria-label={paused ? "استئناف تحريك عروض التجار" : "إيقاف تحريك عروض التجار"}');
+    expect(appSource).toContain("setPaused((value) => !value)");
+    expect(appSource).toContain("onMouseEnter={() => setPaused(true)}");
+    expect(appSource).toContain("onFocusCapture={() => setPaused(true)}");
+    expect(appSource).not.toContain("const PROMOS");
+    expect(appSource).not.toContain("خصم الترحيب");
+    expect(appSource).not.toContain("خصم التوصيل");
+    expect(appSource).not.toContain("عرض الجمعة");
+    expect(appSource).not.toContain("applyPromo");
+    expect(cssSource).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(cssSource).toContain("animation-play-state: paused");
+    expect(cssSource).toContain("animation: merchant-offer-scroll");
+  });
+
+  it("keeps referral rewards and community feedback separate from merchant offers", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const referralStart = appSource.indexOf("function ReferralRewardsPanel");
+    const referralEnd = appSource.indexOf("\nfunction ", referralStart + 1);
+    const feedbackStart = appSource.indexOf("function VerifiedFeedbackPanel");
+    const feedbackEnd = appSource.indexOf("\nfunction ", feedbackStart + 1);
+    const referralSource = appSource.slice(referralStart, referralEnd);
+    const feedbackSource = appSource.slice(feedbackStart, feedbackEnd);
+
+    expect(referralSource).toContain("rewardCoupons");
+    expect(referralSource).toContain("claimCode");
+    expect(referralSource).toContain("buildPublicAppLink({ ref:");
+    expect(feedbackSource).not.toContain("merchantOffers");
+    expect(feedbackSource).not.toContain("OfferMarquee");
+    expect(feedbackSource).not.toContain("عرض تاجر");
+  });
+
+  it("uses protected offer RPCs and enforces RLS-only active approved public offers", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const migration = readFileSync(resolve(projectRoot, "supabase/migrations/20260903_merchant_store_offers.sql"), "utf8");
+
+    expect(appSource).toContain('supabase.from("merchant_store_offers").select("*")');
+    expect(appSource).toContain('supabase.rpc("merchant_save_store_offer"');
+    expect(appSource).toContain('supabase.rpc("merchant_pause_store_offer"');
+    expect(appSource).toContain('supabase.rpc("admin_review_store_offer"');
+    expect(appSource).toContain("p_status: action");
+    expect(appSource).not.toContain("merchant_submit_store_offer");
+    expect(migration).toContain("enable row level security");
+    expect(migration).toContain("merchant_store_offers_public_read_active_approved");
+    expect(migration).toContain("status = 'approved'");
+    expect(migration).toContain("starts_at <= now()");
+    expect(migration).toContain("ends_at > now()");
+    expect(migration).toContain("merchant_save_store_offer");
+    expect(migration).toContain("merchant_pause_store_offer");
+    expect(migration).toContain("admin_review_store_offer");
+    expect(migration).toContain("security definer set search_path = public");
+    expect(migration).toContain("revoke insert, update, delete on public.merchant_store_offers from anon, authenticated");
+  });
+
   it("ships a guarded non-admin cleanup script that preserves the sole admin and global settings", () => {
     const cleanupScript = readFileSync(resolve(projectRoot, "supabase/cleanup-non-admin-data.sql"), "utf8");
     const cleanupRunbook = readFileSync(resolve(projectRoot, "docs/supabase-non-admin-cleanup-runbook.md"), "utf8");

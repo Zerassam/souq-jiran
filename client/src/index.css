@@ -146,10 +146,83 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
 .app-signal-line { box-shadow: 0 0 18px oklch(0.54 0.22 285 / 0.22); }
-.promo-card { box-shadow: 0 14px 30px oklch(0.45 0.12 290 / 0.16); }
+
+/* عروض المتاجر المعتمدة: شريط واحد مستقل عن الآراء والمكافآت. */
+.merchant-offer-marquee {
+  overflow: hidden;
+  border: 1px solid oklch(0.45 0.11 175 / 0.24);
+  border-radius: 1rem;
+  background: linear-gradient(120deg, oklch(0.97 0.02 175), oklch(1 0 0));
+  box-shadow: 0 12px 26px oklch(0.38 0.09 175 / 0.10);
+}
+.merchant-offer-marquee__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .6rem .85rem;
+  border-bottom: 1px solid oklch(0.45 0.11 175 / 0.16);
+}
+.merchant-offer-marquee__label,
+.merchant-offer-marquee__control {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .75rem;
+  font-weight: 800;
+}
+.merchant-offer-marquee__label { color: oklch(0.36 0.09 175); }
+.merchant-offer-marquee__control {
+  padding: .32rem .55rem;
+  border: 1px solid oklch(0.45 0.11 175 / 0.28);
+  border-radius: 999px;
+  color: oklch(0.36 0.09 175);
+  background: oklch(1 0 0 / .76);
+}
+.merchant-offer-marquee__viewport { overflow: hidden; }
+.merchant-offer-marquee__track {
+  display: flex;
+  width: max-content;
+  padding: .65rem .8rem;
+  gap: .65rem;
+  animation: merchant-offer-scroll 34s linear infinite;
+  will-change: transform;
+}
+.merchant-offer-marquee__viewport.is-paused .merchant-offer-marquee__track,
+.merchant-offer-marquee:hover .merchant-offer-marquee__track,
+.merchant-offer-marquee:focus-within .merchant-offer-marquee__track {
+  animation-play-state: paused;
+}
+.merchant-offer-marquee__item {
+  display: inline-flex;
+  align-items: center;
+  min-width: max-content;
+  max-width: min(34rem, calc(100vw - 3.25rem));
+  gap: .45rem;
+  padding: .55rem .72rem;
+  border: 1px solid oklch(0.45 0.11 175 / 0.20);
+  border-radius: .85rem;
+  background: oklch(1 0 0 / .92);
+  color: oklch(0.24 0.025 175);
+  text-align: right;
+  white-space: nowrap;
+}
+.merchant-offer-marquee__item:focus-visible { outline: 3px solid oklch(0.45 0.11 175 / .34); outline-offset: 2px; }
+.merchant-offer-marquee__badge { padding: .16rem .42rem; border-radius: 999px; background: oklch(0.45 0.11 175 / .12); color: oklch(0.36 0.09 175); font-size: .65rem; font-weight: 900; }
+.merchant-offer-marquee__store { font-size: .75rem; font-weight: 900; }
+.merchant-offer-marquee__title { font-size: .75rem; font-weight: 700; color: oklch(0.38 0.025 175); }
+.merchant-offer-marquee__value { font-size: .75rem; font-weight: 900; color: oklch(0.48 0.15 35); }
+.merchant-offer-marquee__description { overflow: hidden; max-width: 14rem; text-overflow: ellipsis; font-size: .7rem; color: oklch(0.49 0.02 175); }
+.merchant-offer-marquee__ends { font-size: .68rem; color: oklch(0.49 0.02 175); }
+
+@keyframes merchant-offer-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(50%); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+  .merchant-offer-marquee__track { animation: none; transform: none; }
 }
 
 @layer components {

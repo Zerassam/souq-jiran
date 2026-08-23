@@ -20,7 +20,7 @@ import {
   Package, Droplet, Sparkles, Map as MapIcon, List, Upload, Download,
   FileText, Phone, Palette, CreditCard, Bike, Lock, LogOut, Wallet,
   Percent, CalendarClock, Home, Sun, Sunset, Moon,
-  Mail, LogIn, UserPlus, ShieldCheck, Archive, MessageCircle, ArrowLeft
+  Mail, LogIn, UserPlus, ShieldCheck, Archive, MessageCircle, ArrowLeft, Pause, Play
 } from "lucide-react";
 
 /* ---------------------------------------------------------
@@ -293,12 +293,6 @@ const STORE_STATUS = {
    All accounts, shops, orders and couriers are loaded from Supabase.
 --------------------------------------------------------- */
 
-const PROMOS = [
-  { code: "AHLAN20", title: "خصم الترحيب", discount: 20, desc: "خصم 20% على أول طلب لك", color: C.rust },
-  { code: "TOUSSOL10", title: "خصم التوصيل", discount: 10, desc: "خصم 10% على كل الطلبات هذا الأسبوع", color: C.teal },
-  { code: "FRIDAY15", title: "عرض الجمعة", discount: 15, desc: "خصم 15% على المواد الغذائية", color: C.ochre },
-];
-
 /* ---------------------------------------------------------
    عناصر مشتركة
 --------------------------------------------------------- */
@@ -310,6 +304,29 @@ function PriceTag({ amount, size = "md" }) {
       <span style={{ fontFamily: "'IBM Plex Sans Arabic', sans-serif", fontWeight: 800, color: C.teal, fontSize: big ? 20 : 13 }}>{money(amount)}</span>
     </span>
   );
+}
+function formatOfferValue(offer) {
+  if (offer.discountType === "percent") return `خصم ${Number(offer.discountValue)}%`;
+  return `خصم ${money(offer.discountValue)}`;
+}
+function formatOfferEndsAt(endsAt) {
+  const end = new Date(endsAt);
+  if (Number.isNaN(end.getTime())) return "مدة العرض محدودة";
+  return `ينتهي ${end.toLocaleDateString("ar-DZ", { day: "numeric", month: "short" })}`;
+}
+function OfferMarquee({ offers, onOpenStore }) {
+  const [paused, setPaused] = useState(false);
+  const activeOffers = useMemo(() => offers.filter((offer) => offer.status === "approved" && new Date(offer.startsAt).getTime() <= Date.now() && new Date(offer.endsAt).getTime() > Date.now()), [offers]);
+  if (!activeOffers.length) return null;
+  const items = [...activeOffers, ...activeOffers];
+  return <section data-testid="merchant-offer-marquee" className="merchant-offer-marquee" aria-label="عروض المتاجر المعتمدة" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocusCapture={() => setPaused(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setPaused(false); }}>
+    <div className="merchant-offer-marquee__header"><span className="merchant-offer-marquee__label"><Tag size={13} /> عروض تجار</span><button type="button" onClick={() => setPaused((value) => !value)} className="merchant-offer-marquee__control" aria-label={paused ? "استئناف تحريك عروض التجار" : "إيقاف تحريك عروض التجار"} aria-pressed={paused}>{paused ? <Play size={14} /> : <Pause size={14} />}<span>{paused ? "استئناف" : "إيقاف"}</span></button></div>
+    <div className={`merchant-offer-marquee__viewport${paused ? " is-paused" : ""}`}>
+      <div className="merchant-offer-marquee__track" aria-live="off">
+        {items.map((offer, index) => <button key={`${offer.id}-${index}`} type="button" tabIndex={index >= activeOffers.length ? -1 : 0} onClick={() => onOpenStore(offer.merchantId)} className="merchant-offer-marquee__item"><span className="merchant-offer-marquee__badge">عرض تاجر</span><span className="merchant-offer-marquee__store">{offer.storeName}</span><span className="merchant-offer-marquee__title">{offer.title}</span><span className="merchant-offer-marquee__value">{formatOfferValue(offer)}</span>{offer.description && <span className="merchant-offer-marquee__description">{offer.description}</span>}<span className="merchant-offer-marquee__ends">{formatOfferEndsAt(offer.endsAt)}</span></button>)}
+      </div>
+    </div>
+  </section>;
 }
 function DeptBadge({ id, size = 16 }) { const info = deptInfo(id); const Icon = info.icon; return <span className="inline-flex items-center justify-center" style={{ width: size + 14, height: size + 14, borderRadius: 999, background: info.color + "22", color: info.color }}><Icon size={size} strokeWidth={2.3} /></span>; }
 function StoreAvatar({ logo, size = 42 }) { return <span className="flex items-center justify-center rounded-[14px] shrink-0 font-black" style={{ width: size, height: size, background: `linear-gradient(145deg, ${logo?.color || C.teal}, ${C.purple})`, color: "#fff", fontSize: size * 0.36, fontFamily: "'IBM Plex Sans Arabic', sans-serif", boxShadow: `0 8px 18px ${(logo?.color || C.teal)}35` }}>{logo?.text || <Store size={size * 0.5} />}</span>; }
@@ -486,10 +503,6 @@ function ReviewModal({ order, onSubmit, onClose }) {
 /* ---------------------------------------------------------
    عروض وإشعارات
 --------------------------------------------------------- */
-function PromoBar({ notify }) {
-  function copyCode(code) { try { navigator.clipboard.writeText(code); } catch (e) {} notify(`تم نسخ الكود «${code}»`); }
-  return (<div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">{PROMOS.map((p, index) => (<div key={p.code} className="promo-card shrink-0 w-64 p-4 rounded-2xl flex items-center justify-between gap-2" style={{ background: `linear-gradient(135deg, ${p.color}, ${index === 1 ? C.purple : C.teal})`, color: "#fff" }}><div><div className="flex items-center gap-1 text-xs font-bold opacity-90 mb-1"><Tag size={12} /> {p.title}</div><div className="text-xs opacity-90 mb-2 leading-5">{p.desc}</div><span className="text-xs font-black px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.16)", border: "1px solid rgba(255,255,255,0.18)" }}>{p.code}</span></div><button aria-label={`نسخ ${p.code}`} onClick={() => copyCode(p.code)} className="flex items-center justify-center rounded-xl shrink-0" style={{ width: 34, height: 34, background: "rgba(255,255,255,0.16)", border: "1px solid rgba(255,255,255,0.18)" }}><Copy size={14} color="#fff" /></button></div>))}</div>);
-}
 function NotificationsBell({ notifications, markAllRead }) {
   const [open, setOpen] = useState(false); const unread = notifications.filter((n) => !n.read).length;
   return (
@@ -1036,7 +1049,7 @@ function ReferralRewardsPanel({ referralCode, rewardCoupons, notify, claimReferr
 /* ===========================================================
    CUSTOMER VIEW
 =========================================================== */
-function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, couriers, placeOrder, notify, customerId, customerConfirmDelivery, quoteDelivery, referralCode = "", rewardCoupons = [], claimReferralCode, publicStoreId = "", publicCourierId = "" }) {
+function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, couriers, merchantOffers = [], placeOrder, notify, customerId, customerConfirmDelivery, quoteDelivery, referralCode = "", rewardCoupons = [], claimReferralCode, publicStoreId = "", publicCourierId = "" }) {
   const [tab, setTab] = useState("browse");
   const [browseMode, setBrowseMode] = useState("list");
   const [query, setQuery] = useState("");
@@ -1046,8 +1059,6 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const [activeDept, setActiveDept] = useState("all");
   const [showCart, setShowCart] = useState(false);
   const [showMapPicker, setShowMapPicker] = useState(false);
-  const [promoInput, setPromoInput] = useState("");
-  const [appliedPromo, setAppliedPromo] = useState(null);
   const [reviewingOrder, setReviewingOrder] = useState(null);
   const [invoiceOrder, setInvoiceOrder] = useState(null);
   const [deliveryChoice, setDeliveryChoice] = useState("pickup");
@@ -1092,9 +1103,8 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const cartStore = stores.find((s) => s.id === cart.storeId);
   const cartCount = cart.items.reduce((a, i) => a + i.qty, 0);
   const cartSubtotal = cart.items.reduce((a, i) => a + i.qty * i.price, 0);
-  const promoDiscountAmount = appliedPromo ? Math.round((cartSubtotal * appliedPromo.discount) / 100) : 0;
   const rewardDiscountAmount = appliedReward ? Math.min(Number(appliedReward.amount || 0), cartSubtotal) : 0;
-  const discountAmount = promoDiscountAmount + rewardDiscountAmount;
+  const discountAmount = rewardDiscountAmount;
   const deliveryFee = deliveryChoice === "store" ? (cartStore?.deliveryFee || 0) : deliveryChoice === "courier" ? Number(deliveryQuote?.fee || 0) : 0;
   const finalTotal = Math.max(0, cartSubtotal - discountAmount + deliveryFee);
   const belowMinOrder = cartStore && cartStore.minOrder && cartSubtotal < cartStore.minOrder;
@@ -1133,7 +1143,6 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
     notify(`تمت إضافة «${product.name}» للسلة`);
   }
   function changeQty(id, delta) { setCart((prev) => ({ ...prev, items: prev.items.map((i) => (i.id === id ? { ...i, qty: i.qty + delta } : i)).filter((i) => i.qty > 0) })); }
-  function applyPromo() { const match = PROMOS.find((p) => p.code.toLowerCase() === promoInput.trim().toLowerCase()); if (!match) { notify("كود الخصم غير صالح"); return; } setAppliedPromo(match); notify(`تم تطبيق خصم ${match.discount}%`); }
   function applyRewardCoupon() { const coupon = rewardCoupons.find((item) => item.status === "available" && item.code.toUpperCase() === rewardCouponInput.trim().toUpperCase()); if (!coupon) { notify("قسيمة المكافأة غير متاحة أو غير صالحة."); return; } if (cartSubtotal < Number(coupon.minimumOrderTotal || 0)) { notify(`هذه القسيمة تتطلب طلباً بقيمة ${money(coupon.minimumOrderTotal)} على الأقل.`); return; } setAppliedReward(coupon); notify(`تم حجز خصم المكافأة بقيمة ${money(coupon.amount)} للطلب.`); }
   function updateAddress(values) { setCart((prev) => ({ ...prev, address: { ...(prev.address || {}), ...values } })); }
   function requestCurrentLocation() {
@@ -1176,7 +1185,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
         <>
           {publicStoreId && !qrStore && <div data-testid="qr-store-route-unavailable" className="p-4 rounded-2xl text-sm font-bold" style={{ background: "#FFF7E7", color: C.ink, border: `1px solid ${C.ochre}55` }}>هذا المتجر غير متاح حالياً عبر الرابط العام.</div>}
           {publicCourierId && <div data-testid="qr-courier-route" className="p-4 rounded-2xl" style={{ background: C.teal + "10", border: `1px solid ${C.teal}33` }}><div className="font-black text-sm" style={{ color: C.ink }}>{qrCourier ? `خدمة الموصل ${qrCourier.name || "المعتمد"}` : "خدمة الموصل"}</div><p className="text-xs leading-5 mt-1" style={{ color: C.inkSoft }}>{qrCourier ? `تغطية ${qrCourier.wilaya || "منطقته"}. تُسند الطلبات عبر المنصة عند الجاهزية لحماية الخصوصية.` : "هذا الملف غير متاح حالياً؛ يمكنك متابعة التسوق واختيار التوصيل عبر المنصة عند الطلب."}</p></div>}
-          <PromoBar notify={notify} />
+          <OfferMarquee offers={merchantOffers} onOpenStore={(storeId) => { setOpenStoreId(storeId); setActiveDept("all"); }} />
           <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
             <Search size={17} color={C.inkSoft} />
             <input value={query} onChange={(e) => setQuery(e.target.value)} type="search" lang="ar" dir="auto" inputMode="search" enterKeyHint="search" placeholder="ابحث باسم المحل أو نوع النشاط..." className="flex-1 outline-none text-sm bg-transparent" style={{ color: C.ink, fontFamily: "Tajawal, sans-serif" }} />
@@ -1284,8 +1293,6 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                 {deliveryChoice === "courier" && quoteError && <p className="text-xs font-bold mb-3" style={{ color: "#8B3A2A" }}>{quoteError}</p>}
                 {requiresVerifiedEmail && <div className="mb-3 p-3 rounded-xl" style={{ background: C.teal + "12", border: `1px solid ${C.teal}35` }}><div className="text-xs font-black" style={{ color: C.teal }}>تأكيد الحساب عبر البريد الإلكتروني</div><p className="text-[11px] mt-1 leading-5" style={{ color: C.inkSoft }}>{emailVerified ? "هذا الحساب موثّق ببريد إلكتروني. يمكنك متابعة الطلب." : "سجّل الدخول وأكمل رمز البريد الإلكتروني قبل متابعة هذا الطلب."}</p></div>}
 
-                <div className="flex gap-2 mb-3"><input value={promoInput} onChange={(e) => setPromoInput(e.target.value)} placeholder="أدخل كود الخصم" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /><button onClick={applyPromo} className="px-4 py-2 rounded-xl text-xs font-bold" style={{ background: C.ochre, color: "#fff" }}>تطبيق</button></div>
-                {appliedPromo && <p className="text-xs font-bold mb-3 flex items-center gap-1" style={{ color: C.sage }}><Tag size={12} /> تم تطبيق خصم {appliedPromo.discount}% ({appliedPromo.code})</p>}
                 <div className="flex gap-2 mb-3"><input value={rewardCouponInput} onChange={(e) => setRewardCouponInput(e.target.value.toUpperCase())} placeholder="قسيمة مكافأة الإحالة" dir="ltr" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /><button onClick={applyRewardCoupon} className="px-4 py-2 rounded-xl text-xs font-bold" style={{ background: C.teal, color: "#fff" }}>استخدام القسيمة</button></div>
                 {appliedReward && <p className="text-xs font-bold mb-3 flex items-center gap-1" style={{ color: C.sage }}><Tag size={12} /> تم حجز خصم مكافأة {money(appliedReward.amount)} ({appliedReward.code})</p>}
 
@@ -1298,7 +1305,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                   <div className="flex items-center justify-between pt-1"><span className="font-bold text-sm" style={{ color: C.ink }}>يُدفع نقداً عند الاستلام</span><PriceTag amount={finalTotal} size="lg" /></div>
                 </div>
                 {belowMinOrder && <p className="text-xs font-bold mb-3" style={{ color: "#8B3A2A" }}>الحد الأدنى للطلب من هذا المحل هو {money(cartStore.minOrder)}.</p>}
-                <button disabled={belowMinOrder || quoteLoading || (deliveryChoice === "courier" && (!cart.address?.wilaya || !cart.address?.commune || !cart.address?.label || !deliveryQuote || (requiresVerifiedEmail && !emailVerified)))} onClick={async () => { const ok = await placeOrder(cartStore, appliedPromo, discountAmount, cart.address, deliveryChoice, deliveryFee, appliedReward?.code); if (!ok) return; setAppliedPromo(null); setAppliedReward(null); setPromoInput(""); setRewardCouponInput(""); setShowCart(false); setTab("orders"); setDeliveryChoice("pickup"); setDeliveryChoice("pickup"); setDeliveryQuote(null); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>تأكيد الطلب (دفع نقدي)</button>
+                <button disabled={belowMinOrder || quoteLoading || (deliveryChoice === "courier" && (!cart.address?.wilaya || !cart.address?.commune || !cart.address?.label || !deliveryQuote || (requiresVerifiedEmail && !emailVerified)))} onClick={async () => { const ok = await placeOrder(cartStore, null, discountAmount, cart.address, deliveryChoice, deliveryFee, appliedReward?.code); if (!ok) return; setAppliedReward(null); setRewardCouponInput(""); setShowCart(false); setTab("orders"); setDeliveryChoice("pickup"); setDeliveryChoice("pickup"); setDeliveryQuote(null); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>تأكيد الطلب (دفع نقدي)</button>
               </>
             )}
           </div>
@@ -1369,7 +1376,7 @@ function MerchantQrPoster({ store, notify }) {
   </section>;
 }
 
-function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId, setMyStoreId, notify, onStartMerchantRegistration, createProduct, createBulkProducts, removeProductRemote, setProductAvailability, setMerchantOrderStatus, merchantConfirmSettlement, reportCustomerAccount, archiveOrder, archiveMessage, userId }) {
+function MerchantView({ stores, setStores, orders, messages, couriers, merchantOffers = [], myStoreId, setMyStoreId, notify, onStartMerchantRegistration, createProduct, createBulkProducts, removeProductRemote, setProductAvailability, setMerchantOrderStatus, merchantConfirmSettlement, reportCustomerAccount, archiveOrder, archiveMessage, submitMerchantOffer, pauseMerchantOffer, userId }) {
   const myStore = stores.find((s) => s.id === myStoreId);
   const [stage2, setStage2] = useState({ open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: true, deliveryCommunes: [], logoText: "", logoColor: C.teal, ccp: "", idDocName: "" });
   const [tab, setTab] = useState("products");
@@ -1377,6 +1384,12 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
   const [invoiceOrder, setInvoiceOrder] = useState(null);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [showMapPicker, setShowMapPicker] = useState(false);
+  const [editingOfferId, setEditingOfferId] = useState(null);
+  const [offerForm, setOfferForm] = useState(() => {
+    const start = new Date();
+    const end = new Date(start.getTime() + (7 * 24 * 60 * 60 * 1000));
+    return { title: "", description: "", discountType: "percent", discountValue: "", startsAt: start.toISOString().slice(0, 16), endsAt: end.toISOString().slice(0, 16) };
+  });
 
   function updateStore(patch) { setStores((prev) => prev.map((s) => (s.id === myStoreId ? { ...s, ...patch } : s))); }
 
@@ -1406,6 +1419,26 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
   }
 
   const matchingCouriers = myStore ? couriers.filter((c) => c.status === "approved" && c.wilaya === myStore.wilaya && (c.communes.length === 0 || c.communes.includes(myStore.commune)) && (c.storeMode === "all" || (c.selectedStoreIds || []).includes(myStore.id))) : [];
+  const myOffers = merchantOffers.filter((offer) => offer.merchantId === myStoreId);
+  const offerStatusLabels = { draft: "مسودة", pending: "قيد المراجعة", approved: "معتمد", rejected: "مرفوض", paused: "موقوف", expired: "منتهٍ" };
+
+  function resetOfferForm() {
+    const start = new Date();
+    const end = new Date(start.getTime() + (7 * 24 * 60 * 60 * 1000));
+    setEditingOfferId(null);
+    setOfferForm({ title: "", description: "", discountType: "percent", discountValue: "", startsAt: start.toISOString().slice(0, 16), endsAt: end.toISOString().slice(0, 16) });
+  }
+  function editOffer(offer) {
+    setEditingOfferId(offer.id);
+    setOfferForm({ title: offer.title, description: offer.description || "", discountType: offer.discountType, discountValue: String(offer.discountValue), startsAt: new Date(offer.startsAt).toISOString().slice(0, 16), endsAt: new Date(offer.endsAt).toISOString().slice(0, 16) });
+    setTab("offers");
+  }
+  async function saveOffer() {
+    const result = await submitMerchantOffer({ id: editingOfferId || undefined, merchantId: myStoreId, ...offerForm });
+    if (!result) return;
+    notify(editingOfferId ? "أُعيد إرسال التعديل للمراجعة." : "أُرسل العرض للمراجعة الإدارية.");
+    resetOfferForm();
+  }
 
   if (!myStore) {
     return (
@@ -1449,6 +1482,17 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
     );
   }
 
+  if (myStore.status !== "approved") {
+    return (
+      <div className="max-w-md mx-auto p-6 rounded-2xl text-center space-y-3" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+        <ShieldCheck size={30} color={C.ochre} style={{ margin: "0 auto" }} />
+        <h3 className="font-black text-lg" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>حساب المحل غير مفعّل حالياً</h3>
+        <p className="text-sm leading-6" style={{ color: C.inkSoft }}>تبقى إدارة المنتجات والطلبات والعروض متاحة بعد اعتماد الإدارة لحساب المحل.</p>
+        <button onClick={() => setMyStoreId(null)} className="text-xs font-bold flex items-center gap-1 mx-auto" style={{ color: C.inkSoft }}><ChevronLeft size={13} /> تبديل المحل</button>
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-shell space-y-5">
       <div className="p-4 rounded-2xl" style={{ background: C.paperDark }}>
@@ -1470,6 +1514,7 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
         <button onClick={() => setTab("products")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "products" ? C.teal : "transparent", color: tab === "products" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "products" ? C.teal : C.line}` }}>المنتجات</button>
         <button onClick={() => setTab("orders")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "orders" ? C.teal : "transparent", color: tab === "orders" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "orders" ? C.teal : C.line}` }}>الطلبات الواردة {newMerchantOrders.length > 0 && `(${newMerchantOrders.length})`}</button>
         <button onClick={() => setTab("delivery")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "delivery" ? C.teal : "transparent", color: tab === "delivery" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "delivery" ? C.teal : C.line}` }}>إعدادات التوصيل</button>
+        <button data-testid="merchant-offers-tab" onClick={() => setTab("offers")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "offers" ? C.teal : "transparent", color: tab === "offers" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "offers" ? C.teal : C.line}` }}>عروضي</button>
         <button data-testid="merchant-qr-tab" onClick={() => setTab("qr")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "qr" ? C.teal : "transparent", color: tab === "qr" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "qr" ? C.teal : C.line}` }}>QR المحل</button>
         <button onClick={() => setTab("messages")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "messages" ? C.teal : "transparent", color: tab === "messages" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "messages" ? C.teal : C.line}` }}>الرسائل</button>
       </div>
@@ -1492,6 +1537,22 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
           </div>
         </div>
       )}
+
+      {tab === "offers" && <div className="space-y-4" data-testid="merchant-offers-panel">
+        <div className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+          <div className="flex items-start justify-between gap-3 mb-3"><div><h3 className="font-black" style={{ color: C.ink }}>عرض متجر للمراجعة</h3><p className="text-xs leading-5 mt-1" style={{ color: C.inkSoft }}>لا يظهر العرض للزوار إلا بعد اعتماد الإدارة وخلال مدته المحددة.</p></div>{editingOfferId && <button onClick={resetOfferForm} className="text-xs font-bold shrink-0" style={{ color: C.teal }}>عرض جديد</button>}</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="text-xs font-bold sm:col-span-2" style={{ color: C.inkSoft }}>عنوان العرض<input value={offerForm.title} maxLength={80} onChange={(event) => setOfferForm({ ...offerForm, title: event.target.value })} placeholder="مثال: تخفيض نهاية الأسبوع" className="w-full mt-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /></label>
+            <label className="text-xs font-bold sm:col-span-2" style={{ color: C.inkSoft }}>وصف مختصر (اختياري)<textarea value={offerForm.description} maxLength={240} onChange={(event) => setOfferForm({ ...offerForm, description: event.target.value })} rows={2} placeholder="أضف الشروط أو الفئة المشمولة بوضوح" className="w-full mt-1 px-3 py-2 rounded-xl text-sm outline-none resize-none" style={{ border: `1px solid ${C.line}` }} /></label>
+            <label className="text-xs font-bold" style={{ color: C.inkSoft }}>نوع الخصم<select value={offerForm.discountType} onChange={(event) => setOfferForm({ ...offerForm, discountType: event.target.value })} className="w-full mt-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }}><option value="percent">نسبة مئوية</option><option value="fixed">قيمة بالدينار</option></select></label>
+            <label className="text-xs font-bold" style={{ color: C.inkSoft }}>{offerForm.discountType === "percent" ? "نسبة الخصم (%)" : "قيمة الخصم (دج)"}<input value={offerForm.discountValue} type="number" min="1" max={offerForm.discountType === "percent" ? "100" : "100000"} onChange={(event) => setOfferForm({ ...offerForm, discountValue: event.target.value })} className="w-full mt-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /></label>
+            <label className="text-xs font-bold" style={{ color: C.inkSoft }}>بداية العرض<input value={offerForm.startsAt} type="datetime-local" onChange={(event) => setOfferForm({ ...offerForm, startsAt: event.target.value })} className="w-full mt-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /></label>
+            <label className="text-xs font-bold" style={{ color: C.inkSoft }}>نهاية العرض<input value={offerForm.endsAt} type="datetime-local" onChange={(event) => setOfferForm({ ...offerForm, endsAt: event.target.value })} className="w-full mt-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /></label>
+          </div>
+          <button onClick={saveOffer} className="mt-4 w-full py-2.5 rounded-xl font-black text-sm" style={{ background: C.rust, color: "#fff" }}>{editingOfferId ? "إرسال التعديل للمراجعة" : "إرسال العرض للمراجعة"}</button>
+        </div>
+        <div className="space-y-2"><div className="flex items-center justify-between"><h3 className="font-black text-sm" style={{ color: C.ink }}>سجل عروض المحل</h3><span className="text-xs" style={{ color: C.inkSoft }}>{myOffers.length} عرض</span></div>{myOffers.length === 0 && <p className="text-sm text-center py-6 rounded-2xl" style={{ color: C.inkSoft, background: C.paperDark }}>لا توجد عروض مقدمة لهذا المحل بعد.</p>}{myOffers.map((offer) => <article key={offer.id} className="p-3.5 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="flex items-start justify-between gap-3"><div><div className="font-bold text-sm" style={{ color: C.ink }}>{offer.title}</div><div className="text-xs mt-1" style={{ color: C.teal }}>{formatOfferValue(offer)} · {formatOfferEndsAt(offer.endsAt)}</div>{offer.description && <p className="text-xs mt-1.5 leading-5" style={{ color: C.inkSoft }}>{offer.description}</p>}{offer.adminNote && <p className="text-xs mt-2 p-2 rounded-lg" style={{ background: C.ochre + "12", color: C.inkSoft }}>ملاحظة الإدارة: {offer.adminNote}</p>}</div><span className="shrink-0 text-[11px] font-black px-2 py-1 rounded-full" style={{ background: (offer.status === "approved" ? C.sage : offer.status === "rejected" ? C.rust : C.ochre) + "22", color: offer.status === "approved" ? C.tealDark : offer.status === "rejected" ? C.rust : C.ochre }}>{offerStatusLabels[offer.status] || offer.status}</span></div><div className="mt-3 flex gap-2"><button onClick={() => editOffer(offer)} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.teal}55`, color: C.teal }}>تعديل</button>{["approved", "pending"].includes(offer.status) && <button onClick={() => pauseMerchantOffer(offer)} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.rust}55`, color: C.rust }}>إيقاف</button>}</div></article>)}</div>
+      </div>}
 
       {tab === "orders" && (
         <div id="merchant-new-orders" tabIndex={-1} className="space-y-3 outline-none">
@@ -1783,12 +1844,14 @@ function CourierHoursEditor({ courier, onSave }) {
 /* ===========================================================
    ADMIN VIEW
 =========================================================== */
-function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], archiveNotifications = [], orderNotifications = [], archiveAlertSettings, testAccountCandidates = [], testAccountReviewAuditLogs = [], customerReports = [], customerBlacklist = [], deliveryPricing, referralAnalytics = { totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0, redeemedValue: 0 }, notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently, deleteTestAccount, markArchiveNotificationRead, markOrderNotificationRead, markAllOrderNotificationsRead, saveArchiveAlertSettings, setCustomerBlacklist, saveDeliveryPricing }) {
+function AdminView({ stores, orders, messages, couriers, merchantOffers = [], archiveAuditLogs = [], archiveNotifications = [], orderNotifications = [], archiveAlertSettings, testAccountCandidates = [], testAccountReviewAuditLogs = [], customerReports = [], customerBlacklist = [], deliveryPricing, referralAnalytics = { totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0, redeemedValue: 0 }, notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently, deleteTestAccount, markArchiveNotificationRead, markOrderNotificationRead, markAllOrderNotificationsRead, saveArchiveAlertSettings, setCustomerBlacklist, saveDeliveryPricing, reviewMerchantOffer }) {
   const pendingReview = stores.filter((s) => s.status === "pending_review");
   const awaitingProfile = stores.filter((s) => s.status === "awaiting_profile");
   const approved = stores.filter((s) => s.status === "approved");
   const revenue = orders.filter((o) => o.status === "delivered").reduce((a, o) => a + o.total, 0);
   const pendingCouriers = couriers.filter((c) => c.status === "pending");
+  const pendingMerchantOffers = merchantOffers.filter((offer) => offer.status === "pending");
+  const activeMerchantOffers = merchantOffers.filter((offer) => offer.status === "approved" && new Date(offer.endsAt).getTime() > Date.now());
   const [archiveQuery, setArchiveQuery] = useState("");
   const [archiveType, setArchiveType] = useState("all");
   const [archiveStatus, setArchiveStatus] = useState("all");
@@ -1835,6 +1898,11 @@ function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], 
   async function reject(id) { if (await setProviderStatus("merchant", id, "suspended")) notify("تم تعليق طلب التاجر."); }
   async function approveCourier(id) { if (await setProviderStatus("courier", id, "approved")) notify("تم اعتماد الموصل."); }
   async function rejectCourier(id) { if (await setProviderStatus("courier", id, "suspended")) notify("تم تعليق طلب الموصل."); }
+  async function reviewOffer(offer, action) {
+    const adminNote = window.prompt(action === "approved" ? "ملاحظة للإدارة أو للتاجر (اختيارية)" : "سبب القرار للتاجر (اختياري)") || "";
+    const completed = await reviewMerchantOffer(offer.id, action, adminNote);
+    if (completed) notify(action === "approved" ? "تم اعتماد عرض المتجر." : action === "paused" ? "تم إيقاف العرض." : "تم رفض العرض.");
+  }
 
   function storeCommissionDue(store) { if (store.commissionType !== "percentage") return 0; const earned = orders.filter((o) => o.storeId === store.id && o.status === "delivered").reduce((a, o) => a + (o.subtotal || 0) * (store.commissionRate / 100), 0); return Math.max(0, Math.round(earned - (store.duesPaid || 0))); }
   function settleDues(store) { notify(`إدارة العمولات ستُحفظ في مرحلة مالية مستقلة؛ لم يُسجّل تحصيل ${store.name}.`); }
@@ -1889,6 +1957,12 @@ function AdminView({ stores, orders, messages, couriers, archiveAuditLogs = [], 
           ["دعوات مسجلة", referralAnalytics.totalReferrals, C.purple], ["أول طلب مؤهل", referralAnalytics.qualifiedReferrals, C.ochre], ["مكافآت ممنوحة", referralAnalytics.awardedReferrals, C.sage], ["قسائم صادرة", referralAnalytics.issuedCoupons, C.teal], ["قسائم مستردة", referralAnalytics.redeemedCoupons, C.rust], ["قيمة الخصم المسترد", money(referralAnalytics.redeemedValue), C.ink],
         ].map(([label, value, color]) => <div key={label} className="p-3 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><p className="font-black text-base" style={{ color }}>{value}</p><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>{label}</p></div>)}</div>
         <div className="p-3 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3" style={{ background: couponRateAlert ? C.rust + "14" : "#fff", border: `1px solid ${couponRateAlert ? C.rust : C.line}` }} data-testid="coupon-redemption-alert"><div><p className="text-sm font-black" style={{ color: couponRateAlert ? C.rust : C.ink }}>معدل استرداد القسائم: {couponRedemptionRate}%</p><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>{couponRateAlert ? "تنبيه إداري: معدل الاسترداد بلغ الحد أو تجاوزه؛ راجع حملة القسائم قبل توسيعها." : "المعدل ضمن الحد الإداري المحدد."}</p></div><label className="text-[11px] font-bold shrink-0" style={{ color: C.inkSoft }}>حد التنبيه (%)<input aria-label="حد تنبيه معدل الاسترداد" type="number" min="1" max="100" value={couponRedemptionThreshold} onChange={(event) => updateCouponRedemptionThreshold(event.target.value)} className="block mt-1 w-24 px-2.5 py-2 rounded-lg outline-none" style={{ border: `1px solid ${C.line}`, color: C.ink, background: "#fff" }} /></label></div>
+      </section>
+
+      <section className="p-4 sm:p-5 rounded-2xl space-y-4" style={{ background: "#fff", border: `1px solid ${C.line}` }} data-testid="admin-merchant-offers-panel">
+        <div className="flex items-start justify-between gap-3 flex-wrap"><div><h3 className="font-black" style={{ color: C.ink }}>مراجعة عروض المتاجر</h3><p className="text-xs mt-1" style={{ color: C.inkSoft }}>العرض لا يظهر للشريحة العامة إلا إذا كان معتمداً وضمن نافذته الزمنية.</p></div><div className="flex gap-2 text-xs font-bold"><span className="px-2.5 py-1 rounded-full" style={{ background: C.ochre + "18", color: C.ochre }}>{pendingMerchantOffers.length} بانتظار القرار</span><span className="px-2.5 py-1 rounded-full" style={{ background: C.sage + "22", color: C.tealDark }}>{activeMerchantOffers.length} ظاهر حالياً</span></div></div>
+        {merchantOffers.length === 0 && <p className="text-sm text-center py-6 rounded-xl" style={{ background: C.paperDark, color: C.inkSoft }}>لا توجد عروض متاجر متاحة للمراجعة بعد.</p>}
+        <div className="space-y-2">{merchantOffers.map((offer) => <article key={offer.id} className="p-3.5 rounded-xl" style={{ border: `1px solid ${C.line}`, background: offer.status === "pending" ? C.ochre + "08" : "#fff" }}><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold" style={{ color: C.teal }}>{offer.storeName}</p><h4 className="font-black text-sm mt-1" style={{ color: C.ink }}>{offer.title}</h4><p className="text-xs mt-1" style={{ color: C.inkSoft }}>{formatOfferValue(offer)} · يبدأ {new Date(offer.startsAt).toLocaleDateString("ar-DZ")} · {formatOfferEndsAt(offer.endsAt)}</p>{offer.description && <p className="text-xs leading-5 mt-1.5" style={{ color: C.inkSoft }}>{offer.description}</p>}{offer.adminNote && <p className="text-xs mt-2 p-2 rounded-lg" style={{ background: C.paperDark, color: C.inkSoft }}>آخر ملاحظة: {offer.adminNote}</p>}</div><span className="text-[11px] font-black px-2 py-1 rounded-full shrink-0" style={{ background: (offer.status === "approved" ? C.sage : offer.status === "rejected" ? C.rust : C.ochre) + "22", color: offer.status === "approved" ? C.tealDark : offer.status === "rejected" ? C.rust : C.ochre }}>{offer.status === "pending" ? "قيد المراجعة" : offer.status === "approved" ? "معتمد" : offer.status === "paused" ? "موقوف" : offer.status === "rejected" ? "مرفوض" : offer.status}</span></div><div className="mt-3 flex gap-2 flex-wrap">{offer.status === "pending" && <><button onClick={() => reviewOffer(offer, "approved")} className="text-xs px-3 py-1.5 rounded-full font-bold" style={{ background: C.teal, color: "#fff" }}>اعتماد</button><button onClick={() => reviewOffer(offer, "rejected")} className="text-xs px-3 py-1.5 rounded-full font-bold" style={{ border: `1px solid ${C.rust}66`, color: C.rust }}>رفض</button></>}{offer.status === "approved" && <button onClick={() => reviewOffer(offer, "paused")} className="text-xs px-3 py-1.5 rounded-full font-bold" style={{ border: `1px solid ${C.rust}66`, color: C.rust }}>إيقاف العرض</button>}</div></article>)}</div>
       </section>
 
       <section className="p-4 sm:p-5 rounded-2xl space-y-4" style={{ background: "#fff", border: `1px solid ${C.line}` }} data-testid="advanced-order-admin-panel">
@@ -2099,6 +2173,7 @@ export default function App() {
   const [referralCode, setReferralCode] = useState("");
   const [pendingReferralCode, setPendingReferralCode] = useState(() => publicQrDestination.referralCode);
   const [rewardCoupons, setRewardCoupons] = useState([]);
+  const [merchantOffers, setMerchantOffers] = useState([]);
   const [referralAnalytics, setReferralAnalytics] = useState({ totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0, redeemedValue: 0 });
   const [archiveAlertSettings, setArchiveAlertSettings] = useState({ sensitiveOrderTotal: 5000, sensitiveStatuses: ["ready", "delivering", "delivered"], notifyOnMessageArchive: false });
   const [couriers, setCouriers] = useState([]);
@@ -2136,7 +2211,7 @@ export default function App() {
       ]);
       if (cancelled) return;
       setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]);
-      setAccounts([]); setAuth(null); setReferralCode(""); setRewardCoupons([]); setReferralAnalytics({ totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0, redeemedValue: 0 });
+      setAccounts([]); setAuth(null); setReferralCode(""); setRewardCoupons([]); setMerchantOffers([]); setReferralAnalytics({ totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0, redeemedValue: 0 });
       setCart(loadedCart); setMyStoreId(loadedMyStoreId); setNotifications(loadedNotifications);
       setLoading(false);
     })();
@@ -2170,7 +2245,7 @@ export default function App() {
       setAuth(null);
       setMyStoreId(null);
       setRole("customer");
-      setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]); setReferralCode(""); setRewardCoupons([]); setReferralAnalytics({ totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0 });
+      setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]); setReferralCode(""); setRewardCoupons([]); setMerchantOffers([]); setReferralAnalytics({ totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0 });
       // تبقى الصفحة الرئيسية متاحة للزائر: سياسة RLS تسمح بقراءة المحلات المعتمدة
       // فقط، لذا لا ينبغي لمسح القائمة عند عدم وجود جلسة تسجيل دخول.
       await refreshSupabaseData("public");
@@ -2196,7 +2271,7 @@ export default function App() {
   }
 
   async function refreshSupabaseData(activeRole = auth?.type) {
-    const [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult, messagesResult, auditResult, archiveNotificationsResult, orderNotificationsResult, alertSettingsResult, customerReportsResult, customerBlacklistResult, pricingResult, referralCodeResult, rewardCouponsResult, adminReferralsResult, adminRewardCouponsResult] = await Promise.all([
+    const [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult, messagesResult, auditResult, archiveNotificationsResult, orderNotificationsResult, alertSettingsResult, customerReportsResult, customerBlacklistResult, pricingResult, referralCodeResult, rewardCouponsResult, adminReferralsResult, adminRewardCouponsResult, merchantOffersResult] = await Promise.all([
       supabase.from("merchants").select("*").order("created_at", { ascending: false }),
       supabase.from("products").select("*").order("created_at", { ascending: false }),
       supabase.from("couriers").select("*").order("created_at", { ascending: false }),
@@ -2214,6 +2289,7 @@ export default function App() {
       activeRole === "customer" ? supabase.from("reward_coupons").select("*").order("issued_at", { ascending: false }) : Promise.resolve({ data: [] }),
       activeRole === "admin" ? supabase.from("customer_referrals").select("status") : Promise.resolve({ data: [] }),
       activeRole === "admin" ? supabase.from("reward_coupons").select("status, amount") : Promise.resolve({ data: [] }),
+      supabase.from("merchant_store_offers").select("*").order("created_at", { ascending: false }),
     ]);
     const migrationMissing = [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult].some((result) => result.error?.code === "42P01");
     if (migrationMissing) {
@@ -2239,6 +2315,25 @@ export default function App() {
       products: (productsByMerchant[merchant.id] || []).map((product) => ({ id: product.id, name: product.name, price: product.price, unit: product.unit, department: product.department, available: product.available })),
       logo: { text: merchant.store_name.slice(0, 2), color: C.teal }, reviews: [], commissionType: "percentage", commissionRate: 0, subscriptionFee: 0, duesPaid: 0,
     })));
+    if (merchantOffersResult.error?.code === "42P01") {
+      setMerchantOffers([]);
+    } else if (!merchantOffersResult.error) {
+      setMerchantOffers((merchantOffersResult.data || []).map((offer) => ({
+        id: offer.id,
+        merchantId: offer.merchant_id,
+        storeName: storesById[offer.merchant_id]?.store_name || "متجر معتمد",
+        title: offer.title,
+        description: offer.description || "",
+        discountType: offer.discount_type,
+        discountValue: Number(offer.discount_value || 0),
+        startsAt: offer.starts_at,
+        endsAt: offer.ends_at,
+        status: offer.status,
+        adminNote: offer.admin_note || "",
+        createdAt: offer.created_at,
+        reviewedAt: offer.reviewed_at,
+      })));
+    }
     setCouriers(courierRows.map((courier) => ({
       id: courier.id, name: "موصل", phone: "", vehicle: courier.vehicle || "", wilaya: courier.wilaya || "", communes: courier.communes || [],
       availability: courier.availability || [], storeMode: courier.store_mode || "all", selectedStoreIds: courier.selected_store_ids || [], status: courier.status,
@@ -2410,6 +2505,43 @@ export default function App() {
     if (error) { if (!silent) notify(error.message?.includes("EMAIL_OTP_VERIFICATION_REQUIRED") ? "أكّد بريدك الإلكتروني عبر الرمز أولاً، ثم أعد المحاولة." : "تعذر تفعيل الدعوة: " + error.message); return false; }
     await refreshSupabaseData("customer");
     if (!silent) notify("تم تفعيل الدعوة بنجاح.");
+    return true;
+  }
+
+  async function submitMerchantOffer(offer) {
+    if (auth?.type !== "merchant" || auth.id !== offer.merchantId) { notify("لا تملك صلاحية تقديم عرض لهذا المتجر."); return false; }
+    const startsAt = new Date(offer.startsAt);
+    const endsAt = new Date(offer.endsAt);
+    const discountValue = Number(offer.discountValue);
+    if (!offer.title?.trim() || !Number.isFinite(discountValue) || discountValue <= 0 || Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) { notify("تحقق من عنوان العرض وقيمته وتاريخي البداية والنهاية."); return false; }
+    const { error } = await supabase.rpc("merchant_save_store_offer", {
+      p_offer_id: offer.id || null,
+      p_title: offer.title.trim(),
+      p_description: offer.description?.trim() || null,
+      p_discount_type: offer.discountType,
+      p_discount_value: discountValue,
+      p_starts_at: startsAt.toISOString(),
+      p_ends_at: endsAt.toISOString(),
+      p_submit: true,
+    });
+    if (error) { notify(error.code === "42883" ? "يلزم تشغيل ترحيل عروض المتاجر أولاً." : `تعذر حفظ العرض: ${error.message}`); return false; }
+    await refreshSupabaseData("merchant");
+    return true;
+  }
+
+  async function pauseMerchantOffer(offer) {
+    if (auth?.type !== "merchant" || auth.id !== offer.merchantId) { notify("لا تملك صلاحية إيقاف هذا العرض."); return false; }
+    const { error } = await supabase.rpc("merchant_pause_store_offer", { p_offer_id: offer.id });
+    if (error) { notify(`تعذر إيقاف العرض: ${error.message}`); return false; }
+    await refreshSupabaseData("merchant");
+    return true;
+  }
+
+  async function reviewMerchantOffer(offerId, action, adminNote = "") {
+    if (auth?.type !== "admin") { notify("هذه العملية متاحة للإدارة فقط."); return false; }
+    const { error } = await supabase.rpc("admin_review_store_offer", { p_offer_id: offerId, p_status: action, p_admin_note: adminNote || null });
+    if (error) { notify(`تعذر تحديث حالة العرض: ${error.message}`); return false; }
+    await refreshSupabaseData("admin");
     return true;
   }
 
@@ -2851,10 +2983,10 @@ export default function App() {
         {role !== "admin" && <p className="text-xs mt-3 mb-1 flex items-center gap-1.5 font-medium" style={{ color: C.inkSoft }}><PackageCheck size={13} color={C.sage} /> تُحفَظ بياناتك تلقائياً وتبقى الخصوصية تحت تحكمك.</p>}
 
         <div className="mt-4">
-          {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else setShowMerchantForm(true); }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} referralCode={referralCode} rewardCoupons={rewardCoupons} claimReferralCode={claimCustomerReferral} publicStoreId={publicQrDestination.storeId} publicCourierId={publicQrDestination.courierId} />)}
-          {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} onStartMerchantRegistration={() => setShowMerchantForm(true)} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} merchantConfirmSettlement={merchantConfirmSettlement} reportCustomerAccount={reportCustomerAccount} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
+          {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else setShowMerchantForm(true); }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} merchantOffers={merchantOffers} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} referralCode={referralCode} rewardCoupons={rewardCoupons} claimReferralCode={claimCustomerReferral} publicStoreId={publicQrDestination.storeId} publicCourierId={publicQrDestination.courierId} />)}
+          {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} merchantOffers={merchantOffers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} onStartMerchantRegistration={() => setShowMerchantForm(true)} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} merchantConfirmSettlement={merchantConfirmSettlement} reportCustomerAccount={reportCustomerAccount} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} submitMerchantOffer={submitMerchantOffer} pauseMerchantOffer={pauseMerchantOffer} userId={auth?.id || null} />}
           {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} messages={messages} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} courierConfirmPickup={courierConfirmPickup} courierStartDelivery={courierStartDelivery} courierConfirmDelivery={courierConfirmDelivery} courierConfirmRemittance={courierConfirmRemittance} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
-          {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} orderNotifications={adminOrderNotifications} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} customerReports={customerReports} customerBlacklist={customerBlacklist} deliveryPricing={deliveryPricing} referralAnalytics={referralAnalytics} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} markOrderNotificationRead={markOrderNotificationRead} markAllOrderNotificationsRead={markAllOrderNotificationsRead} saveArchiveAlertSettings={saveArchiveAlertSettings} setCustomerBlacklist={setCustomerBlacklistStatus} saveDeliveryPricing={saveDeliveryPricingConfig} />}
+          {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} merchantOffers={merchantOffers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} orderNotifications={adminOrderNotifications} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} customerReports={customerReports} customerBlacklist={customerBlacklist} deliveryPricing={deliveryPricing} referralAnalytics={referralAnalytics} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} markOrderNotificationRead={markOrderNotificationRead} markAllOrderNotificationsRead={markAllOrderNotificationsRead} saveArchiveAlertSettings={saveArchiveAlertSettings} setCustomerBlacklist={setCustomerBlacklistStatus} saveDeliveryPricing={saveDeliveryPricingConfig} reviewMerchantOffer={reviewMerchantOffer} />}
         </div>
 
         {role === "customer" && !showRoleGuide && (
