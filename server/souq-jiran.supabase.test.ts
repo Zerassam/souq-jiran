@@ -490,9 +490,13 @@ describe("Souq Jiran Supabase integration", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
     const customerView = appSource.match(/function CustomerView[\s\S]*?(?=function OrderTracker)/)?.[0] ?? "";
 
-    expect(customerView).toContain("تسعير محسوب من الخادم");
-    expect(customerView).toContain("تأكيد الحساب عبر البريد الإلكتروني");
+    expect(customerView).toContain('uiText(language, "serverQuote")');
+    expect(customerView).toContain('uiText(language, "emailConfirmation")');
     expect(customerView).toContain("emailVerified");
+    expect(customerView).toContain("CheckoutProgress");
+    expect(customerView).toContain("checkoutReady");
+    expect(customerView).toContain("checkoutNeedsAddress");
+    expect(customerView).toContain("language={language}");
     expect(customerView).not.toContain("واتساب/فايبر");
     expect(customerView).not.toContain("التحويل إلى Viber");
     expect(customerView).toContain("customerConfirmDelivery");
@@ -507,6 +511,10 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain('"merchant_confirm_settlement"');
     expect(appSource).toContain("تأكيد تحويل المستحقات للتاجر");
     expect(appSource).toContain("تأكيد استلام المستحقات");
+    expect(appSource).toContain("function OrderTracker({ status, language = \"ar\" })");
+    expect(appSource).toContain("stageReceived");
+    expect(appSource).toContain("stageOnTheWay");
+    expect(appSource).toContain("currentStage");
   });
 
   it("loads reports, blacklist entries, and delivery pricing only for the protected admin tools", () => {

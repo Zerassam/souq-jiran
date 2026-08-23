@@ -42,7 +42,8 @@ const UI_COPY = {
     nearbyStores: "المحلات القريبة", myOrders: "طلباتي", invitationsRewards: "دعوات ومكافآت", cart: "السلة", storeUnavailable: "هذا المتجر غير متاح حالياً عبر الرابط العام.",
     courierService: "خدمة الموصل", approvedCourier: "المعتمد", coverage: "تغطية {area}. تُسند الطلبات عبر المنصة عند الجاهزية لحماية الخصوصية.", profileUnavailable: "هذا الملف غير متاح حالياً؛ يمكنك متابعة التسوق واختيار التوصيل عبر المنصة عند الطلب.",
     searchStores: "ابحث باسم المحل أو نوع النشاط...", suggestedStores: "متاجر مقترحة في {area}", suggestedStoresDescription: "نختار حتى 6 متاجر فقط مع إعطاء الأولوية لتنوع الأنشطة المتاح في المنطقة.", storesCount: "{count}/{max} متجر",
-    openNow: "مفتوح الآن", closed: "مغلق", new: "جديد", products: "عرض المنتجات", noStores: "لا توجد محلات مطابقة لبحثك.", backToStores: "رجوع إلى المحلات", allDepartments: "كل الأقسام", verifiedReviews: "آراء موثقة", noOrders: "لا توجد طلبات بعد.",
+    openNow: "مفتوح الآن", closed: "مغلق", new: "جديد", products: "عرض المنتجات", noStores: "لا توجد محلات مطابقة لبحثك.", backToStores: "رجوع إلى المحلات", allDepartments: "كل الأقسام", verifiedReviews: "آراء موثقة", noOrders: "لا توجد طلبات بعد.", storeHours: "من {from}:00 إلى {to}:00", storeRating: "{rating} ({count} تقييم)", minimumOrder: "الحد الأدنى للطلب: {amount}",
+    cartHeading: "سلتك", cartEmpty: "سلتك فارغة حالياً.", orderFrom: "الطلب من: {store}", deliveryMethod: "طريقة الاستلام", deliveryAddress: "عنوان التوصيل", setOnMap: "تحديد على الخريطة", openMap: "فتح الخريطة", addressHint: "وصف دقيق: الحي، الشارع، المعلم القريب", useGps: "استخدام موقعي GPS الحالي", gpsSaved: "تم حفظ إحداثيات GPS الدقيقة للعنوان.", gpsHint: "يمكنك حفظ GPS بعد منح إذن الموقع؛ الخريطة تبقى بديلاً لتحديد نقطة الوصول.", calculatingDelivery: "جارٍ احتساب رسوم التوصيل من الخادم…", serverQuote: "تسعير محسوب من الخادم", distanceEta: "المسافة التقديرية: {distance} كم · الوصول المتوقع: {eta} دقيقة", interwilaya: "توصيل بين الولايات", emailConfirmation: "تأكيد الحساب عبر البريد الإلكتروني", emailVerifiedCopy: "هذا الحساب موثّق ببريد إلكتروني. يمكنك متابعة الطلب.", emailRequiredCopy: "سجّل الدخول وأكمل رمز البريد الإلكتروني قبل متابعة هذا الطلب.", rewardCoupon: "قسيمة مكافأة الإحالة", applyCoupon: "استخدام القسيمة", rewardHeld: "تم حجز خصم مكافأة {amount} ({code})", subtotal: "المجموع الفرعي", deliveryFee: "رسوم التوصيل {computed}", storeDeliveryFee: "رسوم توصيل المحل", discount: "الخصم", cashOnDelivery: "يُدفع نقداً عند الاستلام", orderMinimumNotice: "الحد الأدنى للطلب من هذا المحل هو {amount}.", confirmCashOrder: "تأكيد الطلب (دفع نقدي)", checkoutProgress: "تقدم الطلب", cartStep: "السلة", deliveryStep: "التوصيل", confirmStep: "التأكيد", checkoutReady: "كل شيء جاهز لتأكيد الطلب.", checkoutNeedsAddress: "أضف عنوان التوصيل للمتابعة.", checkoutNeedsQuote: "أدخل العنوان لاحتساب رسوم التوصيل.", checkoutNeedsEmail: "أكمل تأكيد البريد الإلكتروني للمتابعة.", currentStage: "المرحلة الحالية: {stage}", stageReceived: "تم استلام طلبك", stagePreparing: "قيد تحضير الطلب", stageHandover: "قيد تسليمه للموصل", stageOnTheWay: "في الطريق إليك", stageDelivered: "تم التسليم", invoice: "الفاتورة", confirmReceipt: "تأكيد الاستلام والدفع", rateExperience: "قيّم تجربتك", rated: "تم التقييم",
     storeOffers: "عروض تجار", offerCarousel: "شريط عروض", chooseOffer: "اختيار عرض تاجر", merchantOffer: "عرض تاجر", offerNumber: "عرض {count}: {title}", discountPercent: "خصم {value}%", discountAmount: "خصم {value}", offerLimited: "مدة العرض محدودة", offerEnds: "ينتهي {date}",
     buildPresence: "ابنِ حضورك على المنصة", onboardingDescription: "اختر مساحة العمل المناسبة لك، وابدأ برقم هاتفك أو بريدك الإلكتروني.", explorePaths: "استكشف المسارات", merchant: "انضم كتاجر", merchantDescription: "بيانات المحل ونطاق التوصيل في خطوات واضحة.", courier: "انضم كموصل", courierDescription: "تحكم في ساعاتك ونطاقك وطلباتك النشطة في أي وقت.", customer: "حساب الزبون", customerDescription: "تابع طلباتك وعناوينك وقسائمك من بوابتك الخاصة.", createAccount: "إنشاء حساب", signIn: "دخول", accountLogin: "دخول الحساب", customerAuth: "دخول أو إنشاء حساب",
     backShopping: "العودة للتسوّق", clearPath: "مسار واضح قبل التسجيل", joinNetwork: "انضم إلى شبكة الحيّ", roleGuideDescription: "اختر الدور الأنسب لك. ابدأ برقم هاتف محمول جزائري أو بريد إلكتروني، ثم تابع أعمالك من لوحتك الخاصة بعد اكتمال المراجعة.", merchantFor: "للتاجر", merchantTitle: "أدر محلّك من مكان واحد", merchantGuide: "أضف المنتجات، راقب الطلبات، وحدد الموصلين الذين تتعامل معهم ضمن نطاق توصيلك.", merchantBenefit1: "إدارة المنتجات والمخزون", merchantBenefit2: "متابعة الطلبات خطوة بخطوة", merchantBenefit3: "اختيار الموصلين المعتمدين", startMerchant: "ابدأ كتاجر", courierFor: "للموصل", courierTitle: "نظّم توصيلاتك بطريقتك", courierGuide: "حدد أوقاتك، ونطاق تغطيتك، والمحلات التي تناسب مسارك قبل استقبال الطلبات.", courierBenefit1: "أوقات عمل مرنة", courierBenefit2: "تغطية الأحياء والبلديات التي تختارها", courierBenefit3: "طلبات متاحة ضمن نطاقك", startCourier: "ابدأ كموصل",
@@ -53,7 +54,8 @@ const UI_COPY = {
     nearbyStores: "Commerces proches", myOrders: "Mes commandes", invitationsRewards: "Invitations et récompenses", cart: "Panier", storeUnavailable: "Ce commerce n’est pas disponible actuellement via ce lien public.",
     courierService: "Service de livraison", approvedCourier: "agréé", coverage: "Zone couverte : {area}. Les commandes sont attribuées par la plateforme lorsqu’elles sont prêtes, afin de protéger la confidentialité.", profileUnavailable: "Ce profil n’est pas disponible actuellement. Vous pouvez continuer vos achats et choisir la livraison via la plateforme lors de la commande.",
     searchStores: "Rechercher un commerce ou une activité…", suggestedStores: "Commerces proposés à {area}", suggestedStoresDescription: "Nous proposons jusqu’à 6 commerces en privilégiant la diversité des activités disponibles dans la zone.", storesCount: "{count}/{max} commerces",
-    openNow: "Ouvert", closed: "Fermé", new: "Nouveau", products: "Voir les produits", noStores: "Aucun commerce ne correspond à votre recherche.", backToStores: "Retour aux commerces", allDepartments: "Tous les rayons", verifiedReviews: "Avis vérifiés", noOrders: "Aucune commande pour le moment.",
+    openNow: "Ouvert", closed: "Fermé", new: "Nouveau", products: "Voir les produits", noStores: "Aucun commerce ne correspond à votre recherche.", backToStores: "Retour aux commerces", allDepartments: "Tous les rayons", verifiedReviews: "Avis vérifiés", noOrders: "Aucune commande pour le moment.", storeHours: "De {from}:00 à {to}:00", storeRating: "{rating} ({count} avis)", minimumOrder: "Commande minimale : {amount}",
+    cartHeading: "Votre panier", cartEmpty: "Votre panier est vide.", orderFrom: "Commande auprès de : {store}", deliveryMethod: "Mode de réception", deliveryAddress: "Adresse de livraison", setOnMap: "Placer sur la carte", openMap: "Ouvrir la carte", addressHint: "Précisez : quartier, rue, point de repère", useGps: "Utiliser ma position GPS", gpsSaved: "Les coordonnées GPS précises de l’adresse sont enregistrées.", gpsHint: "Autorisez la localisation pour enregistrer le GPS ; la carte reste disponible pour placer le point d’arrivée.", calculatingDelivery: "Calcul des frais de livraison par le serveur…", serverQuote: "Tarif calculé par le serveur", distanceEta: "Distance estimée : {distance} km · arrivée prévue : {eta} min", interwilaya: "Livraison inter-wilayas", emailConfirmation: "Confirmation du compte par e-mail", emailVerifiedCopy: "Ce compte est confirmé par e-mail. Vous pouvez poursuivre la commande.", emailRequiredCopy: "Connectez-vous et confirmez votre e-mail avant de poursuivre cette commande.", rewardCoupon: "Coupon de récompense de parrainage", applyCoupon: "Appliquer", rewardHeld: "Réduction réservée de {amount} ({code})", subtotal: "Sous-total", deliveryFee: "Frais de livraison {computed}", storeDeliveryFee: "Frais de livraison du commerce", discount: "Réduction", cashOnDelivery: "À payer en espèces à la réception", orderMinimumNotice: "La commande minimale pour ce commerce est de {amount}.", confirmCashOrder: "Confirmer la commande (paiement en espèces)", checkoutProgress: "Progression de la commande", cartStep: "Panier", deliveryStep: "Livraison", confirmStep: "Confirmation", checkoutReady: "Tout est prêt pour confirmer la commande.", checkoutNeedsAddress: "Ajoutez l’adresse de livraison pour continuer.", checkoutNeedsQuote: "Indiquez l’adresse pour calculer les frais de livraison.", checkoutNeedsEmail: "Confirmez votre e-mail pour continuer.", currentStage: "Étape actuelle : {stage}", stageReceived: "Commande reçue", stagePreparing: "Préparation en cours", stageHandover: "Remise au livreur", stageOnTheWay: "En route vers vous", stageDelivered: "Livrée", invoice: "Facture", confirmReceipt: "Confirmer la réception et le paiement", rateExperience: "Évaluer votre expérience", rated: "Évaluée",
     storeOffers: "Offres des commerces", offerCarousel: "Carrousel d’offres", chooseOffer: "Choisir une offre", merchantOffer: "Offre commerçant", offerNumber: "Offre {count} : {title}", discountPercent: "Réduction de {value}%", discountAmount: "Réduction de {value}", offerLimited: "Offre à durée limitée", offerEnds: "Se termine le {date}",
     buildPresence: "Développez votre présence sur la plateforme", onboardingDescription: "Choisissez l’espace adapté à votre activité et commencez avec votre téléphone ou votre adresse e-mail.", explorePaths: "Découvrir les parcours", merchant: "Devenir commerçant", merchantDescription: "Les informations du commerce et la zone de livraison en quelques étapes simples.", courier: "Devenir livreur", courierDescription: "Gérez vos horaires, votre zone et vos commandes actives à tout moment.", customer: "Compte client", customerDescription: "Suivez vos commandes, adresses et coupons depuis votre espace personnel.", createAccount: "Créer un compte", signIn: "Connexion", accountLogin: "Connexion au compte", customerAuth: "Connexion ou création de compte",
     backShopping: "Retour aux achats", clearPath: "Un parcours clair avant l’inscription", joinNetwork: "Rejoignez le réseau de votre quartier", roleGuideDescription: "Choisissez le rôle qui vous convient. Commencez avec un numéro algérien ou une adresse e-mail, puis gérez votre activité depuis votre espace après validation.", merchantFor: "Pour les commerçants", merchantTitle: "Gérez votre commerce au même endroit", merchantGuide: "Ajoutez vos produits, suivez vos commandes et choisissez les livreurs avec lesquels vous travaillez dans votre zone.", merchantBenefit1: "Gestion des produits et du stock", merchantBenefit2: "Suivi des commandes étape par étape", merchantBenefit3: "Choix des livreurs agréés", startMerchant: "Commencer comme commerçant", courierFor: "Pour les livreurs", courierTitle: "Organisez vos livraisons à votre rythme", courierGuide: "Définissez vos horaires, votre zone de couverture et les commerces adaptés à votre parcours avant de recevoir des commandes.", courierBenefit1: "Horaires flexibles", courierBenefit2: "Couverture des quartiers et communes de votre choix", courierBenefit3: "Commandes disponibles dans votre zone", startCourier: "Commencer comme livreur",
@@ -437,6 +439,22 @@ const STATUS_MAP = {
   settled: { label: "تمت التسوية", color: C.sage }, declined: { label: "مرفوض", color: "#8B3A2A" }, cancelled: { label: "ملغى", color: "#8B3A2A" },
 };
 function StatusPill({ status }) { const s = STATUS_MAP[status] ?? { label: "بانتظار التحديث", color: C.inkSoft }; return <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full" style={{ background: s.color + "1F", color: s.color }}><span style={{ width: 6, height: 6, borderRadius: 999, background: s.color }} />{s.label}</span>; }
+function CheckoutProgress({ cartCount, deliveryChoice, addressReady, language }) {
+  const activeIndex = cartCount === 0 ? 0 : deliveryChoice !== "pickup" && !addressReady ? 1 : 2;
+  const steps = [
+    { label: uiText(language, "cartStep"), icon: ShoppingBasket },
+    { label: uiText(language, "deliveryStep"), icon: MapPin },
+    { label: uiText(language, "confirmStep"), icon: CheckCircle2 },
+  ];
+  return <section aria-label={uiText(language, "checkoutProgress")} className="grid grid-cols-3 gap-2 p-3 rounded-xl mb-4" style={{ background: C.teal + "0D", border: `1px solid ${C.teal}25` }}>{steps.map((step, index) => { const Icon = step.icon; const active = index <= activeIndex; return <div key={step.label} className="flex flex-col items-center gap-1 text-center"><span className="flex items-center justify-center rounded-full" style={{ width: 26, height: 26, background: active ? C.teal : C.paperDark, color: active ? "#fff" : C.inkSoft }}>{index < activeIndex ? <Check size={13} /> : <Icon size={13} />}</span><span className="text-[10px] font-bold" style={{ color: active ? C.teal : C.inkSoft }}>{step.label}</span></div>; })}</section>;
+}
+function getCustomerTrackingStage(status, language) {
+  if (["pending", "accepted"].includes(status)) return { key: "stageReceived", index: 0 };
+  if (status === "preparing") return { key: "stagePreparing", index: 1 };
+  if (["ready", "assigned", "picked_up"].includes(status)) return { key: "stageHandover", index: 2 };
+  if (status === "out_for_delivery") return { key: "stageOnTheWay", index: 3 };
+  return { key: "stageDelivered", index: 4 };
+}
 function Toast({ message }) { if (!message) return null; return <div className="fixed bottom-6 left-1/2 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-bold" style={{ transform: "translateX(-50%)", background: C.ink, color: C.paper }}>{message}</div>; }
 function Truck2(props) { return <Store {...props} />; }
 const DELIVERY_LABELS = { store: { label: "توصيل المحل", icon: Truck2 }, courier: { label: "موصل معتمد من المنصة", icon: Bike }, pickup: { label: "استلام ذاتي من المحل", icon: Home } };
@@ -1154,6 +1172,21 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const isInterwilaya = Boolean(deliveryQuote?.isInterwilaya || (cart.address?.wilaya && cartStore?.wilaya && cart.address.wilaya !== cartStore.wilaya));
   const requiresVerifiedEmail = deliveryChoice === "courier" && (finalTotal >= 10000 || isInterwilaya);
   const emailVerified = Boolean(customerId);
+  const addressReady = Boolean(cart.address?.wilaya && cart.address?.commune && cart.address?.label?.trim());
+  const needsDeliveryAddress = deliveryChoice !== "pickup";
+  const needsDeliveryQuote = deliveryChoice === "courier";
+  const checkoutDisabled = cartCount === 0 || Boolean(belowMinOrder) || quoteLoading || (needsDeliveryAddress && !addressReady) || (needsDeliveryQuote && !deliveryQuote) || (requiresVerifiedEmail && !emailVerified);
+  const checkoutHint = cartCount === 0
+    ? uiText(language, "cartEmpty")
+    : belowMinOrder
+      ? uiText(language, "orderMinimumNotice", { amount: money(cartStore?.minOrder) })
+      : needsDeliveryAddress && !addressReady
+        ? uiText(language, "checkoutNeedsAddress")
+        : needsDeliveryQuote && !deliveryQuote
+          ? uiText(language, "checkoutNeedsQuote")
+          : requiresVerifiedEmail && !emailVerified
+            ? uiText(language, "checkoutNeedsEmail")
+            : uiText(language, "checkoutReady");
 
   // The customer chooses the platform delivery service, not a named courier.
   // Assignment occurs after the merchant marks the order ready, preserving courier privacy.
@@ -1296,12 +1329,12 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
               <div className="flex items-center justify-between mb-2"><span className="font-bold text-sm" style={{ color: C.ink }}>{o.storeName}</span><StatusPill status={o.status} /></div>
               <div className="text-xs mb-1" style={{ color: C.inkSoft }}>{o.items.map((i) => `${i.name} ×${i.qty}`).join(" · ")}</div>
               <div className="text-xs mb-3 flex items-center gap-1" style={{ color: C.teal }}>{React.createElement(DELIVERY_LABELS[o.deliveryType]?.icon || Home, { size: 12 })} {DELIVERY_LABELS[o.deliveryType]?.label}{o.courier ? ` — ${o.courier.name}` : ""}</div>
-              <OrderTracker status={o.status} />
+              <OrderTracker status={o.status} language={language} />
               <div className="flex items-center gap-2 mt-3 pt-3 flex-wrap" style={{ borderTop: `1px solid ${C.line}` }}>
-                <button onClick={() => setInvoiceOrder(o)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}><Printer size={12} /> الفاتورة</button>
-                {o.status === "delivered" && <button onClick={() => customerConfirmDelivery(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.sage + "20", color: C.sage }}><CheckCircle2 size={12} /> تأكيد الاستلام والدفع</button>}
-                {o.status === "customer_confirmed" && !o.rated && <button onClick={() => setReviewingOrder(o)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.ochre + "25", color: "#8A6318" }}><Star size={12} /> قيّم تجربتك</button>}
-                {o.rated && <span className="text-xs font-bold flex items-center gap-1" style={{ color: C.sage }}><Check size={12} /> تم التقييم</span>}
+                <button onClick={() => setInvoiceOrder(o)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}><Printer size={12} /> {uiText(language, "invoice")}</button>
+                {o.status === "delivered" && <button onClick={() => customerConfirmDelivery(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.sage + "20", color: C.sage }}><CheckCircle2 size={12} /> {uiText(language, "confirmReceipt")}</button>}
+                {o.status === "customer_confirmed" && !o.rated && <button onClick={() => setReviewingOrder(o)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.ochre + "25", color: "#8A6318" }}><Star size={12} /> {uiText(language, "rateExperience")}</button>}
+                {o.rated && <span className="text-xs font-bold flex items-center gap-1" style={{ color: C.sage }}><Check size={12} /> {uiText(language, "rated")}</span>}
               </div>
             </div>
           ))}
@@ -1311,44 +1344,45 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
       {showCart && (
         <div className="fixed inset-0 z-40 flex justify-end" style={{ background: "rgba(35,32,27,0.45)" }} onClick={() => setShowCart(false)}>
           <div onClick={(e) => e.stopPropagation()} className="h-full w-full sm:w-96 p-5 overflow-y-auto" style={{ background: C.paper }}>
-            <div className="flex items-center justify-between mb-4"><h3 className="font-black text-lg" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>سلتك</h3><button onClick={() => setShowCart(false)}><X size={20} color={C.inkSoft} /></button></div>
-            {cart.items.length === 0 ? <p className="text-sm text-center py-10" style={{ color: C.inkSoft }}>سلتك فارغة حالياً.</p> : (
+            <div className="flex items-center justify-between mb-4"><h3 className="font-black text-lg" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>{uiText(language, "cartHeading")}</h3><button onClick={() => setShowCart(false)}><X size={20} color={C.inkSoft} /></button></div>
+            {cart.items.length === 0 ? <p className="text-sm text-center py-10" style={{ color: C.inkSoft }}>{uiText(language, "cartEmpty")}</p> : (
               <>
-                <p className="text-xs mb-3 font-bold" style={{ color: C.teal }}>الطلب من: {cartStore?.name}</p>
+                <CheckoutProgress cartCount={cartCount} deliveryChoice={deliveryChoice} addressReady={addressReady} language={language} />
+                <p className="text-xs mb-3 font-bold" style={{ color: C.teal }}>{uiText(language, "orderFrom", { store: cartStore?.name || "—" })}</p>
                 <div className="space-y-3 mb-5">{cart.items.map((i) => (<div key={i.id} className="flex items-center justify-between p-3 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div><div className="text-sm font-bold" style={{ color: C.ink }}>{i.name}</div><div className="text-xs" style={{ color: C.inkSoft }}>{money(i.price)} × {i.qty}</div></div><div className="flex items-center gap-2"><button onClick={() => changeQty(i.id, -1)} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: C.paperDark }}><Minus size={13} /></button><span className="text-sm font-bold w-4 text-center">{i.qty}</span><button onClick={() => changeQty(i.id, 1)} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: C.paperDark }}><Plus size={13} /></button></div></div>))}</div>
 
                 <div className="mb-4">
-                  <span className="text-xs font-bold flex items-center gap-1 mb-2" style={{ color: C.ink }}><Truck2 size={13} /> طريقة الاستلام</span>
+                  <span className="text-xs font-bold flex items-center gap-1 mb-2" style={{ color: C.ink }}><Truck2 size={13} /> {uiText(language, "deliveryMethod")}</span>
                   <div className="space-y-2">{deliveryOptions.map((opt) => (<button key={opt.id} disabled={opt.disabled} onClick={() => setDeliveryChoice(opt.id)} className="w-full flex items-center gap-2.5 p-2.5 rounded-xl text-right disabled:opacity-40" style={{ border: `1.5px solid ${deliveryChoice === opt.id ? C.teal : C.line}`, background: deliveryChoice === opt.id ? C.teal + "10" : "#fff" }}><opt.icon size={17} color={deliveryChoice === opt.id ? C.teal : C.inkSoft} /><div className="flex-1"><div className="text-xs font-bold" style={{ color: C.ink }}>{opt.label}</div><div className="text-[11px]" style={{ color: C.inkSoft }}>{opt.desc}</div></div>{deliveryChoice === opt.id && <CheckCircle2 size={16} color={C.teal} />}</button>))}</div>
                 </div>
 
                 {deliveryChoice !== "pickup" && <div className="mb-4 p-3 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
-                  <div className="flex items-center justify-between mb-2"><span className="text-xs font-bold flex items-center gap-1" style={{ color: C.ink }}><MapPin size={13} /> عنوان التوصيل</span><button onClick={() => setShowMapPicker(true)} className="text-xs font-bold" style={{ color: C.teal }}>{cart.address ? "تحديد على الخريطة" : "فتح الخريطة"}</button></div>
+                  <div className="flex items-center justify-between mb-2"><span className="text-xs font-bold flex items-center gap-1" style={{ color: C.ink }}><MapPin size={13} /> {uiText(language, "deliveryAddress")}</span><button onClick={() => setShowMapPicker(true)} className="text-xs font-bold" style={{ color: C.teal }}>{cart.address ? uiText(language, "setOnMap") : uiText(language, "openMap")}</button></div>
                   <WilayaCommuneSelect wilaya={cart.address?.wilaya || ""} commune={cart.address?.commune || ""} onChange={({ wilaya, commune }) => updateAddress({ wilaya, commune })} />
-                  <input value={cart.address?.label || ""} onChange={(e) => updateAddress({ label: e.target.value })} placeholder="وصف دقيق: الحي، الشارع، المعلم القريب" className="w-full mt-2 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
-                  <button onClick={requestCurrentLocation} className="mt-2 flex items-center gap-1 text-xs font-bold" style={{ color: C.teal }}><Navigation size={13} /> استخدام موقعي GPS الحالي</button>
-                  {cart.address?.latitude && cart.address?.longitude ? <p className="mt-2 text-[11px] font-bold" style={{ color: C.sage }}>تم حفظ إحداثيات GPS الدقيقة للعنوان.</p> : <p className="mt-2 text-[11px]" style={{ color: C.inkSoft }}>يمكنك حفظ GPS بعد منح إذن الموقع؛ الخريطة تبقى بديلاً لتحديد نقطة الوصول.</p>}
+                  <input value={cart.address?.label || ""} onChange={(e) => updateAddress({ label: e.target.value })} placeholder={uiText(language, "addressHint")} className="w-full mt-2 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
+                  <button onClick={requestCurrentLocation} className="mt-2 flex items-center gap-1 text-xs font-bold" style={{ color: C.teal }}><Navigation size={13} /> {uiText(language, "useGps")}</button>
+                  {cart.address?.latitude && cart.address?.longitude ? <p className="mt-2 text-[11px] font-bold" style={{ color: C.sage }}>{uiText(language, "gpsSaved")}</p> : <p className="mt-2 text-[11px]" style={{ color: C.inkSoft }}>{uiText(language, "gpsHint")}</p>}
                   {cart.address?.x !== undefined && <div className="mt-2"><MapPreview x={cart.address.x} y={cart.address.y} height={60} /></div>}
                 </div>}
 
-                {deliveryChoice === "courier" && quoteLoading && <p className="text-xs mb-3" style={{ color: C.inkSoft }}>جارٍ احتساب رسوم التوصيل من الخادم…</p>}
-                {deliveryChoice === "courier" && deliveryQuote && <div className="mb-3 p-3 rounded-xl text-xs" style={{ background: C.teal + "0F", border: `1px solid ${C.teal}30`, color: C.ink }}><div className="font-bold" style={{ color: C.teal }}>تسعير محسوب من الخادم</div><div className="mt-1">المسافة التقديرية: {Number(deliveryQuote.distanceKm || 0).toFixed(1)} كم · الوصول المتوقع: {deliveryQuote.etaMinutes || "—"} دقيقة{deliveryQuote.isInterwilaya ? " · توصيل بين الولايات" : ""}</div></div>}
+                {deliveryChoice === "courier" && quoteLoading && <p className="text-xs mb-3" style={{ color: C.inkSoft }}>{uiText(language, "calculatingDelivery")}</p>}
+                {deliveryChoice === "courier" && deliveryQuote && <div className="mb-3 p-3 rounded-xl text-xs" style={{ background: C.teal + "0F", border: `1px solid ${C.teal}30`, color: C.ink }}><div className="font-bold" style={{ color: C.teal }}>{uiText(language, "serverQuote")}</div><div className="mt-1">{uiText(language, "distanceEta", { distance: Number(deliveryQuote.distanceKm || 0).toFixed(1), eta: deliveryQuote.etaMinutes || "—" })}{deliveryQuote.isInterwilaya ? ` · ${uiText(language, "interwilaya")}` : ""}</div></div>}
                 {deliveryChoice === "courier" && quoteError && <p className="text-xs font-bold mb-3" style={{ color: "#8B3A2A" }}>{quoteError}</p>}
-                {requiresVerifiedEmail && <div className="mb-3 p-3 rounded-xl" style={{ background: C.teal + "12", border: `1px solid ${C.teal}35` }}><div className="text-xs font-black" style={{ color: C.teal }}>تأكيد الحساب عبر البريد الإلكتروني</div><p className="text-[11px] mt-1 leading-5" style={{ color: C.inkSoft }}>{emailVerified ? "هذا الحساب موثّق ببريد إلكتروني. يمكنك متابعة الطلب." : "سجّل الدخول وأكمل رمز البريد الإلكتروني قبل متابعة هذا الطلب."}</p></div>}
+                {requiresVerifiedEmail && <div className="mb-3 p-3 rounded-xl" style={{ background: C.teal + "12", border: `1px solid ${C.teal}35` }}><div className="text-xs font-black" style={{ color: C.teal }}>{uiText(language, "emailConfirmation")}</div><p className="text-[11px] mt-1 leading-5" style={{ color: C.inkSoft }}>{emailVerified ? uiText(language, "emailVerifiedCopy") : uiText(language, "emailRequiredCopy")}</p></div>}
 
-                <div className="flex gap-2 mb-3"><input value={rewardCouponInput} onChange={(e) => setRewardCouponInput(e.target.value.toUpperCase())} placeholder="قسيمة مكافأة الإحالة" dir="ltr" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /><button onClick={applyRewardCoupon} className="px-4 py-2 rounded-xl text-xs font-bold" style={{ background: C.teal, color: "#fff" }}>استخدام القسيمة</button></div>
-                {appliedReward && <p className="text-xs font-bold mb-3 flex items-center gap-1" style={{ color: C.sage }}><Tag size={12} /> تم حجز خصم مكافأة {money(appliedReward.amount)} ({appliedReward.code})</p>}
+                <div className="flex gap-2 mb-3"><input value={rewardCouponInput} onChange={(e) => setRewardCouponInput(e.target.value.toUpperCase())} placeholder={uiText(language, "rewardCoupon")} dir="ltr" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /><button onClick={applyRewardCoupon} className="px-4 py-2 rounded-xl text-xs font-bold" style={{ background: C.teal, color: "#fff" }}>{uiText(language, "applyCoupon")}</button></div>
+                {appliedReward && <p className="text-xs font-bold mb-3 flex items-center gap-1" style={{ color: C.sage }}><Tag size={12} /> {uiText(language, "rewardHeld", { amount: money(appliedReward.amount), code: appliedReward.code })}</p>}
 
                 <StripeDivider />
                 <div className="my-4 space-y-1.5">
-                  <div className="flex items-center justify-between text-xs" style={{ color: C.inkSoft }}><span>المجموع الفرعي</span><span>{money(cartSubtotal)}</span></div>
-                  {deliveryChoice === "courier" && <div className="flex items-center justify-between text-xs" style={{ color: C.inkSoft }}><span>رسوم التوصيل {deliveryQuote ? "المحسوبة" : ""}</span><span>{quoteLoading ? "…" : money(deliveryFee)}</span></div>}
-                  {deliveryChoice === "store" && deliveryFee > 0 && <div className="flex items-center justify-between text-xs" style={{ color: C.inkSoft }}><span>رسوم توصيل المحل</span><span>{money(deliveryFee)}</span></div>}
-                  {discountAmount > 0 && <div className="flex items-center justify-between text-xs" style={{ color: C.sage }}><span>الخصم</span><span>- {money(discountAmount)}</span></div>}
-                  <div className="flex items-center justify-between pt-1"><span className="font-bold text-sm" style={{ color: C.ink }}>يُدفع نقداً عند الاستلام</span><PriceTag amount={finalTotal} size="lg" /></div>
+                  <div className="flex items-center justify-between text-xs" style={{ color: C.inkSoft }}><span>{uiText(language, "subtotal")}</span><span>{money(cartSubtotal)}</span></div>
+                  {deliveryChoice === "courier" && <div className="flex items-center justify-between text-xs" style={{ color: C.inkSoft }}><span>{uiText(language, "deliveryFee", { computed: deliveryQuote ? "✓" : "" })}</span><span>{quoteLoading ? "…" : money(deliveryFee)}</span></div>}
+                  {deliveryChoice === "store" && deliveryFee > 0 && <div className="flex items-center justify-between text-xs" style={{ color: C.inkSoft }}><span>{uiText(language, "storeDeliveryFee")}</span><span>{money(deliveryFee)}</span></div>}
+                  {discountAmount > 0 && <div className="flex items-center justify-between text-xs" style={{ color: C.sage }}><span>{uiText(language, "discount")}</span><span>- {money(discountAmount)}</span></div>}
+                  <div className="flex items-center justify-between pt-1"><span className="font-bold text-sm" style={{ color: C.ink }}>{uiText(language, "cashOnDelivery")}</span><PriceTag amount={finalTotal} size="lg" /></div>
                 </div>
-                {belowMinOrder && <p className="text-xs font-bold mb-3" style={{ color: "#8B3A2A" }}>الحد الأدنى للطلب من هذا المحل هو {money(cartStore.minOrder)}.</p>}
-                <button disabled={belowMinOrder || quoteLoading || (deliveryChoice === "courier" && (!cart.address?.wilaya || !cart.address?.commune || !cart.address?.label || !deliveryQuote || (requiresVerifiedEmail && !emailVerified)))} onClick={async () => { const ok = await placeOrder(cartStore, null, discountAmount, cart.address, deliveryChoice, deliveryFee, appliedReward?.code); if (!ok) return; setAppliedReward(null); setRewardCouponInput(""); setShowCart(false); setTab("orders"); setDeliveryChoice("pickup"); setDeliveryChoice("pickup"); setDeliveryQuote(null); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>تأكيد الطلب (دفع نقدي)</button>
+                <p className="text-xs font-bold mb-3" style={{ color: checkoutDisabled ? C.inkSoft : C.sage }}>{checkoutHint}</p>
+                <button disabled={checkoutDisabled} onClick={async () => { const ok = await placeOrder(cartStore, null, discountAmount, cart.address, deliveryChoice, deliveryFee, appliedReward?.code); if (!ok) return; setAppliedReward(null); setRewardCouponInput(""); setShowCart(false); setTab("orders"); setDeliveryChoice("pickup"); setDeliveryQuote(null); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>{uiText(language, "confirmCashOrder")}</button>
               </>
             )}
           </div>
@@ -1362,11 +1396,23 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   );
 }
 
-function OrderTracker({ status }) {
-  const steps = ["pending", "accepted", "preparing", "ready", "assigned", "picked_up", "out_for_delivery", "delivered", "customer_confirmed", "remittance_confirmed", "settled"];
+function OrderTracker({ status, language = "ar" }) {
   if (["declined", "cancelled"].includes(status)) return <p className="text-xs font-bold" style={{ color: STATUS_MAP[status].color }}>{STATUS_MAP[status].label}.</p>;
-  const idx = steps.indexOf(status);
-  return (<div className="flex items-center">{steps.map((s, i) => (<React.Fragment key={s}><div className="flex items-center justify-center rounded-full shrink-0" style={{ width: 20, height: 20, background: i <= idx ? C.teal : C.paperDark, color: i <= idx ? "#fff" : C.inkSoft }}>{i <= idx ? <Check size={11} /> : <span style={{ width: 5, height: 5, borderRadius: 999, background: C.inkSoft }} />}</div>{i < steps.length - 1 && <div className="flex-1 h-0.5" style={{ background: i < idx ? C.teal : C.paperDark }} />}</React.Fragment>))}</div>);
+  const current = getCustomerTrackingStage(status, language);
+  const steps = ["stageReceived", "stagePreparing", "stageHandover", "stageOnTheWay", "stageDelivered"];
+  return <section aria-label={uiText(language, "currentStage", { stage: uiText(language, current.key) })} className="mt-2">
+    <p className="text-[11px] font-bold mb-2" style={{ color: C.inkSoft }}>{uiText(language, "currentStage", { stage: uiText(language, current.key) })}</p>
+    <div className="flex items-center" aria-hidden="true">
+      {steps.map((key, index) => (
+        <React.Fragment key={key}>
+          <div className="flex items-center justify-center rounded-full shrink-0" style={{ width: 21, height: 21, background: index <= current.index ? C.teal : C.paperDark, color: index <= current.index ? "#fff" : C.inkSoft }}>
+            {index < current.index ? <Check size={11} /> : <span style={{ width: 5, height: 5, borderRadius: 999, background: index === current.index ? "currentColor" : C.inkSoft }} />}
+          </div>
+          {index < steps.length - 1 && <div className="flex-1 h-0.5" style={{ background: index < current.index ? C.teal : C.paperDark }} />}
+        </React.Fragment>
+      ))}
+    </div>
+  </section>;
 }
 
 /* ===========================================================
