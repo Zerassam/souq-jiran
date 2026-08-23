@@ -121,6 +121,26 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).not.toContain("AdminGateModal");
   });
 
+  it("ships a guarded non-admin cleanup script that preserves the sole admin and global settings", () => {
+    const cleanupScript = readFileSync(resolve(projectRoot, "supabase/cleanup-non-admin-data.sql"), "utf8");
+    const cleanupRunbook = readFileSync(resolve(projectRoot, "docs/supabase-non-admin-cleanup-runbook.md"), "utf8");
+
+    expect(cleanupScript).toContain("v_operator_confirmation boolean := false;");
+    expect(cleanupScript).toContain("CLEANUP_NOT_CONFIRMED");
+    expect(cleanupScript).toContain("expected exactly one admin profile");
+    expect(cleanupScript).toContain("delete from auth.users");
+    expect(cleanupScript).toContain("where p.role <> 'admin'");
+    expect(cleanupScript).toContain("all_post_checks_passed");
+    expect(cleanupScript).toContain("delivery_pricing_config");
+    expect(cleanupScript).toContain("referral_reward_config");
+    expect(cleanupScript).toContain("admin_archive_alert_settings");
+    expect(cleanupScript).not.toContain("delete from public.delivery_pricing_config");
+    expect(cleanupScript).not.toContain("delete from public.referral_reward_config");
+    expect(cleanupScript).not.toContain("delete from public.admin_archive_alert_settings");
+    expect(cleanupRunbook).toContain("مدمّرة وغير قابلة للاسترجاع");
+    expect(cleanupRunbook).toContain("auth_user_count=1");
+  });
+
   it("creates merchant and courier records only after a verified email OTP session", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
 
