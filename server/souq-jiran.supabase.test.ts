@@ -642,4 +642,16 @@ describe("Souq Jiran Supabase integration", () => {
     expect(postVerificationSource).not.toMatch(/\bupdate\s+public\./i);
     expect(postVerificationSource).not.toMatch(/\btruncate\s+table\b/i);
   });
+
+  it("defines merchant map-picker state before rendering or opening the location editor", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const merchantViewStart = appSource.indexOf("function MerchantView");
+    const merchantViewEnd = appSource.indexOf("\nfunction ", merchantViewStart + 1);
+    const merchantViewSource = appSource.slice(merchantViewStart, merchantViewEnd);
+
+    expect(merchantViewSource).toContain("const [showMapPicker, setShowMapPicker] = useState(false);");
+    expect(merchantViewSource).toContain("onClick={() => setShowMapPicker(true)}");
+    expect(merchantViewSource).toContain("{showMapPicker && <MapPicker");
+    expect(merchantViewSource).toContain("onClose={() => setShowMapPicker(false)}");
+  });
 });

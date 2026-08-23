@@ -1302,6 +1302,7 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
   const [newProduct, setNewProduct] = useState({ name: "", price: "", unit: "الوحدة", department: "pantry" });
   const [invoiceOrder, setInvoiceOrder] = useState(null);
   const [showBulkImport, setShowBulkImport] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
 
   function updateStore(patch) { setStores((prev) => prev.map((s) => (s.id === myStoreId ? { ...s, ...patch } : s))); }
 
