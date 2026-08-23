@@ -125,19 +125,32 @@ describe("Souq Jiran Supabase integration", () => {
     const cleanupScript = readFileSync(resolve(projectRoot, "supabase/cleanup-non-admin-data.sql"), "utf8");
     const cleanupRunbook = readFileSync(resolve(projectRoot, "docs/supabase-non-admin-cleanup-runbook.md"), "utf8");
 
-    expect(cleanupScript).toContain("v_operator_confirmation boolean := false;");
+    expect(cleanupScript).toContain("v_operator_confirmation boolean := true;");
     expect(cleanupScript).toContain("CLEANUP_NOT_CONFIRMED");
     expect(cleanupScript).toContain("expected exactly one admin profile");
+    expect(cleanupScript).toContain("listportail@gmail.com");
+    expect(cleanupScript).toContain("the linked phone does not match the approved primary admin account");
+    expect(cleanupScript).toContain("the approved primary admin account or profile changed unexpectedly");
+    expect(cleanupScript).toContain("all rows attributed to the admin are preserved");
+    expect(cleanupScript).toContain("admin-participating order detected");
+    expect(cleanupScript).toContain("admin-participating message detected");
+    expect(cleanupScript).toContain("preserved_admin_audit_rows");
+    expect(cleanupScript).toContain("deleting a non-admin would modify an admin archive audit row");
+    expect(cleanupScript).toContain("deleting orders would modify an admin archive notification");
     expect(cleanupScript).toContain("delete from auth.users");
     expect(cleanupScript).toContain("where p.role <> 'admin'");
     expect(cleanupScript).toContain("all_post_checks_passed");
     expect(cleanupScript).toContain("delivery_pricing_config");
     expect(cleanupScript).toContain("referral_reward_config");
     expect(cleanupScript).toContain("admin_archive_alert_settings");
+    expect(cleanupScript).toContain("expected_content_hash");
+    expect(cleanupScript).not.toContain("truncate table public");
     expect(cleanupScript).not.toContain("delete from public.delivery_pricing_config");
     expect(cleanupScript).not.toContain("delete from public.referral_reward_config");
     expect(cleanupScript).not.toContain("delete from public.admin_archive_alert_settings");
     expect(cleanupRunbook).toContain("مدمّرة وغير قابلة للاسترجاع");
+    expect(cleanupRunbook).toContain("مرة واحدة");
+    expect(cleanupRunbook).toContain("دون تعديل");
     expect(cleanupRunbook).toContain("auth_user_count=1");
   });
 
