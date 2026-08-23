@@ -57,4 +57,36 @@ describe("Supabase configuration", () => {
       expect(await response.json()).toEqual([]);
     }
   }, 15_000);
+
+  it("treats anonymous scheduling callers as unassigned and denies delivery windows", async () => {
+    const roleResponse = await fetch(`${projectUrl}/rest/v1/rpc/current_app_role`, {
+      method: "POST",
+      headers: {
+        apikey: publishableKey!,
+        Authorization: `Bearer ${publishableKey!}`,
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+    });
+
+    expect(roleResponse.ok).toBe(true);
+    expect(await roleResponse.json()).toBe("");
+
+    const scheduleResponse = await fetch(`${projectUrl}/rest/v1/rpc/delivery_schedule_options`, {
+      method: "POST",
+      headers: {
+        apikey: publishableKey!,
+        Authorization: `Bearer ${publishableKey!}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        p_merchant_id: "00000000-0000-0000-0000-000000000000",
+        p_delivery_choice: "store",
+        p_delivery_address: { wilaya: "Alger", commune: "Alger Centre", label: "Test" },
+      }),
+    });
+
+    expect(scheduleResponse.ok).toBe(false);
+    expect(JSON.stringify(await scheduleResponse.json())).not.toContain("window_start");
+  }, 15_000);
 });
