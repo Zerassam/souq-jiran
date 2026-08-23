@@ -13,8 +13,9 @@
 -- هذه النسخة مفعّلة للتشغيل مرة واحدة بعد موافقة المالك الصريحة في هذه الجلسة.
 -- لا تُشغّلها ثانية؛ احفظ نتيجة التنفيذ أولاً، واحتفظ بنقطة التحقق السابقة
 -- كمرجع تدقيقي بدلاً من إعادة استخدام هذه النسخة.
--- حارس الهوية يطابق البريد الإداري المعتمد، ويتحقق من بصمة رقم الهاتف بعد
--- توحيد صيغته الجزائرية. لا يظهر الرقم ولا يُخزّن بصورته الصريحة في هذا الملف.
+-- حارس الهوية يطابق البريد الإداري المعتمد ويحفظ نسخة JSON من ملف الأدمن
+-- وحساب Auth قبل العملية وبعدها. رقم الهاتف اختياري هنا؛ لا يضاف ولا يعدل
+-- إذا كان غائباً من profiles.
 
 begin;
 
@@ -80,9 +81,6 @@ declare
   v_actual_count bigint;
   v_config_content_hash text;
   v_admin_email text;
-  v_admin_phone_before text;
-  v_admin_phone_after text;
-  v_admin_phone_normalized text;
   v_admin_profile_before jsonb;
   v_admin_profile_after jsonb;
   v_admin_auth_before jsonb;
@@ -109,8 +107,8 @@ begin
     raise exception 'CLEANUP_ABORTED: expected exactly one admin profile, found %', v_admin_count;
   end if;
 
-  select lower(coalesce(u.email, '')), p.phone, to_jsonb(p), to_jsonb(u)
-  into v_admin_email, v_admin_phone_before, v_admin_profile_before, v_admin_auth_before
+  select lower(coalesce(u.email, '')), to_jsonb(p), to_jsonb(u)
+  into v_admin_email, v_admin_profile_before, v_admin_auth_before
   from public.profiles p
   join auth.users u on u.id = p.id
   where p.role = 'admin';
@@ -119,19 +117,8 @@ begin
     raise exception 'CLEANUP_ABORTED: the sole admin is not the approved primary admin account';
   end if;
 
-  if nullif(btrim(v_admin_phone_before), '') is null then
-    raise exception 'CLEANUP_ABORTED: the approved primary admin account has no linked phone number';
-  end if;
-
-  v_admin_phone_normalized := regexp_replace(v_admin_phone_before, '[^0-9]', '', 'g');
-  if left(v_admin_phone_normalized, 1) = '0' then
-    v_admin_phone_normalized := '213' || substr(v_admin_phone_normalized, 2);
-  end if;
-
-  if v_admin_phone_normalized !~ '^213[567][0-9]{8}$'
-     or md5(v_admin_phone_normalized) <> '10c07cd3b4a1aa4240d4b4a5c13d95e9' then
-    raise exception 'CLEANUP_ABORTED: the linked phone does not match the approved primary admin account';
-  end if;
+  -- رقم الهاتف اختياري: غيابه لا يمنع بدء بيانات تشغيلية نظيفة، لكن JSON
+  -- الكامل لملف الأدمن وحساب Auth يُقارن بعد التنفيذ، لذلك لا يمكن تغييره.
 
   if v_non_admin_count < 1 then
     raise exception 'CLEANUP_ABORTED: no non-admin profiles are available to clean';
@@ -292,14 +279,13 @@ begin
     raise exception 'CLEANUP_ABORTED: final counts are admin_profiles=%, profiles=%, auth_users=%', v_admin_count, v_profile_count, v_auth_count;
   end if;
 
-  select lower(coalesce(u.email, '')), p.phone, to_jsonb(p), to_jsonb(u)
-  into v_admin_email, v_admin_phone_after, v_admin_profile_after, v_admin_auth_after
+  select lower(coalesce(u.email, '')), to_jsonb(p), to_jsonb(u)
+  into v_admin_email, v_admin_profile_after, v_admin_auth_after
   from public.profiles p
   join auth.users u on u.id = p.id
   where p.role = 'admin';
 
   if v_admin_email <> 'listportail@gmail.com'
-     or v_admin_phone_after is distinct from v_admin_phone_before
      or v_admin_profile_after is distinct from v_admin_profile_before
      or v_admin_auth_after is distinct from v_admin_auth_before then
     raise exception 'CLEANUP_ABORTED: the approved primary admin account or profile changed unexpectedly';

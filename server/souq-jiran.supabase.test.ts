@@ -129,7 +129,8 @@ describe("Souq Jiran Supabase integration", () => {
     expect(cleanupScript).toContain("CLEANUP_NOT_CONFIRMED");
     expect(cleanupScript).toContain("expected exactly one admin profile");
     expect(cleanupScript).toContain("listportail@gmail.com");
-    expect(cleanupScript).toContain("the linked phone does not match the approved primary admin account");
+    expect(cleanupScript).toContain("رقم الهاتف اختياري");
+    expect(cleanupScript).not.toContain("has no linked phone number");
     expect(cleanupScript).toContain("the approved primary admin account or profile changed unexpectedly");
     expect(cleanupScript).toContain("all rows attributed to the admin are preserved");
     expect(cleanupScript).toContain("admin-participating order detected");
