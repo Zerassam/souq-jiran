@@ -41,6 +41,15 @@ function buildPublicAppLink(params) {
   return url.toString();
 }
 
+function readPublicQrDestination() {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    storeId: params.get("store")?.trim() || "",
+    courierId: params.get("courier")?.trim() || "",
+    referralCode: params.get("ref")?.trim().toUpperCase() || "",
+  };
+}
+
 function arrayBufferToBase64(buffer) {
   const bytes = new Uint8Array(buffer);
   const chunkSize = 0x8000;
@@ -1005,7 +1014,7 @@ function ReferralRewardsPanel({ referralCode, rewardCoupons, notify, claimReferr
   const [claimCode, setClaimCode] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [showTerms, setShowTerms] = useState(false);
-  const inviteLink = referralCode ? `${window.location.origin}${window.location.pathname}?ref=${encodeURIComponent(referralCode)}` : "";
+  const inviteLink = referralCode ? buildPublicAppLink({ ref: referralCode }) : "";
   useEffect(() => {
     let active = true;
     if (!inviteLink) { setQrDataUrl(""); return undefined; }
@@ -1020,14 +1029,14 @@ function ReferralRewardsPanel({ referralCode, rewardCoupons, notify, claimReferr
       {referralCode ? <div className="grid sm:grid-cols-[150px_1fr] gap-4 items-center mt-4"><div className="bg-white p-2 rounded-xl mx-auto" style={{ border: `1px solid ${C.line}` }}>{qrDataUrl && <img src={qrDataUrl} alt="QR رابط دعوتك" className="w-32 h-32" />}</div><div><p className="text-xs font-bold" style={{ color: C.ink }}>كود دعوتك: <span dir="ltr" className="font-black">{referralCode}</span></p><input readOnly value={inviteLink} dir="ltr" className="w-full mt-2 px-3 py-2 rounded-xl text-xs bg-white outline-none" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }} /><div className="flex flex-wrap gap-2 mt-2"><button onClick={copyInvite} className="px-3 py-2 rounded-xl text-xs font-bold" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}66` }}>نسخ الرابط</button><a href={`https://wa.me/?text=${encodeURIComponent(`انضم إلى سوق الجيران عبر رابط دعوتي: ${inviteLink}`)}`} target="_blank" rel="noreferrer" className="px-3 py-2 rounded-xl text-xs font-bold" style={{ background: C.teal, color: "#fff" }}>مشاركة WhatsApp</a></div></div></div> : <p className="text-xs mt-3" style={{ color: C.inkSoft }}>يجري تجهيز كود دعوتك الآمن…</p>}</div>
     <div className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><h4 className="font-black text-sm" style={{ color: C.ink }}>لديك كود دعوة؟</h4><p className="text-xs mt-1" style={{ color: C.inkSoft }}>يمكن إدخاله قبل أول طلب غير ملغى فقط.</p><div className="flex gap-2 mt-3"><input value={claimCode} onChange={(event) => setClaimCode(event.target.value.toUpperCase())} placeholder="كود الدعوة" dir="ltr" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /><button data-testid="claim-referral-code" onClick={claim} className="px-4 py-2 rounded-xl text-xs font-black" style={{ background: C.ochre, color: "#fff" }}>تفعيل الدعوة</button></div></div>
     <div className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="flex items-center justify-between"><h4 className="font-black text-sm" style={{ color: C.ink }}>محفظة القسائم</h4><span className="text-xs font-bold" style={{ color: C.sage }}>{available.length} متاحة</span></div>{available.length ? <div className="space-y-2 mt-3">{available.map((coupon) => <div key={coupon.id} className="flex items-center justify-between gap-2 p-3 rounded-xl" style={{ background: C.paperDark }}><div><div className="text-xs font-black" style={{ color: C.ink }}>{money(coupon.amount)} خصم</div><div className="text-[11px]" style={{ color: C.inkSoft }}>الكود: <span dir="ltr">{coupon.code}</span> · حد أدنى {money(coupon.minimumOrderTotal)}</div></div><span className="text-[11px] font-bold" style={{ color: C.teal }}>استخدمه في السلة</span></div>)}</div> : <p className="text-xs py-4 text-center" style={{ color: C.inkSoft }}>لا توجد قسائم متاحة بعد. تكتمل المكافأة بعد تسوية أول طلب للصديق المدعو.</p>}</div>
-    <div className="p-4 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}><button type="button" onClick={() => setShowTerms((value) => !value)} className="w-full flex items-center justify-between text-right"><span className="font-black text-sm" style={{ color: C.ink }}>شروط برنامج الإحالة وحدود القسائم</span><span className="text-xs font-bold" style={{ color: C.teal }}>{showTerms ? "إخفاء" : "عرض"}</span></button>{showTerms && <div className="mt-3 text-xs leading-6 space-y-2" style={{ color: C.inkSoft }}><p>يُستخدم كود الدعوة مرة واحدة قبل أول طلب غير ملغى، ولا يرتبط بالحساب إلا بعد توثيق رقم الهاتف.</p><p>تُمنح القسائم للطرفين بعد تسوية أول طلب ناجح للصديق المدعو، ولا تُستبدل نقداً أو تُنقل بين الحسابات.</p><p>يظهر مبلغ الخصم والحد الأدنى وتاريخ الصلاحية على كل قسيمة. لا يمكن جمع قسيمتين في الطلب نفسه، وقد تُلغى القسيمة عند إساءة الاستخدام.</p></div>}</div>
+    <div className="p-4 rounded-2xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}><button type="button" onClick={() => setShowTerms((value) => !value)} className="w-full flex items-center justify-between text-right"><span className="font-black text-sm" style={{ color: C.ink }}>شروط برنامج الإحالة وحدود القسائم</span><span className="text-xs font-bold" style={{ color: C.teal }}>{showTerms ? "إخفاء" : "عرض"}</span></button>{showTerms && <div className="mt-3 text-xs leading-6 space-y-2" style={{ color: C.inkSoft }}><p>يُستخدم كود الدعوة مرة واحدة قبل أول طلب غير ملغى، ولا يرتبط بالحساب إلا بعد تأكيد البريد عبر Email OTP.</p><p>تُمنح القسائم للطرفين بعد تسوية أول طلب ناجح للصديق المدعو، ولا تُستبدل نقداً أو تُنقل بين الحسابات.</p><p>يظهر مبلغ الخصم والحد الأدنى وتاريخ الصلاحية على كل قسيمة. لا يمكن جمع قسيمتين في الطلب نفسه، وقد تُلغى القسيمة عند إساءة الاستخدام.</p></div>}</div>
   </section>;
 }
 
 /* ===========================================================
    CUSTOMER VIEW
 =========================================================== */
-function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, couriers, placeOrder, notify, customerId, customerConfirmDelivery, quoteDelivery, referralCode = "", rewardCoupons = [], claimReferralCode }) {
+function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, couriers, placeOrder, notify, customerId, customerConfirmDelivery, quoteDelivery, referralCode = "", rewardCoupons = [], claimReferralCode, publicStoreId = "", publicCourierId = "" }) {
   const [tab, setTab] = useState("browse");
   const [browseMode, setBrowseMode] = useState("list");
   const [query, setQuery] = useState("");
@@ -1049,6 +1058,11 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const [appliedReward, setAppliedReward] = useState(null);
 
   const approvedStores = stores.filter((s) => ["approved", "active", "open"].includes(String(s.status || "approved").toLowerCase()));
+  const qrStore = publicStoreId ? approvedStores.find((store) => store.id === publicStoreId) : null;
+  const qrCourier = publicCourierId ? couriers.find((courier) => courier.id === publicCourierId && ["approved", "active", "available"].includes(String(courier.status || "").toLowerCase())) : null;
+  useEffect(() => {
+    if (qrStore) { setTab("browse"); setOpenStoreId(qrStore.id); }
+  }, [qrStore?.id]);
   const visibleStores = useMemo(() => {
     const q = normalizeSearchText(query);
     return approvedStores.filter((s) => {
@@ -1160,6 +1174,8 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
 
       {tab === "browse" && !openStore && (
         <>
+          {publicStoreId && !qrStore && <div data-testid="qr-store-route-unavailable" className="p-4 rounded-2xl text-sm font-bold" style={{ background: "#FFF7E7", color: C.ink, border: `1px solid ${C.ochre}55` }}>هذا المتجر غير متاح حالياً عبر الرابط العام.</div>}
+          {publicCourierId && <div data-testid="qr-courier-route" className="p-4 rounded-2xl" style={{ background: C.teal + "10", border: `1px solid ${C.teal}33` }}><div className="font-black text-sm" style={{ color: C.ink }}>{qrCourier ? `خدمة الموصل ${qrCourier.name || "المعتمد"}` : "خدمة الموصل"}</div><p className="text-xs leading-5 mt-1" style={{ color: C.inkSoft }}>{qrCourier ? `تغطية ${qrCourier.wilaya || "منطقته"}. تُسند الطلبات عبر المنصة عند الجاهزية لحماية الخصوصية.` : "هذا الملف غير متاح حالياً؛ يمكنك متابعة التسوق واختيار التوصيل عبر المنصة عند الطلب."}</p></div>}
           <PromoBar notify={notify} />
           <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
             <Search size={17} color={C.inkSoft} />
@@ -2079,8 +2095,9 @@ export default function App() {
   const [customerReports, setCustomerReports] = useState([]);
   const [customerBlacklist, setCustomerBlacklist] = useState([]);
   const [deliveryPricing, setDeliveryPricing] = useState(null);
+  const publicQrDestination = useMemo(() => readPublicQrDestination(), []);
   const [referralCode, setReferralCode] = useState("");
-  const [pendingReferralCode, setPendingReferralCode] = useState(() => new URLSearchParams(window.location.search).get("ref")?.trim().toUpperCase() || "");
+  const [pendingReferralCode, setPendingReferralCode] = useState(() => publicQrDestination.referralCode);
   const [rewardCoupons, setRewardCoupons] = useState([]);
   const [referralAnalytics, setReferralAnalytics] = useState({ totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0, redeemedValue: 0 });
   const [archiveAlertSettings, setArchiveAlertSettings] = useState({ sensitiveOrderTotal: 5000, sensitiveStatuses: ["ready", "delivering", "delivered"], notifyOnMessageArchive: false });
@@ -2390,7 +2407,7 @@ export default function App() {
     const normalized = String(code || "").trim().toUpperCase();
     if (!normalized) { if (!silent) notify("أدخل كود دعوة صحيحاً."); return false; }
     const { error } = await supabase.rpc("claim_customer_referral", { p_referral_code: normalized });
-    if (error) { if (!silent) notify(error.message?.includes("PHONE_VERIFICATION_REQUIRED") ? "أكّد بريدك الإلكتروني أولاً، ثم أعد المحاولة." : "تعذر تفعيل الدعوة: " + error.message); return false; }
+    if (error) { if (!silent) notify(error.message?.includes("EMAIL_OTP_VERIFICATION_REQUIRED") ? "أكّد بريدك الإلكتروني عبر الرمز أولاً، ثم أعد المحاولة." : "تعذر تفعيل الدعوة: " + error.message); return false; }
     await refreshSupabaseData("customer");
     if (!silent) notify("تم تفعيل الدعوة بنجاح.");
     return true;
@@ -2834,7 +2851,7 @@ export default function App() {
         {role !== "admin" && <p className="text-xs mt-3 mb-1 flex items-center gap-1.5 font-medium" style={{ color: C.inkSoft }}><PackageCheck size={13} color={C.sage} /> تُحفَظ بياناتك تلقائياً وتبقى الخصوصية تحت تحكمك.</p>}
 
         <div className="mt-4">
-          {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else setShowMerchantForm(true); }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} referralCode={referralCode} rewardCoupons={rewardCoupons} claimReferralCode={claimCustomerReferral} />)}
+          {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else setShowMerchantForm(true); }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} referralCode={referralCode} rewardCoupons={rewardCoupons} claimReferralCode={claimCustomerReferral} publicStoreId={publicQrDestination.storeId} publicCourierId={publicQrDestination.courierId} />)}
           {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} onStartMerchantRegistration={() => setShowMerchantForm(true)} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} merchantConfirmSettlement={merchantConfirmSettlement} reportCustomerAccount={reportCustomerAccount} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} messages={messages} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} courierConfirmPickup={courierConfirmPickup} courierStartDelivery={courierStartDelivery} courierConfirmDelivery={courierConfirmDelivery} courierConfirmRemittance={courierConfirmRemittance} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} orderNotifications={adminOrderNotifications} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} customerReports={customerReports} customerBlacklist={customerBlacklist} deliveryPricing={deliveryPricing} referralAnalytics={referralAnalytics} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} markOrderNotificationRead={markOrderNotificationRead} markAllOrderNotificationsRead={markAllOrderNotificationsRead} saveArchiveAlertSettings={saveArchiveAlertSettings} setCustomerBlacklist={setCustomerBlacklistStatus} saveDeliveryPricing={saveDeliveryPricingConfig} />}

@@ -678,4 +678,27 @@ describe("Souq Jiran Supabase integration", () => {
     expect(merchantViewSource).toContain("{showMapPicker && <MapPicker");
     expect(merchantViewSource).toContain("onClose={() => setShowMapPicker(false)}");
   });
+
+  it("uses the public production domain for QR routes and keeps customer referral compatible with Email OTP", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const emailOtpReferralMigration = readFileSync(resolve(projectRoot, "supabase/migrations/20260831_email_otp_referral_binding.sql"), "utf8");
+
+    expect(appSource).toContain('const PUBLIC_APP_ORIGIN = "https://jiranapp-km95ryzi.manus.space"');
+    expect(appSource).toContain("function buildPublicAppLink(params)");
+    expect(appSource).toContain("function readPublicQrDestination()");
+    expect(appSource).toContain("buildPublicAppLink({ ref: referralCode })");
+    expect(appSource).not.toContain("${window.location.origin}${window.location.pathname}?ref=");
+    expect(appSource).toContain("publicStoreId={publicQrDestination.storeId}");
+    expect(appSource).toContain("publicCourierId={publicQrDestination.courierId}");
+    expect(appSource).toContain('data-testid="qr-store-route-unavailable"');
+    expect(appSource).toContain('data-testid="qr-courier-route"');
+    expect(appSource).toContain("EMAIL_OTP_VERIFICATION_REQUIRED");
+
+    expect(emailOtpReferralMigration).toContain("email_confirmed_at is not null");
+    expect(emailOtpReferralMigration).toContain("EMAIL_OTP_VERIFICATION_REQUIRED");
+    expect(emailOtpReferralMigration).not.toContain("customer_phone_verifications");
+    expect(emailOtpReferralMigration).toContain("REFERRAL_SELF_NOT_ALLOWED");
+    expect(emailOtpReferralMigration).toContain("REFERRAL_MUST_BE_CLAIMED_BEFORE_FIRST_ORDER");
+    expect(emailOtpReferralMigration).toContain("grant execute on function public.claim_customer_referral(text) to authenticated");
+  });
 });
