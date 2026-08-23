@@ -140,6 +140,29 @@ describe("Souq Jiran Supabase integration", () => {
     expect(cssSource).toContain("merchant-offer-marquee__dot");
   });
 
+  it("provides an internal Arabic and French language switcher with a persisted preference and directional typography", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const cssSource = readFileSync(resolve(projectRoot, "client/src/index.css"), "utf8");
+    const htmlSource = readFileSync(resolve(projectRoot, "client/index.html"), "utf8");
+
+    expect(appSource).toContain('const LANGUAGE_OPTIONS = [');
+    expect(appSource).toContain('{ code: "ar"');
+    expect(appSource).toContain('{ code: "fr"');
+    expect(appSource).toContain('localStorage.getItem("souq-jiran:language")');
+    expect(appSource).toContain('localStorage.setItem("souq-jiran:language", language)');
+    expect(appSource).toContain('document.documentElement.lang = language');
+    expect(appSource).toContain('document.documentElement.dir = language === "fr" ? "ltr" : "rtl"');
+    expect(appSource).toContain('data-testid="app-language-switcher"');
+    expect(appSource).toContain('aria-pressed={language === option.code}');
+    expect(appSource).toContain('<CustomerView language={language}');
+    expect(appSource).toContain('<RoleBenefitsPage language={language}');
+    expect(cssSource).toContain('"Noto Naskh Arabic", "Sakkal Majalla"');
+    expect(cssSource).toContain('html[lang="fr"] body');
+    expect(cssSource).toContain('html[dir="ltr"] .role-join-card');
+    expect(htmlSource).toContain('family=Noto+Naskh+Arabic');
+    expect(htmlSource).toContain('<html lang="ar" dir="rtl">');
+  });
+
   it("keeps referral rewards and community feedback separate from merchant offers", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
     const referralStart = appSource.indexOf("function ReferralRewardsPanel");
@@ -681,7 +704,7 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain("const MAX_DISCOVERY_COURIERS = 2");
     expect(appSource).toContain("function curateDiscoveryStores");
     expect(appSource).toContain("data-testid=\"nearby-couriers-panel\"");
-    expect(appSource).toContain("موصل المنصة");
+    expect(appSource).toContain('uiText(language, "courierService")');
     expect(appSource).toContain("data-testid=\"verified-feedback-panel\"");
     expect(appSource).toContain("review?.verified === true");
     expect(appSource).not.toContain('comment: "خدمة سريعة ومنتجات طازجة"');

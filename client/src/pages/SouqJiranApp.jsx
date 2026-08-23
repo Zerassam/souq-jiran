@@ -20,7 +20,7 @@ import {
   Package, Droplet, Sparkles, Map as MapIcon, List, Upload, Download,
   FileText, Phone, Palette, CreditCard, Bike, Lock, LogOut, Wallet,
   Percent, CalendarClock, Home, Sun, Sunset, Moon,
-  Mail, LogIn, UserPlus, ShieldCheck, Archive, MessageCircle, ArrowLeft
+  Mail, LogIn, UserPlus, ShieldCheck, Archive, MessageCircle, ArrowLeft, Languages
 } from "lucide-react";
 
 /* ---------------------------------------------------------
@@ -31,6 +31,40 @@ const C = {
   teal: "#5B5BF7", tealDark: "#3730A3", rust: "#F45B7A", ochre: "#F59E0B",
   sage: "#10B981", line: "#E5E7F0", purple: "#8B5CF6",
 };
+const LANGUAGE_OPTIONS = [
+  { code: "ar", label: "العربية", shortLabel: "ع" },
+  { code: "fr", label: "Français", shortLabel: "FR" },
+];
+const UI_COPY = {
+  ar: {
+    appName: "سوق الجيران", marketplaceCaption: "طلبات محلية، تجربة رقمية أسرع", adminWorkspace: "مساحة إدارة المنصة", signOutAdmin: "خروج من لوحة الإدارة", phone: "الهاتف", signOut: "خروج",
+    language: "اللغة", languageArabic: "العربية", languageFrench: "Français", privacy: "تُحفَظ بياناتك تلقائياً وتبقى الخصوصية تحت تحكمك.",
+    nearbyStores: "المحلات القريبة", myOrders: "طلباتي", invitationsRewards: "دعوات ومكافآت", cart: "السلة", storeUnavailable: "هذا المتجر غير متاح حالياً عبر الرابط العام.",
+    courierService: "خدمة الموصل", approvedCourier: "المعتمد", coverage: "تغطية {area}. تُسند الطلبات عبر المنصة عند الجاهزية لحماية الخصوصية.", profileUnavailable: "هذا الملف غير متاح حالياً؛ يمكنك متابعة التسوق واختيار التوصيل عبر المنصة عند الطلب.",
+    searchStores: "ابحث باسم المحل أو نوع النشاط...", suggestedStores: "متاجر مقترحة في {area}", suggestedStoresDescription: "نختار حتى 6 متاجر فقط مع إعطاء الأولوية لتنوع الأنشطة المتاح في المنطقة.", storesCount: "{count}/{max} متجر",
+    openNow: "مفتوح الآن", closed: "مغلق", new: "جديد", products: "عرض المنتجات", noStores: "لا توجد محلات مطابقة لبحثك.", backToStores: "رجوع إلى المحلات", allDepartments: "كل الأقسام", verifiedReviews: "آراء موثقة", noOrders: "لا توجد طلبات بعد.",
+    storeOffers: "عروض تجار", offerCarousel: "شريط عروض", chooseOffer: "اختيار عرض تاجر", merchantOffer: "عرض تاجر", offerNumber: "عرض {count}: {title}", discountPercent: "خصم {value}%", discountAmount: "خصم {value}", offerLimited: "مدة العرض محدودة", offerEnds: "ينتهي {date}",
+    buildPresence: "ابنِ حضورك على المنصة", onboardingDescription: "اختر مساحة العمل المناسبة لك، وابدأ برقم هاتفك أو بريدك الإلكتروني.", explorePaths: "استكشف المسارات", merchant: "انضم كتاجر", merchantDescription: "بيانات المحل ونطاق التوصيل في خطوات واضحة.", courier: "انضم كموصل", courierDescription: "تحكم في ساعاتك ونطاقك وطلباتك النشطة في أي وقت.", customer: "حساب الزبون", customerDescription: "تابع طلباتك وعناوينك وقسائمك من بوابتك الخاصة.", createAccount: "إنشاء حساب", signIn: "دخول", accountLogin: "دخول الحساب", customerAuth: "دخول أو إنشاء حساب",
+    backShopping: "العودة للتسوّق", clearPath: "مسار واضح قبل التسجيل", joinNetwork: "انضم إلى شبكة الحيّ", roleGuideDescription: "اختر الدور الأنسب لك. ابدأ برقم هاتف محمول جزائري أو بريد إلكتروني، ثم تابع أعمالك من لوحتك الخاصة بعد اكتمال المراجعة.", merchantFor: "للتاجر", merchantTitle: "أدر محلّك من مكان واحد", merchantGuide: "أضف المنتجات، راقب الطلبات، وحدد الموصلين الذين تتعامل معهم ضمن نطاق توصيلك.", merchantBenefit1: "إدارة المنتجات والمخزون", merchantBenefit2: "متابعة الطلبات خطوة بخطوة", merchantBenefit3: "اختيار الموصلين المعتمدين", startMerchant: "ابدأ كتاجر", courierFor: "للموصل", courierTitle: "نظّم توصيلاتك بطريقتك", courierGuide: "حدد أوقاتك، ونطاق تغطيتك، والمحلات التي تناسب مسارك قبل استقبال الطلبات.", courierBenefit1: "أوقات عمل مرنة", courierBenefit2: "تغطية الأحياء والبلديات التي تختارها", courierBenefit3: "طلبات متاحة ضمن نطاقك", startCourier: "ابدأ كموصل",
+  },
+  fr: {
+    appName: "Souq Jiran", marketplaceCaption: "Commandes locales, expérience numérique plus rapide", adminWorkspace: "Espace d’administration", signOutAdmin: "Quitter l’administration", phone: "Téléphone", signOut: "Déconnexion",
+    language: "Langue", languageArabic: "العربية", languageFrench: "Français", privacy: "Vos données sont enregistrées automatiquement et votre confidentialité reste sous votre contrôle.",
+    nearbyStores: "Commerces proches", myOrders: "Mes commandes", invitationsRewards: "Invitations et récompenses", cart: "Panier", storeUnavailable: "Ce commerce n’est pas disponible actuellement via ce lien public.",
+    courierService: "Service de livraison", approvedCourier: "agréé", coverage: "Zone couverte : {area}. Les commandes sont attribuées par la plateforme lorsqu’elles sont prêtes, afin de protéger la confidentialité.", profileUnavailable: "Ce profil n’est pas disponible actuellement. Vous pouvez continuer vos achats et choisir la livraison via la plateforme lors de la commande.",
+    searchStores: "Rechercher un commerce ou une activité…", suggestedStores: "Commerces proposés à {area}", suggestedStoresDescription: "Nous proposons jusqu’à 6 commerces en privilégiant la diversité des activités disponibles dans la zone.", storesCount: "{count}/{max} commerces",
+    openNow: "Ouvert", closed: "Fermé", new: "Nouveau", products: "Voir les produits", noStores: "Aucun commerce ne correspond à votre recherche.", backToStores: "Retour aux commerces", allDepartments: "Tous les rayons", verifiedReviews: "Avis vérifiés", noOrders: "Aucune commande pour le moment.",
+    storeOffers: "Offres des commerces", offerCarousel: "Carrousel d’offres", chooseOffer: "Choisir une offre", merchantOffer: "Offre commerçant", offerNumber: "Offre {count} : {title}", discountPercent: "Réduction de {value}%", discountAmount: "Réduction de {value}", offerLimited: "Offre à durée limitée", offerEnds: "Se termine le {date}",
+    buildPresence: "Développez votre présence sur la plateforme", onboardingDescription: "Choisissez l’espace adapté à votre activité et commencez avec votre téléphone ou votre adresse e-mail.", explorePaths: "Découvrir les parcours", merchant: "Devenir commerçant", merchantDescription: "Les informations du commerce et la zone de livraison en quelques étapes simples.", courier: "Devenir livreur", courierDescription: "Gérez vos horaires, votre zone et vos commandes actives à tout moment.", customer: "Compte client", customerDescription: "Suivez vos commandes, adresses et coupons depuis votre espace personnel.", createAccount: "Créer un compte", signIn: "Connexion", accountLogin: "Connexion au compte", customerAuth: "Connexion ou création de compte",
+    backShopping: "Retour aux achats", clearPath: "Un parcours clair avant l’inscription", joinNetwork: "Rejoignez le réseau de votre quartier", roleGuideDescription: "Choisissez le rôle qui vous convient. Commencez avec un numéro algérien ou une adresse e-mail, puis gérez votre activité depuis votre espace après validation.", merchantFor: "Pour les commerçants", merchantTitle: "Gérez votre commerce au même endroit", merchantGuide: "Ajoutez vos produits, suivez vos commandes et choisissez les livreurs avec lesquels vous travaillez dans votre zone.", merchantBenefit1: "Gestion des produits et du stock", merchantBenefit2: "Suivi des commandes étape par étape", merchantBenefit3: "Choix des livreurs agréés", startMerchant: "Commencer comme commerçant", courierFor: "Pour les livreurs", courierTitle: "Organisez vos livraisons à votre rythme", courierGuide: "Définissez vos horaires, votre zone de couverture et les commerces adaptés à votre parcours avant de recevoir des commandes.", courierBenefit1: "Horaires flexibles", courierBenefit2: "Couverture des quartiers et communes de votre choix", courierBenefit3: "Commandes disponibles dans votre zone", startCourier: "Commencer comme livreur",
+  },
+};
+function uiText(language, key, values = {}) {
+  const value = UI_COPY[language]?.[key] ?? UI_COPY.ar[key] ?? key;
+  return value.replace(/\{(\w+)\}/g, (_, token) => String(values[token] ?? ""));
+}
+function localeFor(language) { return language === "fr" ? "fr-DZ" : "ar-DZ"; }
+function formatLocalizedMoney(value, language) { return `${Number(value || 0).toLocaleString(localeFor(language))} ${language === "fr" ? "DA" : "دج"}`; }
 const PUBLIC_APP_ORIGIN = "https://jiranapp-km95ryzi.manus.space";
 const AMIRI_TTF_URL = "/manus-storage/Amiri-Regular_2c083de5.ttf";
 let arabicPdfFontBase64Promise;
@@ -314,7 +348,7 @@ function formatOfferEndsAt(endsAt) {
   if (Number.isNaN(end.getTime())) return "مدة العرض محدودة";
   return `ينتهي ${end.toLocaleDateString("ar-DZ", { day: "numeric", month: "short" })}`;
 }
-function OfferMarquee({ offers, onOpenStore }) {
+function OfferMarquee({ offers, onOpenStore, language = "ar" }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isInteracting, setIsInteracting] = useState(false);
   const activeOffers = useMemo(() => offers.filter((offer) => offer.status === "approved" && new Date(offer.startsAt).getTime() <= Date.now() && new Date(offer.endsAt).getTime() > Date.now()), [offers]);
@@ -329,12 +363,12 @@ function OfferMarquee({ offers, onOpenStore }) {
   }, [activeOffers.length, isInteracting]);
   if (!activeOffers.length) return null;
   const activeOffer = activeOffers[activeIndex];
-  return <section data-testid="merchant-offer-marquee" className="merchant-offer-marquee" aria-label="عروض المتاجر المعتمدة" aria-roledescription="شريط عروض" onMouseEnter={() => setIsInteracting(true)} onMouseLeave={() => setIsInteracting(false)} onFocusCapture={() => setIsInteracting(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setIsInteracting(false); }}>
-    <div className="merchant-offer-marquee__header"><span className="merchant-offer-marquee__label"><Tag size={13} /> عروض تجار</span></div>
+  return <section data-testid="merchant-offer-marquee" className="merchant-offer-marquee" aria-label={uiText(language, "storeOffers")} aria-roledescription={uiText(language, "offerCarousel")} onMouseEnter={() => setIsInteracting(true)} onMouseLeave={() => setIsInteracting(false)} onFocusCapture={() => setIsInteracting(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setIsInteracting(false); }}>
+    <div className="merchant-offer-marquee__header"><span className="merchant-offer-marquee__label"><Tag size={13} /> {uiText(language, "storeOffers")}</span></div>
     <div className="merchant-offer-marquee__viewport" id="active-merchant-offer">
-      <button key={activeOffer.id} type="button" onClick={() => onOpenStore(activeOffer.merchantId)} className="merchant-offer-marquee__item"><span className="merchant-offer-marquee__badge">عرض تاجر</span><span className="merchant-offer-marquee__store">{activeOffer.storeName}</span><span className="merchant-offer-marquee__title">{activeOffer.title}</span><span className="merchant-offer-marquee__value">{formatOfferValue(activeOffer)}</span>{activeOffer.description && <span className="merchant-offer-marquee__description">{activeOffer.description}</span>}<span className="merchant-offer-marquee__ends">{formatOfferEndsAt(activeOffer.endsAt)}</span></button>
+      <button key={activeOffer.id} type="button" onClick={() => onOpenStore(activeOffer.merchantId)} className="merchant-offer-marquee__item"><span className="merchant-offer-marquee__badge">{uiText(language, "merchantOffer")}</span><span className="merchant-offer-marquee__store">{activeOffer.storeName}</span><span className="merchant-offer-marquee__title">{activeOffer.title}</span><span className="merchant-offer-marquee__value">{activeOffer.discountType === "percent" ? uiText(language, "discountPercent", { value: Number(activeOffer.discountValue || 0) }) : uiText(language, "discountAmount", { value: formatLocalizedMoney(activeOffer.discountValue, language) })}</span>{activeOffer.description && <span className="merchant-offer-marquee__description">{activeOffer.description}</span>}<span className="merchant-offer-marquee__ends">{uiText(language, "offerEnds", { date: new Date(activeOffer.endsAt).toLocaleDateString(localeFor(language), { day: "numeric", month: "short" }) })}</span></button>
     </div>
-    <div className="merchant-offer-marquee__dots" role="tablist" aria-label="اختيار عرض تاجر">{activeOffers.map((offer, index) => <button key={offer.id} type="button" role="tab" aria-controls="active-merchant-offer" aria-selected={index === activeIndex} tabIndex={index === activeIndex ? 0 : -1} className={`merchant-offer-marquee__dot${index === activeIndex ? " is-active" : ""}`} onClick={() => setActiveIndex(index)}><span className="sr-only">{`عرض ${index + 1}: ${offer.title}`}</span></button>)}</div>
+    <div className="merchant-offer-marquee__dots" role="tablist" aria-label={uiText(language, "chooseOffer")}>{activeOffers.map((offer, index) => <button key={offer.id} type="button" role="tab" aria-controls="active-merchant-offer" aria-selected={index === activeIndex} tabIndex={index === activeIndex ? 0 : -1} className={`merchant-offer-marquee__dot${index === activeIndex ? " is-active" : ""}`} onClick={() => setActiveIndex(index)}><span className="sr-only">{uiText(language, "offerNumber", { count: index + 1, title: offer.title })}</span></button>)}</div>
   </section>;
 }
 function DeptBadge({ id, size = 16 }) { const info = deptInfo(id); const Icon = info.icon; return <span className="inline-flex items-center justify-center" style={{ width: size + 14, height: size + 14, borderRadius: 999, background: info.color + "22", color: info.color }}><Icon size={size} strokeWidth={2.3} /></span>; }
@@ -367,15 +401,15 @@ function curateDiscoveryStores(stores) {
   });
   return selected;
 }
-function PublicCourierAvailability({ couriers, areaLabel }) {
+function PublicCourierAvailability({ couriers, areaLabel, language = "ar" }) {
   return <section className="space-y-3" data-testid="nearby-couriers-panel">
-    <div className="flex items-end justify-between gap-3"><div><h3 className="font-black" style={{ color: C.ink, fontFamily: "'Reem Kufi', sans-serif" }}>موصلون متاحون عبر المنصة</h3><p className="text-xs mt-1" style={{ color: C.inkSoft }}>تظهر حالة التوفر فقط؛ تُحفظ هوية الموصل وبياناته الخاصة حتى إسناد الطلب.</p></div><span className="text-xs font-bold px-2.5 py-1 rounded-full shrink-0" style={{ background: C.teal + "12", color: C.teal }}>{couriers.length}/{MAX_DISCOVERY_COURIERS} متاح</span></div>
+    <div className="flex items-end justify-between gap-3"><div><h3 className="font-black" style={{ color: C.ink, fontFamily: "'Reem Kufi', sans-serif" }}>{uiText(language, "courierService")}</h3><p className="text-xs mt-1" style={{ color: C.inkSoft }}>{uiText(language, "coverage", { area: areaLabel })}</p></div><span className="text-xs font-bold px-2.5 py-1 rounded-full shrink-0" style={{ background: C.teal + "12", color: C.teal }}>{couriers.length}/{MAX_DISCOVERY_COURIERS} {uiText(language, "approvedCourier")}</span></div>
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {Array.from({ length: MAX_DISCOVERY_COURIERS }).map((_, index) => {
         const courier = couriers[index];
         return <div key={courier?.id || `courier-slot-${index}`} className="p-4 rounded-2xl flex items-center gap-3" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
           <span className="flex items-center justify-center rounded-xl shrink-0" style={{ width: 42, height: 42, background: courier ? C.sage + "18" : C.paperDark, color: courier ? C.sage : C.inkSoft }}><Bike size={20} /></span>
-          <div className="min-w-0"><div className="text-sm font-black" style={{ color: C.ink }}>{courier ? `موصل المنصة ${index + 1}` : "بانتظار موصل متاح"}</div><div className="text-xs mt-1" style={{ color: C.inkSoft }}>{courier ? `${courier.wilaya || areaLabel} · ${courier.commune || "يغطي نطاق المنطقة"}` : `${areaLabel} · ستظهر البطاقة عند توفر موصل معتمد`}</div></div>
+          <div className="min-w-0"><div className="text-sm font-black" style={{ color: C.ink }}>{courier ? `${uiText(language, "courierService")} ${index + 1}` : uiText(language, "approvedCourier")}</div><div className="text-xs mt-1" style={{ color: C.inkSoft }}>{courier ? `${courier.wilaya || areaLabel} · ${courier.commune || uiText(language, "coverage", { area: areaLabel })}` : uiText(language, "coverage", { area: areaLabel })}</div></div>
         </div>;
       })}
     </div>
@@ -1058,7 +1092,7 @@ function ReferralRewardsPanel({ referralCode, rewardCoupons, notify, claimReferr
 /* ===========================================================
    CUSTOMER VIEW
 =========================================================== */
-function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, couriers, merchantOffers = [], placeOrder, notify, customerId, customerConfirmDelivery, quoteDelivery, referralCode = "", rewardCoupons = [], claimReferralCode, publicStoreId = "", publicCourierId = "" }) {
+function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, couriers, merchantOffers = [], placeOrder, notify, customerId, customerConfirmDelivery, quoteDelivery, referralCode = "", rewardCoupons = [], claimReferralCode, publicStoreId = "", publicCourierId = "", language = "ar" }) {
   const [tab, setTab] = useState("browse");
   const [browseMode, setBrowseMode] = useState("list");
   const [query, setQuery] = useState("");
@@ -1181,23 +1215,23 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex gap-2">
-          <button onClick={() => setTab("browse")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "browse" ? C.teal : "transparent", color: tab === "browse" ? C.paper : C.inkSoft, border: `1px solid ${tab === "browse" ? C.teal : C.line}` }}>المحلات القريبة</button>
-          <button onClick={() => setTab("orders")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "orders" ? C.teal : "transparent", color: tab === "orders" ? C.paper : C.inkSoft, border: `1px solid ${tab === "orders" ? C.teal : C.line}` }}>طلباتي {myOrders.length > 0 && `(${myOrders.length})`}</button>
-          <button data-testid="customer-rewards-tab" onClick={() => setTab("rewards")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "rewards" ? C.teal : "transparent", color: tab === "rewards" ? C.paper : C.inkSoft, border: `1px solid ${tab === "rewards" ? C.teal : C.line}` }}>دعوات ومكافآت</button>
+          <button onClick={() => setTab("browse")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "browse" ? C.teal : "transparent", color: tab === "browse" ? C.paper : C.inkSoft, border: `1px solid ${tab === "browse" ? C.teal : C.line}` }}>{uiText(language, "nearbyStores")}</button>
+          <button onClick={() => setTab("orders")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "orders" ? C.teal : "transparent", color: tab === "orders" ? C.paper : C.inkSoft, border: `1px solid ${tab === "orders" ? C.teal : C.line}` }}>{uiText(language, "myOrders")} {myOrders.length > 0 && `(${myOrders.length})`}</button>
+          <button data-testid="customer-rewards-tab" onClick={() => setTab("rewards")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "rewards" ? C.teal : "transparent", color: tab === "rewards" ? C.paper : C.inkSoft, border: `1px solid ${tab === "rewards" ? C.teal : C.line}` }}>{uiText(language, "invitationsRewards")}</button>
         </div>
-        <button onClick={() => setShowCart(true)} className="relative flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm" style={{ background: C.rust, color: C.paper }}><ShoppingCart size={17} /> السلة{cartCount > 0 && <span className="absolute -top-2 -right-2 flex items-center justify-center text-xs font-black rounded-full" style={{ width: 20, height: 20, background: C.ink, color: C.paper }}>{cartCount}</span>}</button>
+        <button onClick={() => setShowCart(true)} className="relative flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm" style={{ background: C.rust, color: C.paper }}><ShoppingCart size={17} /> {uiText(language, "cart")}{cartCount > 0 && <span className="absolute -top-2 -right-2 flex items-center justify-center text-xs font-black rounded-full" style={{ width: 20, height: 20, background: C.ink, color: C.paper }}>{cartCount}</span>}</button>
       </div>
 
       {tab === "rewards" && <ReferralRewardsPanel referralCode={referralCode} rewardCoupons={rewardCoupons} notify={notify} claimReferralCode={claimReferralCode} />}
 
       {tab === "browse" && !openStore && (
         <>
-          {publicStoreId && !qrStore && <div data-testid="qr-store-route-unavailable" className="p-4 rounded-2xl text-sm font-bold" style={{ background: "#FFF7E7", color: C.ink, border: `1px solid ${C.ochre}55` }}>هذا المتجر غير متاح حالياً عبر الرابط العام.</div>}
-          {publicCourierId && <div data-testid="qr-courier-route" className="p-4 rounded-2xl" style={{ background: C.teal + "10", border: `1px solid ${C.teal}33` }}><div className="font-black text-sm" style={{ color: C.ink }}>{qrCourier ? `خدمة الموصل ${qrCourier.name || "المعتمد"}` : "خدمة الموصل"}</div><p className="text-xs leading-5 mt-1" style={{ color: C.inkSoft }}>{qrCourier ? `تغطية ${qrCourier.wilaya || "منطقته"}. تُسند الطلبات عبر المنصة عند الجاهزية لحماية الخصوصية.` : "هذا الملف غير متاح حالياً؛ يمكنك متابعة التسوق واختيار التوصيل عبر المنصة عند الطلب."}</p></div>}
-          <OfferMarquee offers={merchantOffers} onOpenStore={(storeId) => { setOpenStoreId(storeId); setActiveDept("all"); }} />
+          {publicStoreId && !qrStore && <div data-testid="qr-store-route-unavailable" className="p-4 rounded-2xl text-sm font-bold" style={{ background: "#FFF7E7", color: C.ink, border: `1px solid ${C.ochre}55` }}>{uiText(language, "storeUnavailable")}</div>}
+          {publicCourierId && <div data-testid="qr-courier-route" className="p-4 rounded-2xl" style={{ background: C.teal + "10", border: `1px solid ${C.teal}33` }}><div className="font-black text-sm" style={{ color: C.ink }}>{qrCourier ? `${uiText(language, "courierService")} ${qrCourier.name || uiText(language, "approvedCourier")}` : uiText(language, "courierService")}</div><p className="text-xs leading-5 mt-1" style={{ color: C.inkSoft }}>{qrCourier ? uiText(language, "coverage", { area: qrCourier.wilaya || "—" }) : uiText(language, "profileUnavailable")}</p></div>}
+          <OfferMarquee offers={merchantOffers} language={language} onOpenStore={(storeId) => { setOpenStoreId(storeId); setActiveDept("all"); }} />
           <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
             <Search size={17} color={C.inkSoft} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} type="search" lang="ar" dir="auto" inputMode="search" enterKeyHint="search" placeholder="ابحث باسم المحل أو نوع النشاط..." className="flex-1 outline-none text-sm bg-transparent" style={{ color: C.ink, fontFamily: "Tajawal, sans-serif" }} />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} type="search" lang={language} dir="auto" inputMode="search" enterKeyHint="search" placeholder={uiText(language, "searchStores")} className="flex-1 outline-none text-sm bg-transparent" style={{ color: C.ink, fontFamily: "inherit" }} />
             <div className="flex p-1 rounded-xl shrink-0" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
               <button onClick={() => setBrowseMode("list")} className="p-1.5 rounded-lg" style={{ background: browseMode === "list" ? C.teal : "transparent", color: browseMode === "list" ? "#fff" : C.inkSoft }}><List size={16} /></button>
               <button onClick={() => setBrowseMode("map")} className="p-1.5 rounded-lg" style={{ background: browseMode === "map" ? C.teal : "transparent", color: browseMode === "map" ? "#fff" : C.inkSoft }}><MapIcon size={16} /></button>
@@ -1209,7 +1243,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
           ) : (
             <>
               <WilayaCommuneSelect wilaya={filterWilaya} commune={filterCommune} allowAllWilaya allowAllCommune onChange={({ wilaya, commune }) => { setFilterWilaya(wilaya); setFilterCommune(commune); }} />
-              <div className="flex items-end justify-between gap-3 flex-wrap"><div><h2 className="font-black" style={{ color: C.ink, fontFamily: "'Reem Kufi', sans-serif" }}>متاجر مقترحة في {discoveryAreaLabel}</h2><p className="text-xs mt-1" style={{ color: C.inkSoft }}>نختار حتى 6 متاجر فقط مع إعطاء الأولوية لتنوع الأنشطة المتاح في المنطقة.</p></div><span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: C.teal + "12", color: C.teal }}>{curatedStores.length}/{MAX_DISCOVERY_STORES} متجر</span></div>
+              <div className="flex items-end justify-between gap-3 flex-wrap"><div><h2 className="font-black" style={{ color: C.ink, fontFamily: "inherit" }}>{uiText(language, "suggestedStores", { area: discoveryAreaLabel })}</h2><p className="text-xs mt-1" style={{ color: C.inkSoft }}>{uiText(language, "suggestedStoresDescription")}</p></div><span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: C.teal + "12", color: C.teal }}>{uiText(language, "storesCount", { count: curatedStores.length, max: MAX_DISCOVERY_STORES })}</span></div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {curatedStores.map((s) => {
                   const isOpen = new Date().getHours() >= s.open && new Date().getHours() < s.close;
@@ -1217,16 +1251,16 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                   const category = getDiscoveryCategory(s);
                   return (
                     <button key={s.id} onClick={() => setOpenStoreId(s.id)} className="text-right p-4 rounded-2xl transition hover:-translate-y-0.5" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 1px 0 rgba(35,32,27,0.05)" }}>
-                      <div className="flex items-start justify-between mb-3"><StoreAvatar logo={s.logo} size={38} /><div className="flex flex-col items-end gap-1"><span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: isOpen ? C.sage + "22" : "#8883", color: isOpen ? C.sage : C.inkSoft }}>{isOpen ? "مفتوح الآن" : "مغلق"}</span><span className="text-[10px] font-bold" style={{ color: C.teal }}>{category.label}</span></div></div>
-                      <div className="font-black text-base" style={{ color: C.ink, fontFamily: "'Reem Kufi', sans-serif" }}>{s.name}</div>
+                      <div className="flex items-start justify-between mb-3"><StoreAvatar logo={s.logo} size={38} /><div className="flex flex-col items-end gap-1"><span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: isOpen ? C.sage + "22" : "#8883", color: isOpen ? C.sage : C.inkSoft }}>{isOpen ? uiText(language, "openNow") : uiText(language, "closed")}</span><span className="text-[10px] font-bold" style={{ color: C.teal }}>{category.label}</span></div></div>
+                      <div className="font-black text-base" style={{ color: C.ink, fontFamily: "inherit" }}>{s.name}</div>
                       <div className="flex items-center gap-1 text-xs mt-1" style={{ color: C.inkSoft }}><MapPin size={12} /> {s.wilaya} · {s.commune}</div>
-                      <div className="flex items-center justify-between mt-3"><span className="flex items-center gap-1 text-xs font-bold" style={{ color: C.ochre }}><Star size={13} fill={C.ochre} strokeWidth={0} /> {s.rating || "جديد"}{verifiedReviewCount > 0 && <span style={{ color: C.inkSoft, fontWeight: 500 }}>({verifiedReviewCount})</span>}</span><span className="text-xs font-bold flex items-center gap-1" style={{ color: C.teal }}>عرض المنتجات <ChevronLeft size={14} /></span></div>
+                      <div className="flex items-center justify-between mt-3"><span className="flex items-center gap-1 text-xs font-bold" style={{ color: C.ochre }}><Star size={13} fill={C.ochre} strokeWidth={0} /> {s.rating || uiText(language, "new")}{verifiedReviewCount > 0 && <span style={{ color: C.inkSoft, fontWeight: 500 }}>({verifiedReviewCount})</span>}</span><span className="text-xs font-bold flex items-center gap-1" style={{ color: C.teal }}>{uiText(language, "products")} <ChevronLeft size={14} /></span></div>
                     </button>
                   );
                 })}
-                {curatedStores.length === 0 && <p className="col-span-2 text-center py-10 text-sm" style={{ color: C.inkSoft }}>لا توجد محلات مطابقة لبحثك.</p>}
+                {curatedStores.length === 0 && <p className="col-span-2 text-center py-10 text-sm" style={{ color: C.inkSoft }}>{uiText(language, "noStores")}</p>}
               </div>
-              <PublicCourierAvailability couriers={publicCouriers} areaLabel={discoveryAreaLabel} />
+              <PublicCourierAvailability couriers={publicCouriers} areaLabel={discoveryAreaLabel} language={language} />
               <VerifiedFeedbackPanel stores={curatedStores} />
             </>
           )}
@@ -1235,13 +1269,13 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
 
       {tab === "browse" && openStore && (
         <div className="space-y-4">
-          <button onClick={() => { setOpenStoreId(null); setActiveDept("all"); }} className="flex items-center gap-1 text-sm font-bold" style={{ color: C.teal }}><ChevronRight size={16} /> رجوع إلى المحلات</button>
+          <button onClick={() => { setOpenStoreId(null); setActiveDept("all"); }} className="flex items-center gap-1 text-sm font-bold" style={{ color: C.teal }}><ChevronRight size={16} /> {uiText(language, "backToStores")}</button>
           <div className="p-4 rounded-2xl flex items-center gap-3" style={{ background: C.paperDark }}>
             <StoreAvatar logo={openStore.logo} size={46} />
             <div className="flex-1"><div className="font-black text-lg" style={{ color: C.ink, fontFamily: "'Reem Kufi', sans-serif" }}>{openStore.name}</div><div className="text-xs" style={{ color: C.inkSoft }}>{openStore.wilaya} · {openStore.commune} · يعمل من {openStore.open}:00 إلى {openStore.close}:00</div><div className="flex items-center gap-1 mt-1"><StarRating value={Math.round(openStore.rating || 0)} size={12} /><span className="text-xs font-bold" style={{ color: C.inkSoft }}>{openStore.rating || "جديد"} ({(openStore.reviews || []).length} تقييم)</span></div></div>
           </div>
           {openStore.minOrder > 0 && <p className="text-xs" style={{ color: C.inkSoft }}>الحد الأدنى للطلب: <span style={{ fontWeight: 800, color: C.ink }}>{money(openStore.minOrder)}</span></p>}
-          {visibleDepts.length > 1 && (<div className="flex gap-2 overflow-x-auto pb-1"><button onClick={() => setActiveDept("all")} className="shrink-0 px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: activeDept === "all" ? C.ink : "transparent", color: activeDept === "all" ? "#fff" : C.inkSoft, border: `1px solid ${activeDept === "all" ? C.ink : C.line}` }}>كل الأقسام</button>{visibleDepts.map((d) => <button key={d.id} onClick={() => setActiveDept(d.id)} className="shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: activeDept === d.id ? d.color : "transparent", color: activeDept === d.id ? "#fff" : C.inkSoft, border: `1px solid ${activeDept === d.id ? d.color : C.line}` }}><d.icon size={14} /> {d.label}</button>)}</div>)}
+          {visibleDepts.length > 1 && (<div className="flex gap-2 overflow-x-auto pb-1"><button onClick={() => setActiveDept("all")} className="shrink-0 px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: activeDept === "all" ? C.ink : "transparent", color: activeDept === "all" ? "#fff" : C.inkSoft, border: `1px solid ${activeDept === "all" ? C.ink : C.line}` }}>{uiText(language, "allDepartments")}</button>{visibleDepts.map((d) => <button key={d.id} onClick={() => setActiveDept(d.id)} className="shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: activeDept === d.id ? d.color : "transparent", color: activeDept === d.id ? "#fff" : C.inkSoft, border: `1px solid ${activeDept === d.id ? d.color : C.line}` }}><d.icon size={14} /> {d.label}</button>)}</div>)}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {shownProducts.map((p) => (
               <div key={p.id} className="p-4 rounded-2xl flex items-center justify-between gap-3" style={{ background: "#fff", border: `1px solid ${C.line}`, opacity: p.available ? 1 : 0.5 }}>
@@ -2124,19 +2158,19 @@ async function saveKey({ key, shared }, value) {
 /* ===========================================================
    صفحة تعريف الانضمام
 =========================================================== */
-function RoleBenefitsPage({ onBack, onMerchant, onCourier }) {
+function RoleBenefitsPage({ onBack, onMerchant, onCourier, language = "ar" }) {
   const roles = [
-    { id: "merchant", icon: Store, accent: C.rust, label: "للتاجر", title: "أدر محلّك من مكان واحد", description: "أضف المنتجات، راقب الطلبات، وحدد الموصلين الذين تتعامل معهم ضمن نطاق توصيلك.", benefits: ["إدارة المنتجات والمخزون", "متابعة الطلبات خطوة بخطوة", "اختيار الموصلين المعتمدين"], action: "ابدأ كتاجر", onClick: onMerchant },
-    { id: "courier", icon: Bike, accent: C.teal, label: "للموصل", title: "نظّم توصيلاتك بطريقتك", description: "حدد أوقاتك، ونطاق تغطيتك، والمحلات التي تناسب مسارك قبل استقبال الطلبات.", benefits: ["أوقات عمل مرنة", "تغطية الأحياء والبلديات التي تختارها", "طلبات متاحة ضمن نطاقك"], action: "ابدأ كموصل", onClick: onCourier },
+    { id: "merchant", icon: Store, accent: C.rust, label: uiText(language, "merchantFor"), title: uiText(language, "merchantTitle"), description: uiText(language, "merchantGuide"), benefits: [uiText(language, "merchantBenefit1"), uiText(language, "merchantBenefit2"), uiText(language, "merchantBenefit3")], action: uiText(language, "startMerchant"), onClick: onMerchant },
+    { id: "courier", icon: Bike, accent: C.teal, label: uiText(language, "courierFor"), title: uiText(language, "courierTitle"), description: uiText(language, "courierGuide"), benefits: [uiText(language, "courierBenefit1"), uiText(language, "courierBenefit2"), uiText(language, "courierBenefit3")], action: uiText(language, "startCourier"), onClick: onCourier },
   ];
 
   return (
     <section className="space-y-5" data-testid="role-benefits-page">
       <div className="p-5 sm:p-7 rounded-[28px]" style={{ background: `linear-gradient(125deg, ${C.teal}, ${C.purple})`, color: "#fff", boxShadow: `0 20px 45px ${C.teal}30` }}>
-        <button onClick={onBack} className="flex items-center gap-1.5 text-xs font-bold mb-5 opacity-90 hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 rounded-md"><ChevronRight size={15} /> العودة للتسوّق</button>
-        <span className="text-[11px] font-black px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,.14)" }}>مسار واضح قبل التسجيل</span>
-        <h1 className="font-black text-2xl mt-3 tracking-tight" style={{ fontFamily: "'IBM Plex Sans Arabic', sans-serif" }}>انضم إلى شبكة الحيّ</h1>
-        <p className="text-sm leading-6 mt-2 max-w-2xl" style={{ color: "rgba(255,255,255,.82)" }}>اختر الدور الأنسب لك. ابدأ برقم هاتف محمول جزائري أو بريد إلكتروني، ثم تابع أعمالك من لوحتك الخاصة بعد اكتمال المراجعة.</p>
+        <button onClick={onBack} className="flex items-center gap-1.5 text-xs font-bold mb-5 opacity-90 hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 rounded-md"><ChevronRight size={15} /> {uiText(language, "backShopping")}</button>
+        <span className="text-[11px] font-black px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,.14)" }}>{uiText(language, "clearPath")}</span>
+        <h1 className="font-black text-2xl mt-3 tracking-tight">{uiText(language, "joinNetwork")}</h1>
+        <p className="text-sm leading-6 mt-2 max-w-2xl" style={{ color: "rgba(255,255,255,.82)" }}>{uiText(language, "roleGuideDescription")}</p>
       </div>
       <div className="grid md:grid-cols-2 gap-4">
         {roles.map((roleInfo) => {
@@ -2177,6 +2211,9 @@ function OrderDetailsOverlay({ order, onClose }) {
 
 export default function App() {
   const [role, setRole] = useState("customer");
+  const [language, setLanguage] = useState(() => {
+    try { return localStorage.getItem("souq-jiran:language") === "fr" ? "fr" : "ar"; } catch { return "ar"; }
+  });
   const [stores, setStores] = useState([]);
   const [orders, setOrders] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -2217,6 +2254,12 @@ export default function App() {
   const sessionHydrationRef = useRef(0);
 
   const focusedOrder = useMemo(() => orders.find((order) => order.id === focusedOrderId) || null, [orders, focusedOrderId]);
+
+  useEffect(() => {
+    try { localStorage.setItem("souq-jiran:language", language); } catch { /* preference storage is optional */ }
+    document.documentElement.lang = language;
+    document.documentElement.dir = language === "fr" ? "ltr" : "rtl";
+  }, [language]);
 
   function notify(msg) { setToast(msg); setTimeout(() => setToast(""), 2400); }
   function pushNotification(message) { setNotifications((prev) => { const next = [{ id: "n" + Math.random().toString(36).slice(2, 7), message, time: new Date().toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" }), read: false }, ...prev].slice(0, 25); saveKey(STORAGE.notifications, next); return next; }); }
@@ -2979,7 +3022,7 @@ export default function App() {
     <div dir="rtl" className="souq-next-app" style={{ fontFamily: "'IBM Plex Sans Arabic', sans-serif", background: C.paper, minHeight: "100%", color: C.ink }}>
       <style>{`
         * { box-sizing: border-box; }
-        input, select, textarea { font-family: 'IBM Plex Sans Arabic', sans-serif; }
+        input, select, textarea { font-family: inherit; }
         ::selection { background: ${C.teal}25; }
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -2990,7 +3033,7 @@ export default function App() {
         .role-join-card:focus-visible, .role-guide-cta:focus-visible, .role-benefit-card:focus-within { outline: 3px solid var(--role-accent, ${C.teal}); outline-offset: 3px; }
         .role-join-card:active, .role-guide-cta:active { transform: scale(.98); }
         .dashboard-shell > div:first-child { box-shadow: 0 14px 34px rgba(51, 59, 120, .08); }
-        [style*="Reem Kufi"] { font-family: 'IBM Plex Sans Arabic', Inter, sans-serif !important; letter-spacing: -.025em; }
+        [style*="Reem Kufi"] { font-family: var(--font-arabic) !important; letter-spacing: -.025em; }
         .dashboard-shell .dashboard-tabs { padding: .35rem; border-radius: 1rem; width: fit-content; background: rgba(255,255,255,.82); border: 1px solid ${C.line}; box-shadow: 0 8px 20px rgba(51,59,120,.05); }
         .dashboard-shell button, .dashboard-shell input, .dashboard-shell select { transition: border-color 160ms cubic-bezier(.23,1,.32,1), box-shadow 160ms cubic-bezier(.23,1,.32,1), transform 160ms cubic-bezier(.23,1,.32,1); }
         @media (prefers-reduced-motion: reduce) { .role-join-card, .role-benefit-card { transition: none; } .role-join-card:hover, .role-benefit-card:hover { transform: none; } }
@@ -3001,18 +3044,21 @@ export default function App() {
         <header className="app-header flex items-center justify-between mb-3 gap-3 flex-wrap p-3 sm:p-4 rounded-[22px]" style={{ background: "rgba(255,255,255,.78)", border: `1px solid ${C.line}`, boxShadow: "0 12px 30px rgba(51, 59, 120, .07)" }}>
           <div className="flex items-center gap-2.5">
             <span className="flex items-center justify-center rounded-2xl" style={{ width: 44, height: 44, background: `linear-gradient(145deg, ${C.teal}, ${C.purple})`, color: "#fff", boxShadow: `0 10px 20px ${C.teal}35` }}><ShoppingBag size={21} /></span>
-            <div><div className="font-black text-xl leading-none tracking-tight" style={{ fontFamily: "Inter, 'IBM Plex Sans Arabic', sans-serif" }}>سوق الجيران</div><div className="text-[11px] mt-1 font-semibold" style={{ color: C.inkSoft }}>{role === "admin" ? "مساحة إدارة المنصة" : "طلبات محلية، تجربة رقمية أسرع"}</div></div>
+            <div><div className="font-black text-xl leading-none tracking-tight">{uiText(language, "appName")}</div><div className="text-[11px] mt-1 font-semibold" style={{ color: C.inkSoft }}>{role === "admin" ? uiText(language, "adminWorkspace") : uiText(language, "marketplaceCaption")}</div></div>
           </div>
-          {role === "admin" ? (
-            <button onClick={signOut} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-sm" style={{ background: C.ink, color: "#fff" }}><LogOut size={15} /> خروج من لوحة الإدارة</button>
-          ) : auth && <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl" style={{ background: C.sage + "16", color: C.sage, border: `1px solid ${C.sage}2A` }}><span style={{ width: 7, height: 7, borderRadius: 999, background: C.sage }} />{auth.name}<button onClick={() => setShowPhoneChange(true)} className="flex items-center gap-1 mr-1" style={{ color: C.teal, fontSize: 10 }}><Phone size={12} /> الهاتف</button><button onClick={signOut} className="flex items-center gap-1 mr-1" style={{ color: C.inkSoft, fontSize: 10 }}><LogOut size={12} /> خروج</button></div>}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div data-testid="app-language-switcher" className="flex items-center gap-1 p-1 rounded-xl" role="group" aria-label={uiText(language, "language")} style={{ background: C.paperDark, border: `1px solid ${C.line}` }}><Languages size={15} color={C.teal} className="mx-1" />{LANGUAGE_OPTIONS.map((option) => <button key={option.code} type="button" onClick={() => setLanguage(option.code)} aria-pressed={language === option.code} className="px-2.5 py-1.5 rounded-lg text-xs font-black transition" style={{ background: language === option.code ? C.teal : "transparent", color: language === option.code ? "#fff" : C.inkSoft }}>{option.shortLabel}</button>)}</div>
+            {role === "admin" ? (
+              <button onClick={signOut} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-sm" style={{ background: C.ink, color: "#fff" }}><LogOut size={15} /> {uiText(language, "signOutAdmin")}</button>
+            ) : auth && <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl" style={{ background: C.sage + "16", color: C.sage, border: `1px solid ${C.sage}2A` }}><span style={{ width: 7, height: 7, borderRadius: 999, background: C.sage }} />{auth.name}<button onClick={() => setShowPhoneChange(true)} className="flex items-center gap-1 mr-1" style={{ color: C.teal, fontSize: 10 }}><Phone size={12} /> {uiText(language, "phone")}</button><button onClick={signOut} className="flex items-center gap-1 mr-1" style={{ color: C.inkSoft, fontSize: 10 }}><LogOut size={12} /> {uiText(language, "signOut")}</button></div>}
+          </div>
         </header>
 
         <StripeDivider />
-        {role !== "admin" && <p className="text-xs mt-3 mb-1 flex items-center gap-1.5 font-medium" style={{ color: C.inkSoft }}><PackageCheck size={13} color={C.sage} /> تُحفَظ بياناتك تلقائياً وتبقى الخصوصية تحت تحكمك.</p>}
+        {role !== "admin" && <p className="text-xs mt-3 mb-1 flex items-center gap-1.5 font-medium" style={{ color: C.inkSoft }}><PackageCheck size={13} color={C.sage} /> {uiText(language, "privacy")}</p>}
 
         <div className="mt-4">
-          {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else setShowMerchantForm(true); }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} merchantOffers={merchantOffers} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} referralCode={referralCode} rewardCoupons={rewardCoupons} claimReferralCode={claimCustomerReferral} publicStoreId={publicQrDestination.storeId} publicCourierId={publicQrDestination.courierId} />)}
+          {role === "customer" && (showRoleGuide ? <RoleBenefitsPage language={language} onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else setShowMerchantForm(true); }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView language={language} stores={stores} merchantOffers={merchantOffers} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} referralCode={referralCode} rewardCoupons={rewardCoupons} claimReferralCode={claimCustomerReferral} publicStoreId={publicQrDestination.storeId} publicCourierId={publicQrDestination.courierId} />)}
           {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} merchantOffers={merchantOffers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} onStartMerchantRegistration={() => setShowMerchantForm(true)} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} merchantConfirmSettlement={merchantConfirmSettlement} reportCustomerAccount={reportCustomerAccount} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} submitMerchantOffer={submitMerchantOffer} pauseMerchantOffer={pauseMerchantOffer} userId={auth?.id || null} isResolvingMerchantStore={isResolvingMerchantStore} />}
           {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} messages={messages} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} courierConfirmPickup={courierConfirmPickup} courierStartDelivery={courierStartDelivery} courierConfirmDelivery={courierConfirmDelivery} courierConfirmRemittance={courierConfirmRemittance} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} merchantOffers={merchantOffers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} orderNotifications={adminOrderNotifications} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} customerReports={customerReports} customerBlacklist={customerBlacklist} deliveryPricing={deliveryPricing} referralAnalytics={referralAnalytics} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} markOrderNotificationRead={markOrderNotificationRead} markAllOrderNotificationsRead={markAllOrderNotificationsRead} saveArchiveAlertSettings={saveArchiveAlertSettings} setCustomerBlacklist={setCustomerBlacklistStatus} saveDeliveryPricing={saveDeliveryPricingConfig} reviewMerchantOffer={reviewMerchantOffer} />}
@@ -3020,19 +3066,19 @@ export default function App() {
 
         {role === "customer" && !showRoleGuide && (
           <section className="mt-10 p-5 sm:p-6 rounded-[28px]" style={{ background: "rgba(238,240,255,.7)", border: `1px solid ${C.line}` }} data-testid="role-join-cards">
-            <div className="flex items-center justify-between gap-3 mb-4"><div><h2 className="font-black text-lg tracking-tight" style={{ color: C.ink }}>ابنِ حضورك على المنصة</h2><p className="text-xs mt-1" style={{ color: C.inkSoft }}>اختر مساحة العمل المناسبة لك، وابدأ برقم هاتفك أو بريدك الإلكتروني.</p></div><div className="flex items-center gap-2"><button data-testid="role-benefits-link" onClick={() => setShowRoleGuide(true)} className="text-xs font-black px-3 py-2 rounded-xl" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}2B` }}>استكشف المسارات</button></div></div>
+            <div className="flex items-center justify-between gap-3 mb-4"><div><h2 className="font-black text-lg tracking-tight" style={{ color: C.ink }}>{uiText(language, "buildPresence")}</h2><p className="text-xs mt-1" style={{ color: C.inkSoft }}>{uiText(language, "onboardingDescription")}</p></div><div className="flex items-center gap-2"><button data-testid="role-benefits-link" onClick={() => setShowRoleGuide(true)} className="text-xs font-black px-3 py-2 rounded-xl" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}2B` }}>{uiText(language, "explorePaths")}</button></div></div>
             <div data-testid="provider-role-switches" className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <article data-testid="merchant-role-button" className="role-join-card group text-right p-5 rounded-[22px]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(51,59,120,.06)", "--role-accent": C.rust }}>
-                <span className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ background: C.rust + "16", color: C.rust }}><Store size={22} /></span><h3 className="font-black mt-4" style={{ color: C.ink }}>انضم كتاجر</h3><p className="text-xs leading-5 mt-1.5" style={{ color: C.inkSoft }}>بيانات المحل ونطاق التوصيل في خطوات واضحة.</p>
-                <div className="mt-4 grid grid-cols-2 gap-2"><button onClick={() => (auth?.type === "merchant" ? (setRole("merchant"), persistentSetMyStoreId(auth.id)) : setShowMerchantForm(true))} className="py-2.5 rounded-xl text-xs font-black" style={{ background: C.rust, color: "#fff" }}>إنشاء حساب</button><button onClick={() => { setAdminLoginRequested(false); setAuthEntry({ type: "merchant", mode: "login" }); setShowAuth(true); }} className="py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1" style={{ border: `1px solid ${C.rust}44`, color: C.rust }}><LogIn size={13} /> دخول</button></div>
+                <span className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ background: C.rust + "16", color: C.rust }}><Store size={22} /></span><h3 className="font-black mt-4" style={{ color: C.ink }}>{uiText(language, "merchant")}</h3><p className="text-xs leading-5 mt-1.5" style={{ color: C.inkSoft }}>{uiText(language, "merchantDescription")}</p>
+                <div className="mt-4 grid grid-cols-2 gap-2"><button onClick={() => (auth?.type === "merchant" ? (setRole("merchant"), persistentSetMyStoreId(auth.id)) : setShowMerchantForm(true))} className="py-2.5 rounded-xl text-xs font-black" style={{ background: C.rust, color: "#fff" }}>{uiText(language, "createAccount")}</button><button onClick={() => { setAdminLoginRequested(false); setAuthEntry({ type: "merchant", mode: "login" }); setShowAuth(true); }} className="py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1" style={{ border: `1px solid ${C.rust}44`, color: C.rust }}><LogIn size={13} /> {uiText(language, "signIn")}</button></div>
               </article>
               <article data-testid="courier-role-button" className="role-join-card group text-right p-5 rounded-[22px]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(51,59,120,.06)", "--role-accent": C.teal }}>
-                <span className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ background: C.teal + "16", color: C.teal }}><Bike size={22} /></span><h3 className="font-black mt-4" style={{ color: C.ink }}>انضم كموصل</h3><p className="text-xs leading-5 mt-1.5" style={{ color: C.inkSoft }}>تحكم في ساعاتك ونطاقك وطلباتك النشطة في أي وقت.</p>
-                <div className="mt-4 grid grid-cols-2 gap-2"><button onClick={() => (auth?.type === "courier" ? setRole("courier") : setShowCourierForm(true))} className="py-2.5 rounded-xl text-xs font-black" style={{ background: C.teal, color: "#fff" }}>إنشاء حساب</button><button data-testid="courier-login-button" onClick={() => { setAdminLoginRequested(false); setAuthEntry({ type: "courier", mode: "login" }); setShowAuth(true); }} className="py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1" style={{ border: `1px solid ${C.teal}44`, color: C.teal }}><LogIn size={13} /> دخول الحساب</button></div>
+                <span className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ background: C.teal + "16", color: C.teal }}><Bike size={22} /></span><h3 className="font-black mt-4" style={{ color: C.ink }}>{uiText(language, "courier")}</h3><p className="text-xs leading-5 mt-1.5" style={{ color: C.inkSoft }}>{uiText(language, "courierDescription")}</p>
+                <div className="mt-4 grid grid-cols-2 gap-2"><button onClick={() => (auth?.type === "courier" ? setRole("courier") : setShowCourierForm(true))} className="py-2.5 rounded-xl text-xs font-black" style={{ background: C.teal, color: "#fff" }}>{uiText(language, "createAccount")}</button><button data-testid="courier-login-button" onClick={() => { setAdminLoginRequested(false); setAuthEntry({ type: "courier", mode: "login" }); setShowAuth(true); }} className="py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1" style={{ border: `1px solid ${C.teal}44`, color: C.teal }}><LogIn size={13} /> {uiText(language, "accountLogin")}</button></div>
               </article>
               <article data-testid="customer-role-button" className="role-join-card group text-right p-5 rounded-[22px]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(51,59,120,.06)", "--role-accent": C.ochre }}>
-                <span className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ background: C.ochre + "16", color: C.ochre }}><User size={22} /></span><h3 className="font-black mt-4" style={{ color: C.ink }}>حساب الزبون</h3><p className="text-xs leading-5 mt-1.5" style={{ color: C.inkSoft }}>تابع طلباتك وعناوينك وقسائمك من بوابتك الخاصة.</p>
-                <button onClick={() => { setAdminLoginRequested(false); setAuthEntry({ type: "customer", mode: "register" }); setShowAuth(true); }} className="mt-4 w-full py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5" style={{ background: C.ochre, color: "#fff" }}><UserPlus size={14} /> دخول أو إنشاء حساب</button>
+                <span className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ background: C.ochre + "16", color: C.ochre }}><User size={22} /></span><h3 className="font-black mt-4" style={{ color: C.ink }}>{uiText(language, "customer")}</h3><p className="text-xs leading-5 mt-1.5" style={{ color: C.inkSoft }}>{uiText(language, "customerDescription")}</p>
+                <button onClick={() => { setAdminLoginRequested(false); setAuthEntry({ type: "customer", mode: "register" }); setShowAuth(true); }} className="mt-4 w-full py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5" style={{ background: C.ochre, color: "#fff" }}><UserPlus size={14} /> {uiText(language, "customerAuth")}</button>
               </article>
             </div>
           </section>
