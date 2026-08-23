@@ -61,6 +61,12 @@ const UI_COPY = {
     backShopping: "Retour aux achats", clearPath: "Un parcours clair avant l’inscription", joinNetwork: "Rejoignez le réseau de votre quartier", roleGuideDescription: "Choisissez le rôle qui vous convient. Commencez avec un numéro algérien ou une adresse e-mail, puis gérez votre activité depuis votre espace après validation.", merchantFor: "Pour les commerçants", merchantTitle: "Gérez votre commerce au même endroit", merchantGuide: "Ajoutez vos produits, suivez vos commandes et choisissez les livreurs avec lesquels vous travaillez dans votre zone.", merchantBenefit1: "Gestion des produits et du stock", merchantBenefit2: "Suivi des commandes étape par étape", merchantBenefit3: "Choix des livreurs agréés", startMerchant: "Commencer comme commerçant", courierFor: "Pour les livreurs", courierTitle: "Organisez vos livraisons à votre rythme", courierGuide: "Définissez vos horaires, votre zone de couverture et les commerces adaptés à votre parcours avant de recevoir des commandes.", courierBenefit1: "Horaires flexibles", courierBenefit2: "Couverture des quartiers et communes de votre choix", courierBenefit3: "Commandes disponibles dans votre zone", startCourier: "Commencer comme livreur",
   },
 };
+Object.assign(UI_COPY.ar, {
+  deliverySchedule: "موعد التوصيل المطلوب", nextAvailable: "أقرب وقت متاح", chooseDeliveryWindow: "اختر نافذة مدتها 90 دقيقة لليوم أو الغد.", loadingDeliveryWindows: "جارٍ البحث عن المواعيد المتاحة…", noDeliveryWindows: "لا توجد مواعيد توصيل متاحة ضمن النطاق حالياً. اختر الاستلام من المحل أو أعد المحاولة لاحقاً.", checkoutNeedsSchedule: "اختر موعد توصيل متاحاً للمتابعة.", scheduleRequested: "طلب موعد — بانتظار تأكيد التاجر", scheduleConfirmed: "موعد مؤكد", scheduleDeclined: "تعذر تأكيد الموعد",
+});
+Object.assign(UI_COPY.fr, {
+  deliverySchedule: "Créneau de livraison demandé", nextAvailable: "Premier créneau disponible", chooseDeliveryWindow: "Choisissez un créneau de 90 minutes aujourd’hui ou demain.", loadingDeliveryWindows: "Recherche des créneaux disponibles…", noDeliveryWindows: "Aucun créneau disponible dans cette zone. Choisissez le retrait en magasin ou réessayez plus tard.", checkoutNeedsSchedule: "Choisissez un créneau disponible pour continuer.", scheduleRequested: "Créneau demandé — en attente de validation du commerce", scheduleConfirmed: "Créneau confirmé", scheduleDeclined: "Créneau non confirmé",
+});
 function uiText(language, key, values = {}) {
   const value = UI_COPY[language]?.[key] ?? UI_COPY.ar[key] ?? key;
   return value.replace(/\{(\w+)\}/g, (_, token) => String(values[token] ?? ""));
@@ -1126,6 +1132,10 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const [deliveryQuote, setDeliveryQuote] = useState(null);
   const [quoteError, setQuoteError] = useState("");
   const [quoteLoading, setQuoteLoading] = useState(false);
+  const [deliveryScheduleSlots, setDeliveryScheduleSlots] = useState([]);
+  const [selectedDeliverySlot, setSelectedDeliverySlot] = useState(null);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduleError, setScheduleError] = useState("");
   const [rewardCouponInput, setRewardCouponInput] = useState("");
   const [appliedReward, setAppliedReward] = useState(null);
 
@@ -1175,7 +1185,8 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const addressReady = Boolean(cart.address?.wilaya && cart.address?.commune && cart.address?.label?.trim());
   const needsDeliveryAddress = deliveryChoice !== "pickup";
   const needsDeliveryQuote = deliveryChoice === "courier";
-  const checkoutDisabled = cartCount === 0 || Boolean(belowMinOrder) || quoteLoading || (needsDeliveryAddress && !addressReady) || (needsDeliveryQuote && !deliveryQuote) || (requiresVerifiedEmail && !emailVerified);
+  const needsDeliverySchedule = deliveryChoice !== "pickup";
+  const checkoutDisabled = cartCount === 0 || Boolean(belowMinOrder) || quoteLoading || scheduleLoading || (needsDeliveryAddress && !addressReady) || (needsDeliveryQuote && !deliveryQuote) || (needsDeliverySchedule && !selectedDeliverySlot) || (requiresVerifiedEmail && !emailVerified);
   const checkoutHint = cartCount === 0
     ? uiText(language, "cartEmpty")
     : belowMinOrder
@@ -1184,6 +1195,8 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
         ? uiText(language, "checkoutNeedsAddress")
         : needsDeliveryQuote && !deliveryQuote
           ? uiText(language, "checkoutNeedsQuote")
+          : needsDeliverySchedule && !selectedDeliverySlot
+            ? uiText(language, "checkoutNeedsSchedule")
           : requiresVerifiedEmail && !emailVerified
             ? uiText(language, "checkoutNeedsEmail")
             : uiText(language, "checkoutReady");
@@ -1206,6 +1219,25 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
     });
     return () => { cancelled = true; };
   }, [deliveryChoice, cartStore?.id, cart.address?.wilaya, cart.address?.commune, cart.address?.label, cart.items, quoteDelivery]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (deliveryChoice === "pickup" || !cartStore?.id || !addressReady) {
+      setDeliveryScheduleSlots([]); setSelectedDeliverySlot(null); setScheduleError(""); setScheduleLoading(false); return undefined;
+    }
+    setSelectedDeliverySlot(null); setScheduleLoading(true); setScheduleError("");
+    supabase.rpc("delivery_schedule_options", { p_merchant_id: cartStore.id, p_delivery_choice: deliveryChoice, p_delivery_address: cart.address }).then(({ data, error }) => {
+      if (cancelled) return;
+      if (error) {
+        setDeliveryScheduleSlots([]);
+        setScheduleError(error.code === "42883" ? "يلزم تشغيل ترحيل جدولة التوصيل أولاً." : uiText(language, "noDeliveryWindows"));
+      } else {
+        setDeliveryScheduleSlots(data || []);
+      }
+      setScheduleLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [deliveryChoice, cartStore?.id, cart.address?.wilaya, cart.address?.commune, cart.address?.label, language]);
 
   function addToCart(store, product) {
     setCart((prev) => {
@@ -1329,6 +1361,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
               <div className="flex items-center justify-between mb-2"><span className="font-bold text-sm" style={{ color: C.ink }}>{o.storeName}</span><StatusPill status={o.status} /></div>
               <div className="text-xs mb-1" style={{ color: C.inkSoft }}>{o.items.map((i) => `${i.name} ×${i.qty}`).join(" · ")}</div>
               <div className="text-xs mb-3 flex items-center gap-1" style={{ color: C.teal }}>{React.createElement(DELIVERY_LABELS[o.deliveryType]?.icon || Home, { size: 12 })} {DELIVERY_LABELS[o.deliveryType]?.label}{o.courier ? ` — ${o.courier.name}` : ""}</div>
+              {o.requestedDeliveryWindowStart && <p className="text-[11px] font-bold mb-2" style={{ color: o.deliveryScheduleStatus === "confirmed" ? C.sage : C.ochre }}><CalendarClock size={12} className="inline ms-1" /> {new Date(o.requestedDeliveryWindowStart).toLocaleString(localeFor(language), { weekday: "short", hour: "2-digit", minute: "2-digit" })} — {o.deliveryScheduleStatus === "confirmed" ? uiText(language, "scheduleConfirmed") : o.deliveryScheduleStatus === "declined" ? uiText(language, "scheduleDeclined") : uiText(language, "scheduleRequested")}</p>}
               <OrderTracker status={o.status} language={language} />
               <div className="flex items-center gap-2 mt-3 pt-3 flex-wrap" style={{ borderTop: `1px solid ${C.line}` }}>
                 <button onClick={() => setInvoiceOrder(o)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}><Printer size={12} /> {uiText(language, "invoice")}</button>
@@ -1353,7 +1386,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
 
                 <div className="mb-4">
                   <span className="text-xs font-bold flex items-center gap-1 mb-2" style={{ color: C.ink }}><Truck2 size={13} /> {uiText(language, "deliveryMethod")}</span>
-                  <div className="space-y-2">{deliveryOptions.map((opt) => (<button key={opt.id} disabled={opt.disabled} onClick={() => setDeliveryChoice(opt.id)} className="w-full flex items-center gap-2.5 p-2.5 rounded-xl text-right disabled:opacity-40" style={{ border: `1.5px solid ${deliveryChoice === opt.id ? C.teal : C.line}`, background: deliveryChoice === opt.id ? C.teal + "10" : "#fff" }}><opt.icon size={17} color={deliveryChoice === opt.id ? C.teal : C.inkSoft} /><div className="flex-1"><div className="text-xs font-bold" style={{ color: C.ink }}>{opt.label}</div><div className="text-[11px]" style={{ color: C.inkSoft }}>{opt.desc}</div></div>{deliveryChoice === opt.id && <CheckCircle2 size={16} color={C.teal} />}</button>))}</div>
+                  <div className="space-y-2">{deliveryOptions.map((opt) => (<button key={opt.id} disabled={opt.disabled} onClick={() => { setDeliveryChoice(opt.id); setSelectedDeliverySlot(null); }} className="w-full flex items-center gap-2.5 p-2.5 rounded-xl text-right disabled:opacity-40" style={{ border: `1.5px solid ${deliveryChoice === opt.id ? C.teal : C.line}`, background: deliveryChoice === opt.id ? C.teal + "10" : "#fff" }}><opt.icon size={17} color={deliveryChoice === opt.id ? C.teal : C.inkSoft} /><div className="flex-1"><div className="text-xs font-bold" style={{ color: C.ink }}>{opt.label}</div><div className="text-[11px]" style={{ color: C.inkSoft }}>{opt.desc}</div></div>{deliveryChoice === opt.id && <CheckCircle2 size={16} color={C.teal} />}</button>))}</div>
                 </div>
 
                 {deliveryChoice !== "pickup" && <div className="mb-4 p-3 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
@@ -1368,6 +1401,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                 {deliveryChoice === "courier" && quoteLoading && <p className="text-xs mb-3" style={{ color: C.inkSoft }}>{uiText(language, "calculatingDelivery")}</p>}
                 {deliveryChoice === "courier" && deliveryQuote && <div className="mb-3 p-3 rounded-xl text-xs" style={{ background: C.teal + "0F", border: `1px solid ${C.teal}30`, color: C.ink }}><div className="font-bold" style={{ color: C.teal }}>{uiText(language, "serverQuote")}</div><div className="mt-1">{uiText(language, "distanceEta", { distance: Number(deliveryQuote.distanceKm || 0).toFixed(1), eta: deliveryQuote.etaMinutes || "—" })}{deliveryQuote.isInterwilaya ? ` · ${uiText(language, "interwilaya")}` : ""}</div></div>}
                 {deliveryChoice === "courier" && quoteError && <p className="text-xs font-bold mb-3" style={{ color: "#8B3A2A" }}>{quoteError}</p>}
+                {deliveryChoice !== "pickup" && addressReady && <div data-testid="delivery-schedule-options" className="mb-3 p-3 rounded-xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}><div className="text-xs font-black flex items-center gap-1" style={{ color: C.ink }}><CalendarClock size={14} color={C.teal} /> {uiText(language, "deliverySchedule")}</div><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>{uiText(language, "chooseDeliveryWindow")}</p>{scheduleLoading && <p className="text-xs mt-2" style={{ color: C.inkSoft }}>{uiText(language, "loadingDeliveryWindows")}</p>}{!scheduleLoading && (scheduleError || deliveryScheduleSlots.length === 0) && <p className="text-xs mt-2 font-bold" style={{ color: C.rust }}>{scheduleError || uiText(language, "noDeliveryWindows")}</p>}{deliveryScheduleSlots.length > 0 && <div className="mt-2 grid gap-2">{deliveryScheduleSlots.map((slot, index) => { const selected = selectedDeliverySlot?.window_start === slot.window_start; return <button key={slot.window_start} onClick={() => setSelectedDeliverySlot(slot)} className="text-right px-3 py-2 rounded-xl text-xs font-bold" style={{ background: selected ? C.teal : "#fff", color: selected ? "#fff" : C.ink, border: `1px solid ${selected ? C.teal : C.line}` }}>{index === 0 && <span className="ms-1" style={{ color: selected ? "#fff" : C.teal }}>{uiText(language, "nextAvailable")} · </span>}{new Date(slot.window_start).toLocaleString(localeFor(language), { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} – {new Date(slot.window_end).toLocaleTimeString(localeFor(language), { hour: "2-digit", minute: "2-digit" })}</button>; })}</div>}</div>}
                 {requiresVerifiedEmail && <div className="mb-3 p-3 rounded-xl" style={{ background: C.teal + "12", border: `1px solid ${C.teal}35` }}><div className="text-xs font-black" style={{ color: C.teal }}>{uiText(language, "emailConfirmation")}</div><p className="text-[11px] mt-1 leading-5" style={{ color: C.inkSoft }}>{emailVerified ? uiText(language, "emailVerifiedCopy") : uiText(language, "emailRequiredCopy")}</p></div>}
 
                 <div className="flex gap-2 mb-3"><input value={rewardCouponInput} onChange={(e) => setRewardCouponInput(e.target.value.toUpperCase())} placeholder={uiText(language, "rewardCoupon")} dir="ltr" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /><button onClick={applyRewardCoupon} className="px-4 py-2 rounded-xl text-xs font-bold" style={{ background: C.teal, color: "#fff" }}>{uiText(language, "applyCoupon")}</button></div>
@@ -1382,7 +1416,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                   <div className="flex items-center justify-between pt-1"><span className="font-bold text-sm" style={{ color: C.ink }}>{uiText(language, "cashOnDelivery")}</span><PriceTag amount={finalTotal} size="lg" /></div>
                 </div>
                 <p className="text-xs font-bold mb-3" style={{ color: checkoutDisabled ? C.inkSoft : C.sage }}>{checkoutHint}</p>
-                <button disabled={checkoutDisabled} onClick={async () => { const ok = await placeOrder(cartStore, null, discountAmount, cart.address, deliveryChoice, deliveryFee, appliedReward?.code); if (!ok) return; setAppliedReward(null); setRewardCouponInput(""); setShowCart(false); setTab("orders"); setDeliveryChoice("pickup"); setDeliveryQuote(null); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>{uiText(language, "confirmCashOrder")}</button>
+                <button disabled={checkoutDisabled} onClick={async () => { const ok = await placeOrder(cartStore, null, discountAmount, cart.address, deliveryChoice, deliveryFee, appliedReward?.code, selectedDeliverySlot ? { mode: deliveryScheduleSlots[0]?.window_start === selectedDeliverySlot.window_start ? "next_available" : "selected_window", start: selectedDeliverySlot.window_start, end: selectedDeliverySlot.window_end } : null); if (!ok) return; setAppliedReward(null); setRewardCouponInput(""); setShowCart(false); setTab("orders"); setDeliveryChoice("pickup"); setDeliveryQuote(null); setSelectedDeliverySlot(null); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>{uiText(language, "confirmCashOrder")}</button>
               </>
             )}
           </div>
@@ -1463,6 +1497,34 @@ function MerchantQrPoster({ store, notify }) {
       <div className="space-y-3"><label className="block text-xs font-bold" style={{ color: C.ink }}>الرابط العميق للمشاركة<input aria-label="رابط المتجر" readOnly value={deepLink} dir="ltr" className="w-full mt-1.5 px-3 py-2.5 rounded-xl text-xs bg-white outline-none" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }} /></label><div className="flex flex-wrap gap-2"><button data-testid="merchant-copy-deep-link" onClick={copyDeepLink} className="px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-1.5" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}55` }}><Copy size={15} /> نسخ الرابط</button><button data-testid="merchant-download-qr-pdf" onClick={downloadPoster} className="px-4 py-2.5 rounded-xl text-sm font-black flex items-center gap-1.5" style={{ background: C.teal, color: "#fff" }}><Download size={15} /> تنزيل ملصق PDF</button></div><p className="text-[11px] leading-5" style={{ color: C.inkSoft }}>اطبع الملصق بحجم A4 وضعه قرب صندوق الدفع أو عند مدخل المحل.</p></div>
     </div>
   </section>;
+}
+
+function MerchantDeliverySchedulePanel({ merchantId, notify }) {
+  const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+  const [settings, setSettings] = useState({ scheduling_enabled: false, preparation_minutes: 30, weekly_schedule: {}, blackout_windows: [] });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    supabase.from("merchant_delivery_schedule_settings").select("scheduling_enabled,preparation_minutes,weekly_schedule,blackout_windows").eq("merchant_id", merchantId).maybeSingle().then(({ data, error: queryError }) => {
+      if (!active) return;
+      if (queryError) setError("يلزم تشغيل ترحيل جدولة التوصيل أولاً.");
+      else if (data) setSettings({ ...data, weekly_schedule: data.weekly_schedule || {}, blackout_windows: data.blackout_windows || [] });
+      setLoading(false);
+    });
+    return () => { active = false; };
+  }, [merchantId]);
+  const updateDay = (day, field, value) => setSettings((current) => ({ ...current, weekly_schedule: { ...current.weekly_schedule, [day]: [{ start: field === "start" ? value : current.weekly_schedule?.[day]?.[0]?.start || "09:00", end: field === "end" ? value : current.weekly_schedule?.[day]?.[0]?.end || "18:00" }] } }));
+  async function saveSchedule() {
+    setSaving(true); setError("");
+    const { error: rpcError } = await supabase.rpc("merchant_save_delivery_schedule", { p_scheduling_enabled: settings.scheduling_enabled, p_preparation_minutes: Number(settings.preparation_minutes), p_weekly_schedule: settings.weekly_schedule, p_blackout_windows: settings.blackout_windows });
+    setSaving(false);
+    if (rpcError) { setError(rpcError.message || "تعذر حفظ جدول الحجز."); return; }
+    notify("تم حفظ إعدادات جدولة التوصيل.");
+  }
+  return <div className="p-4 rounded-2xl space-y-3" style={{ background: "#fff", border: `1px solid ${C.line}` }} data-testid="merchant-delivery-schedule-panel"><div className="flex items-start justify-between gap-3"><div><h3 className="font-black text-sm flex items-center gap-1" style={{ color: C.ink }}><CalendarClock size={15} color={C.teal} /> حجز مواعيد التوصيل</h3><p className="text-[11px] mt-1 leading-5" style={{ color: C.inkSoft }}>تظهر للعميل نوافذ مدتها 90 دقيقة فقط داخل هذا الجدول. الطلب يبقى بانتظار تأكيدك.</p></div><button onClick={() => setSettings((current) => ({ ...current, scheduling_enabled: !current.scheduling_enabled }))} className="px-3 py-1.5 rounded-full text-xs font-black shrink-0" style={{ background: settings.scheduling_enabled ? C.teal : C.paperDark, color: settings.scheduling_enabled ? "#fff" : C.inkSoft }}>{settings.scheduling_enabled ? "الحجوزات مفعلة" : "الحجوزات متوقفة"}</button></div>{loading ? <p className="text-xs" style={{ color: C.inkSoft }}>جارٍ تحميل إعدادات الحجز…</p> : <><label className="text-xs font-bold block" style={{ color: C.inkSoft }}>مدة التحضير الافتراضية بالدقائق<input type="number" min="0" max="720" value={settings.preparation_minutes} onChange={(event) => setSettings((current) => ({ ...current, preparation_minutes: event.target.value }))} className="w-full mt-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /></label><div className="space-y-2">{dayNames.map((dayName, day) => { const range = settings.weekly_schedule?.[day]?.[0] || {}; return <div key={day} className="grid grid-cols-[72px_1fr_1fr] gap-2 items-center"><span className="text-xs font-bold" style={{ color: C.ink }}>{dayName}</span><input aria-label={`بداية ${dayName}`} type="time" value={range.start || ""} onChange={(event) => updateDay(String(day), "start", event.target.value)} className="px-2 py-1.5 rounded-lg text-xs outline-none" style={{ border: `1px solid ${C.line}` }} /><input aria-label={`نهاية ${dayName}`} type="time" value={range.end || ""} onChange={(event) => updateDay(String(day), "end", event.target.value)} className="px-2 py-1.5 rounded-lg text-xs outline-none" style={{ border: `1px solid ${C.line}` }} /></div>; })}</div><p className="text-[11px] leading-5" style={{ color: C.inkSoft }}>لإيقاف الحجوزات لفترة، عطّل الزر أعلاه ثم احفظ؛ تعود النوافذ للظهور عند إعادة التفعيل.</p>{error && <p className="text-xs font-bold" style={{ color: C.rust }}>{error}</p>}<button disabled={saving} onClick={saveSchedule} className="w-full py-2.5 rounded-xl text-sm font-black disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{saving ? "جارٍ الحفظ…" : "حفظ جدول الحجوزات"}</button></>}</div>;
 }
 
 function MerchantView({ stores, setStores, orders, messages, couriers, merchantOffers = [], myStoreId, setMyStoreId, notify, onStartMerchantRegistration, createProduct, createBulkProducts, removeProductRemote, setProductAvailability, setMerchantOrderStatus, merchantConfirmSettlement, reportCustomerAccount, archiveOrder, archiveMessage, submitMerchantOffer, pauseMerchantOffer, userId, isResolvingMerchantStore = false }) {
@@ -1656,12 +1718,13 @@ function MerchantView({ stores, setStores, orders, messages, couriers, merchantO
       {tab === "orders" && (
         <div id="merchant-new-orders" tabIndex={-1} className="space-y-3 outline-none">
           {myOrders.length === 0 && <p className="text-center text-sm py-10" style={{ color: C.inkSoft }}>لا توجد طلبات واردة حالياً.</p>}
-          {myOrders.map((o) => (<div key={o.id} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="flex items-center justify-between mb-2"><span className="font-bold text-sm" style={{ color: C.ink }}>{o.customer} · {o.createdAt}</span><StatusPill status={o.status} /></div><div className="text-xs mb-1" style={{ color: C.inkSoft }}>{o.items.map((i) => `${i.name} ×${i.qty}`).join(" · ")}</div><div className="text-xs mb-3 flex items-center gap-1" style={{ color: C.teal }}>{React.createElement(DELIVERY_LABELS[o.deliveryType]?.icon || Home, { size: 12 })} {DELIVERY_LABELS[o.deliveryType]?.label}{o.courier ? ` — ${o.courier.name}` : ""}</div>{o.isInterwilaya && <p className="text-[11px] font-bold mb-3" style={{ color: C.purple }}>توصيل بين الولايات · {Number(o.deliveryDistanceKm || 0).toFixed(1)} كم · {o.estimatedDeliveryMinutes || "—"} دقيقة</p>}<div className="flex items-center justify-between flex-wrap gap-2"><PriceTag amount={o.total} /><div className="flex gap-2 flex-wrap"><button onClick={() => setInvoiceOrder(o)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}><Printer size={12} /> الفاتورة</button>{o.customerId && <button onClick={() => { const reason = window.prompt("سبب البلاغ (5 أحرف على الأقل)"); if (reason) reportCustomerAccount(o.customerId, reason, o.id); }} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.rust}55`, color: C.rust }}>إبلاغ عن الحساب</button>}<button onClick={() => archiveOrder(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A" }}><Trash2 size={12} /> حذف من قائمتي</button>{o.status === "pending" && (<><button onClick={() => setOrderStatus(o.id, "declined")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A20", color: "#8B3A2A" }}><X size={13} /> رفض</button><button onClick={() => setOrderStatus(o.id, "accepted")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.teal, color: "#fff" }}><Check size={13} /> قبول</button></>)}{nextStatus[o.status] && <button onClick={() => setOrderStatus(o.id, nextStatus[o.status])} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.rust, color: "#fff" }}>تحديث إلى «{STATUS_MAP[nextStatus[o.status]].label}»</button>}{o.status === "remittance_confirmed" && <button onClick={() => merchantConfirmSettlement(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.sage, color: "#fff" }}><Wallet size={12} /> تأكيد استلام المستحقات</button>}</div></div></div>))}
+          {myOrders.map((o) => (<div key={o.id} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="flex items-center justify-between mb-2"><span className="font-bold text-sm" style={{ color: C.ink }}>{o.customer} · {o.createdAt}</span><StatusPill status={o.status} /></div><div className="text-xs mb-1" style={{ color: C.inkSoft }}>{o.items.map((i) => `${i.name} ×${i.qty}`).join(" · ")}</div><div className="text-xs mb-3 flex items-center gap-1" style={{ color: C.teal }}>{React.createElement(DELIVERY_LABELS[o.deliveryType]?.icon || Home, { size: 12 })} {DELIVERY_LABELS[o.deliveryType]?.label}{o.courier ? ` — ${o.courier.name}` : ""}</div>{o.requestedDeliveryWindowStart && <p className="text-[11px] font-bold mb-3" style={{ color: o.deliveryScheduleStatus === "confirmed" ? C.sage : C.ochre }}><CalendarClock size={12} className="inline ms-1" /> {new Date(o.requestedDeliveryWindowStart).toLocaleString("ar-DZ", { weekday: "short", hour: "2-digit", minute: "2-digit" })} · {o.deliveryScheduleStatus === "confirmed" ? "الموعد مؤكد" : o.deliveryScheduleStatus === "declined" ? "الموعد مرفوض" : "طلب موعد بانتظار تأكيدك"}</p>}{o.isInterwilaya && <p className="text-[11px] font-bold mb-3" style={{ color: C.purple }}>توصيل بين الولايات · {Number(o.deliveryDistanceKm || 0).toFixed(1)} كم · {o.estimatedDeliveryMinutes || "—"} دقيقة</p>}<div className="flex items-center justify-between flex-wrap gap-2"><PriceTag amount={o.total} /><div className="flex gap-2 flex-wrap"><button onClick={() => setInvoiceOrder(o)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}><Printer size={12} /> الفاتورة</button>{o.deliveryScheduleStatus === "requested" && <><button onClick={async () => { const { error } = await supabase.rpc("merchant_respond_delivery_schedule", { p_order_id: o.id, p_confirm: false }); notify(error ? `تعذر رفض الموعد: ${error.message}` : "تم رفض الموعد المطلوب."); }} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A20", color: C.rust }}>رفض الموعد</button><button onClick={async () => { const { error } = await supabase.rpc("merchant_respond_delivery_schedule", { p_order_id: o.id, p_confirm: true }); notify(error ? `تعذر تأكيد الموعد: ${error.message}` : "تم تأكيد الموعد."); }} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.sage, color: "#fff" }}>تأكيد الموعد</button></>}{o.customerId && <button onClick={() => { const reason = window.prompt("سبب البلاغ (5 أحرف على الأقل)"); if (reason) reportCustomerAccount(o.customerId, reason, o.id); }} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.rust}55`, color: C.rust }}>إبلاغ عن الحساب</button>}<button onClick={() => archiveOrder(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A" }}><Trash2 size={12} /> حذف من قائمتي</button>{o.status === "pending" && (<><button onClick={() => setOrderStatus(o.id, "declined")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A20", color: "#8B3A2A" }}><X size={13} /> رفض</button><button onClick={() => setOrderStatus(o.id, "accepted")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.teal, color: "#fff" }}><Check size={13} /> قبول</button></>)}{nextStatus[o.status] && <button onClick={() => setOrderStatus(o.id, nextStatus[o.status])} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.rust, color: "#fff" }}>تحديث إلى «{STATUS_MAP[nextStatus[o.status]].label}»</button>}{o.status === "remittance_confirmed" && <button onClick={() => merchantConfirmSettlement(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.sage, color: "#fff" }}><Wallet size={12} /> تأكيد استلام المستحقات</button>}</div></div></div>))}
         </div>
       )}
 
       {tab === "delivery" && (
         <div className="space-y-5">
+          <MerchantDeliverySchedulePanel merchantId={myStoreId} notify={notify} />
           <div className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
             <span className="text-xs font-bold flex items-center gap-1 mb-1.5" style={{ color: C.ink }}><Truck2 size={13} /> هل تملك توصيلاً خاصاً؟</span>
             <div className="flex gap-2 mb-3"><button onClick={() => updateStore({ hasOwnDelivery: true })} className="flex-1 py-2.5 rounded-xl text-sm font-bold" style={{ background: myStore.hasOwnDelivery ? C.teal : "transparent", color: myStore.hasOwnDelivery ? "#fff" : C.inkSoft, border: `1px solid ${myStore.hasOwnDelivery ? C.teal : C.line}` }}>نعم، لدي توصيل خاص</button><button onClick={() => updateStore({ hasOwnDelivery: false })} className="flex-1 py-2.5 rounded-xl text-sm font-bold" style={{ background: !myStore.hasOwnDelivery ? C.teal : "transparent", color: !myStore.hasOwnDelivery ? "#fff" : C.inkSoft, border: `1px solid ${!myStore.hasOwnDelivery ? C.teal : C.line}` }}>لا، اعتمد موصلي المنصة</button></div>
@@ -2461,7 +2524,7 @@ export default function App() {
       items: (itemsByOrder[order.id] || []).map((item) => ({ id: item.product_id || item.id, name: item.product_name, price: item.unit_price, unit: item.unit, qty: item.quantity })),
       subtotal: order.subtotal, deliveryFee: order.delivery_fee, total: order.total, status: order.status, deliveryLocation: order.delivery_address,
       isInterwilaya: order.is_interwilaya || false, deliveryDistanceKm: Number(order.delivery_distance_km || 0), estimatedDeliveryMinutes: order.estimated_delivery_minutes,
-      requiresPhoneVerification: order.requires_phone_verification || false, originWilaya: order.origin_wilaya, destinationWilaya: order.destination_wilaya,
+      requiresPhoneVerification: order.requires_phone_verification || false, originWilaya: order.origin_wilaya, destinationWilaya: order.destination_wilaya, deliveryScheduleMode: order.delivery_schedule_mode, deliveryScheduleStatus: order.delivery_schedule_status, requestedDeliveryWindowStart: order.requested_delivery_window_start, requestedDeliveryWindowEnd: order.requested_delivery_window_end,
       deliveryType: order.delivery_choice, courier: order.courier_id ? { id: order.courier_id, name: "موصل" } : null, rated: false, confirmed: false,
       createdAt: new Date(order.created_at).toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" }),
     })));
@@ -2589,7 +2652,7 @@ export default function App() {
   function persistentSetCart(updater) { setCart((prev) => { const next = typeof updater === "function" ? updater(prev) : updater; saveKey(STORAGE.cart, next); return next; }); }
   function persistentSetMyStoreId(id) { setMyStoreId(id); saveKey(STORAGE.myStoreId, id); }
 
-  async function placeOrder(store, _promo, _discountAmount = 0, address = null, deliveryType = "pickup", deliveryFee = 0, rewardCouponCode = null) {
+  async function placeOrder(store, _promo, _discountAmount = 0, address = null, deliveryType = "pickup", deliveryFee = 0, rewardCouponCode = null, deliverySchedule = null) {
     if (!auth || auth.type !== "customer") { notify("سجّل الدخول كعميل لإرسال طلبك."); return false; }
     if (!store || cart.items.length === 0) return false;
     const { error } = await supabase.rpc("create_customer_order", {
@@ -2598,6 +2661,9 @@ export default function App() {
       p_delivery_choice: deliveryType,
       p_delivery_address: address,
       p_delivery_fee: deliveryFee,
+      p_delivery_schedule_mode: deliverySchedule?.mode || "none",
+      p_requested_delivery_window_start: deliverySchedule?.start || null,
+      p_requested_delivery_window_end: deliverySchedule?.end || null,
     });
     if (error) { notify("تعذر إرسال الطلب: " + error.message); return false; }
     if (rewardCouponCode) {
@@ -2611,7 +2677,7 @@ export default function App() {
     }
     persistentSetCart({ storeId: null, items: [], address: null });
     await refreshSupabaseData();
-    notify("تم إرسال طلبك — الدفع نقداً عند الاستلام");
+    notify(deliverySchedule ? "تم إرسال طلب الموعد — بانتظار تأكيد التاجر." : "تم إرسال طلبك — الدفع نقداً عند الاستلام");
     return true;
   }
 

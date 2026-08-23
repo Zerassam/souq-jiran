@@ -824,4 +824,36 @@ describe("Souq Jiran Supabase integration", () => {
     expect(localEnvironmentTemplate).toContain("FIREBASE_SERVICE_ACCOUNT_JSON=");
     expect(localEnvironmentTemplate).not.toContain("SUPABASE_SERVICE_ROLE_KEY=");
   });
+
+  it("guards requested delivery scheduling with server validation and merchant confirmation", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const migration = readFileSync(resolve(projectRoot, "supabase/migrations/20260904_delivery_scheduling.sql"), "utf8");
+    const customerView = appSource.match(/function CustomerView[\s\S]*?(?=function MerchantView)/)?.[0] ?? "";
+
+    expect(migration).toContain("merchant_delivery_schedule_settings");
+    expect(migration).toContain("requested_delivery_window_end = requested_delivery_window_start + interval '90 minutes'");
+    expect(migration).toContain("create or replace function public.delivery_schedule_options");
+    expect(migration).toContain("v_first_available boolean := true");
+    expect(migration).toContain("case when v_first_available then 'next_available' else 'selected_window' end");
+    expect(migration).toContain("create or replace function public.is_requested_delivery_window_available");
+    expect(migration).toContain("PICKUP_CANNOT_BE_SCHEDULED");
+    expect(migration).toContain("DELIVERY_SCHEDULE_REQUIRED");
+    expect(migration).toContain("DELIVERY_WINDOW_UNAVAILABLE");
+    expect(migration).toContain("v_schedule_status := 'requested'");
+    expect(migration).toContain("merchant_respond_delivery_schedule");
+    expect(migration).toContain("case when p_confirm then 'confirmed' else 'declined' end");
+    expect(migration).toContain("Email OTP verification is the only live account verification");
+    expect(migration).toContain("no phone-OTP gate is introduced here");
+
+    expect(customerView).toContain('supabase.rpc("delivery_schedule_options"');
+    expect(customerView).toContain('data-testid="delivery-schedule-options"');
+    expect(customerView).toContain('uiText(language, "scheduleRequested")');
+    expect(appSource).toContain("تم إرسال طلب الموعد — بانتظار تأكيد التاجر.");
+    expect(customerView).toContain("deliveryChoice !== \"pickup\"");
+    expect(appSource).toContain("function MerchantDeliverySchedulePanel");
+    expect(appSource).toContain('data-testid="merchant-delivery-schedule-panel"');
+    expect(appSource).toContain('supabase.rpc("merchant_save_delivery_schedule"');
+    expect(appSource).toContain('supabase.rpc("merchant_respond_delivery_schedule"');
+    expect(appSource).toContain("تأكيد الموعد");
+  });
 });
