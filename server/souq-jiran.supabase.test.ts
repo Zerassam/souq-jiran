@@ -828,6 +828,8 @@ describe("Souq Jiran Supabase integration", () => {
   it("guards requested delivery scheduling with server validation and merchant confirmation", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
     const migration = readFileSync(resolve(projectRoot, "supabase/migrations/20260904_delivery_scheduling.sql"), "utf8");
+    const anonymousRoleGuard = readFileSync(resolve(projectRoot, "supabase/migrations/20260905_current_app_role_anonymous_guard.sql"), "utf8");
+    const schema = readFileSync(resolve(projectRoot, "supabase/schema.sql"), "utf8");
     const customerView = appSource.match(/function CustomerView[\s\S]*?(?=function MerchantView)/)?.[0] ?? "";
 
     expect(migration).toContain("merchant_delivery_schedule_settings");
@@ -844,6 +846,9 @@ describe("Souq Jiran Supabase integration", () => {
     expect(migration).toContain("case when p_confirm then 'confirmed' else 'declined' end");
     expect(migration).toContain("Email OTP verification is the only live account verification");
     expect(migration).toContain("no phone-OTP gate is introduced here");
+    expect(anonymousRoleGuard).toContain("select coalesce((select role from public.profiles where id = auth.uid()), '');");
+    expect(anonymousRoleGuard).toContain("revoke all on function public.current_app_role() from public;");
+    expect(schema).toContain("select coalesce((select role from public.profiles where id = auth.uid()), '');");
 
     expect(customerView).toContain('supabase.rpc("delivery_schedule_options"');
     expect(customerView).toContain('data-testid="delivery-schedule-options"');

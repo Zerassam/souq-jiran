@@ -99,9 +99,11 @@ language sql
 stable
 security definer set search_path = public
 as $$
-  select role from public.profiles where id = auth.uid();
+  -- Keep guards such as current_app_role() <> 'customer' safe for anonymous calls.
+  select coalesce((select role from public.profiles where id = auth.uid()), '');
 $$;
 
+revoke all on function public.current_app_role() from public;
 grant execute on function public.current_app_role() to anon, authenticated;
 
 alter table public.profiles enable row level security;
