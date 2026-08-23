@@ -626,6 +626,7 @@ describe("Souq Jiran Supabase integration", () => {
 
   it("keeps the non-destructive cleanup audit compatible with optional tables and foreign-key ordering", () => {
     const auditSource = readFileSync(resolve(projectRoot, "supabase/cleanup-audit-read-only.sql"), "utf8");
+    const postVerificationSource = readFileSync(resolve(projectRoot, "supabase/cleanup-post-verification-read-only.sql"), "utf8");
 
     expect(auditSource).toContain("create temp table cleanup_audit_counts");
     expect(auditSource).toContain("to_regclass(format('public.%I', candidate_table))");
@@ -633,5 +634,12 @@ describe("Souq Jiran Supabase integration", () => {
     expect(auditSource).not.toContain("order by child_table::text");
     expect(auditSource).not.toMatch(/\bdelete\s+from\b/i);
     expect(auditSource).not.toMatch(/\bupdate\s+public\./i);
+    expect(postVerificationSource).toContain("create temporary table cleanup_post_verification_counts");
+    expect(postVerificationSource).toContain("missing_optional_table");
+    expect(postVerificationSource).toContain("non_admin_profile_count");
+    expect(postVerificationSource).toContain("rollback;");
+    expect(postVerificationSource).not.toMatch(/\bdelete\s+from\b/i);
+    expect(postVerificationSource).not.toMatch(/\bupdate\s+public\./i);
+    expect(postVerificationSource).not.toMatch(/\btruncate\s+table\b/i);
   });
 });
