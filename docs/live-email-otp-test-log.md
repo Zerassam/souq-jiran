@@ -32,5 +32,9 @@
 - اختبار قبول التاجر: استخدم المالك البريد `payportail@gmail.com` وأكمل نموذج التسجيل والـEmail OTP بنفسه. أكد الوصول إلى بوابة WhatsApp بعد نجاح التحقق، ما يثبت توليد وفتح رابط الـDeep Link في المتصفح. لم يمكن تسليم رسالة WhatsApp أو تأكيدها لأن الاختبار تم على حاسوب لا يملك WhatsApp مثبتاً؛ لا تُعد النتيجة إثباتاً لإرسال الرسالة. كذلك عاد تخطيط لوحة المفاتيح البعيد لإظهار تعارض في مفتاح `ة` أثناء جلسة الحاسوب، رغم تأكيد سابق لعمل الكتابة؛ لذلك بقي التأكيد الحاسم لكتابة العربية وفتح WhatsApp مؤجلاً إلى APK على هاتف Android فعلي.
 - بُني APK Android Release بعد مزامنة Capacitor بنجاح، ثم مُحاذاة وتوقيع نسخة اختبار بمفتاح Android debug. المسار: `/home/ubuntu/Downloads/souq-jiran-email-otp-8digit-whatsapp-keyboard-test.apk`. البصمة SHA-256: `b36d1e448e9a5919fd8b756f16b95641f40c6421ada93b34dbf0b3ad4d37f37f`. تحقق `apksigner` من توقيعَي v2 وv3. هذه نسخة اختبار قابلة للتثبيت وليست حزمة Play Store، لأن موقّعها شهادة debug.
 
+## 23 أغسطس 2026
+
+- شغّل المالك بنجاح ترحيل `20260831_email_otp_referral_binding.sql` في Supabase SQL Editor من دون أخطاء. يستبدل هذا الترحيل الدالة الفعّالة `claim_customer_referral(text)` بحارس يعتمد تأكيد البريد `auth.users.email_confirmed_at` بدلاً من تحقق الهاتف الموروث، مع الحفاظ على منع الإحالة الذاتية والمطالبة المتأخرة بعد أول طلب. لا يجري الترحيل أي حذف للبيانات أو إنشاء نظام مكافآت مكرر.
+
 [^supabase-passwordless]: [Supabase Docs — Passwordless email logins](https://supabase.com/docs/guides/auth/auth-email-passwordless)
 [^supabase-general-auth]: [Supabase Docs — General configuration](https://supabase.com/docs/guides/auth/general-configuration)
