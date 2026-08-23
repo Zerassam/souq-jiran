@@ -31,8 +31,15 @@ const C = {
   teal: "#5B5BF7", tealDark: "#3730A3", rust: "#F45B7A", ochre: "#F59E0B",
   sage: "#10B981", line: "#E5E7F0", purple: "#8B5CF6",
 };
+const PUBLIC_APP_ORIGIN = "https://jiranapp-km95ryzi.manus.space";
 const AMIRI_TTF_URL = "/manus-storage/Amiri-Regular_2c083de5.ttf";
 let arabicPdfFontBase64Promise;
+
+function buildPublicAppLink(params) {
+  const url = new URL("/", PUBLIC_APP_ORIGIN);
+  Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+  return url.toString();
+}
 
 function arrayBufferToBase64(buffer) {
   const bytes = new Uint8Array(buffer);
@@ -1301,7 +1308,7 @@ function OrderTracker({ status }) {
 =========================================================== */
 function MerchantQrPoster({ store, notify }) {
   const [qrDataUrl, setQrDataUrl] = useState("");
-  const deepLink = useMemo(() => `${window.location.origin}${window.location.pathname}?store=${encodeURIComponent(store.id)}`, [store.id]);
+  const deepLink = useMemo(() => buildPublicAppLink({ store: store.id }), [store.id]);
 
   useEffect(() => {
     let active = true;
@@ -1542,7 +1549,7 @@ function MerchantView({ stores, setStores, orders, messages, couriers, myStoreId
 --------------------------------------------------------- */
 function CourierQrCard({ courier, notify }) {
   const [qrDataUrl, setQrDataUrl] = useState("");
-  const deepLink = useMemo(() => `${window.location.origin}${window.location.pathname}?courier=${encodeURIComponent(courier.id)}`, [courier.id]);
+  const deepLink = useMemo(() => buildPublicAppLink({ courier: courier.id }), [courier.id]);
 
   useEffect(() => {
     let active = true;

@@ -486,6 +486,19 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain('writeArabicPdfText(pdf, store.name');
   });
 
+  it("uses the published domain rather than a temporary preview origin in QR links", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const merchantQrSource = appSource.slice(appSource.indexOf("function MerchantQrPoster"), appSource.indexOf("function MerchantView"));
+    const courierQrSource = appSource.slice(appSource.indexOf("function CourierQrCard"), appSource.indexOf("function CourierDashboard"));
+
+    expect(appSource).toContain('const PUBLIC_APP_ORIGIN = "https://jiranapp-km95ryzi.manus.space"');
+    expect(appSource).toContain('const url = new URL("/", PUBLIC_APP_ORIGIN)');
+    expect(merchantQrSource).toContain('buildPublicAppLink({ store: store.id })');
+    expect(courierQrSource).toContain('buildPublicAppLink({ courier: courier.id })');
+    expect(merchantQrSource).not.toContain("window.location.origin");
+    expect(courierQrSource).not.toContain("window.location.origin");
+  });
+
   it("provides monthly CSV export and configurable coupon redemption rate alert for admin", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
 
