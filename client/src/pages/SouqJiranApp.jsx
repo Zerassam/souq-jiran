@@ -20,7 +20,8 @@ import {
   Package, Droplet, Sparkles, Map as MapIcon, List, Upload, Download,
   FileText, Phone, Palette, CreditCard, Bike, Lock, LogOut, Wallet,
   Percent, CalendarClock, Home, Sun, Sunset, Moon,
-  Mail, LogIn, UserPlus, ShieldCheck, Archive, MessageCircle, ArrowLeft, Languages
+  Mail, LogIn, UserPlus, ShieldCheck, Archive, MessageCircle, ArrowLeft, Languages,
+  Car, Truck, Images, FileUp, ShieldAlert
 } from "lucide-react";
 
 /* ---------------------------------------------------------
@@ -247,7 +248,33 @@ function getCommunes(wilaya) {
   return FULL_COMMUNES_BY_WILAYA[wilaya] || COMMUNES_BY_WILAYA[wilaya] || (wilaya ? [wilaya] : []);
 }
 
-const VEHICLES = ["دراجة نارية", "سيارة", "دراجة هوائية"];
+const VEHICLE_OPTIONS = [
+  { id: "bicycle", label: "دراجة هوائية", ownershipDocumentRequired: false },
+  { id: "motorcycle", label: "دراجة نارية", ownershipDocumentRequired: true },
+  { id: "car", label: "سيارة", ownershipDocumentRequired: true },
+  { id: "truck", label: "شاحنة", ownershipDocumentRequired: true },
+];
+const LEGACY_VEHICLE_IDS = {
+  "دراجة هوائية": "bicycle", "دراجة نارية": "motorcycle", "سيارة": "car", "شاحنة": "truck",
+};
+const PROVIDER_MEDIA_BUCKET = "provider-media";
+const MAX_STORE_PHOTOS = 3;
+const MAX_PROVIDER_UPLOAD_BYTES = 8 * 1024 * 1024;
+const PROVIDER_DOCUMENT_POLICY = {
+  mode: "optional",
+  futureRule: "قد تُطلب هذه الوثائق مستقبلاً لإثبات الهوية والنشاط أو ملكية الوسيلة وحماية جميع مستخدمي المنصة.",
+};
+function normalizeCourierVehicles(value) {
+  const source = Array.isArray(value) ? value : value ? [value] : [];
+  return [...new Set(source.map((item) => LEGACY_VEHICLE_IDS[item] || item).filter((id) => VEHICLE_OPTIONS.some((option) => option.id === id)))];
+}
+function vehicleLabel(value) {
+  const ids = normalizeCourierVehicles(value);
+  return ids.map((id) => VEHICLE_OPTIONS.find((option) => option.id === id)?.label).filter(Boolean).join("، ") || "غير محددة";
+}
+function ownershipDocumentVehicleIds(value) {
+  return normalizeCourierVehicles(value).filter((id) => VEHICLE_OPTIONS.find((option) => option.id === id)?.ownershipDocumentRequired);
+}
 const AVAILABILITY_SLOTS = [
   { id: "morning", label: "صباحاً", icon: Sun },
   { id: "afternoon", label: "عصراً", icon: Sunset },
@@ -652,7 +679,7 @@ function BulkImportModal({ onConfirm, onClose }) {
    تسجيل موصّل — مواقيت، نطاق تغطية، اختيار المحلات
 --------------------------------------------------------- */
 function CourierRegisterModal({ stores, onSubmit, onClose }) {
-  const [form, setForm] = useState({ name: "", email: "", phone: "", vehicle: VEHICLES[0], wilaya: "", commune: "", communes: [], deliveryScope: "local", adjacentWilayas: [], availability: [], useCustomHours: false, hoursFrom: "08:00", hoursTo: "18:00", storeMode: "all", selectedStoreIds: [] });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", vehicles: ["motorcycle"], wilaya: "", commune: "", communes: [], deliveryScope: "local", adjacentWilayas: [], availability: [], useCustomHours: false, hoursFrom: "08:00", hoursTo: "18:00", storeMode: "all", selectedStoreIds: [] });
   const [step, setStep] = useState(1);
   const [authError, setAuthError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -661,6 +688,7 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
   function toggleSlot(id) { setForm((f) => ({ ...f, availability: f.availability.includes(id) ? f.availability.filter((x) => x !== id) : [...f.availability, id] })); }
   function toggleStore(id) { setForm((f) => ({ ...f, selectedStoreIds: f.selectedStoreIds.includes(id) ? f.selectedStoreIds.filter((x) => x !== id) : [...f.selectedStoreIds, id] })); }
   function toggleAdjacentWilaya(wilaya) { setForm((f) => ({ ...f, adjacentWilayas: f.adjacentWilayas.includes(wilaya) ? f.adjacentWilayas.filter((item) => item !== wilaya) : [...f.adjacentWilayas, wilaya] })); }
+  function toggleVehicle(vehicleId) { setForm((f) => ({ ...f, vehicles: f.vehicles.includes(vehicleId) ? f.vehicles.filter((item) => item !== vehicleId) : [...f.vehicles, vehicleId] })); }
 
   async function fillFromGoogle() {
     try {
@@ -681,7 +709,7 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
       ? `جميع بلديات ${form.wilaya || "الولاية"}`
       : `${form.wilaya || "الولاية"} + ${form.adjacentWilayas.join("، ") || "ولايات مجاورة"}`;
   async function submit() {
-    if (!form.name || !parseLoginIdentifier(form.email)?.email || !normalizeAlgerianMobile(form.phone)) { setAuthError("أدخل الاسم والبريد الإلكتروني ورقم الهاتف الجزائري في الحقول المخصصة."); setStep(1); return; }
+    if (!form.name || !parseLoginIdentifier(form.email)?.email || !normalizeAlgerianMobile(form.phone) || form.vehicles.length === 0) { setAuthError("أدخل الاسم والبريد الإلكتروني ورقم الهاتف الجزائري، واختر وسيلة توصيل واحدة على الأقل."); setStep(1); return; }
     if (!form.wilaya || (form.deliveryScope === "local" && !form.commune) || (form.deliveryScope === "inter_wilaya" && form.adjacentWilayas.length === 0)) { setAuthError("أكمل نطاق التوصيل قبل إرسال الطلب."); setStep(2); return; }
     setAuthError("");
     setIsSubmitting(true);
@@ -706,9 +734,21 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
             <input required placeholder="الاسم الكامل" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
             <input required type="email" autoComplete="email" data-testid="courier-email-input" placeholder="البريد الإلكتروني" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} dir="ltr" />
             <input required placeholder="رقم الهاتف للتواصل (05/06/07)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} inputMode="tel" dir="ltr" />
-            <select value={form.vehicle} onChange={(e) => setForm({ ...form, vehicle: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }}>{VEHICLES.map((v) => <option key={v} value={v}>{v}</option>)}</select>
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1.5"><span className="text-xs font-bold" style={{ color: C.ink }}>وسائل التوصيل المستخدمة</span><span className="text-[10px]" style={{ color: C.inkSoft }}>يمكنك اختيار أكثر من وسيلة</span></div>
+              <div className="grid grid-cols-2 gap-2">{VEHICLE_OPTIONS.map((option) => {
+                const selected = form.vehicles.includes(option.id);
+                const Icon = option.id === "bicycle" || option.id === "motorcycle" ? Bike : option.id === "car" ? Car : Truck;
+                return (
+                  <button key={option.id} type="button" aria-pressed={selected} onClick={() => toggleVehicle(option.id)} className="p-2.5 rounded-xl text-right flex items-center gap-2" style={{ background: selected ? C.teal + "14" : "#fff", border: `1px solid ${selected ? C.teal : C.line}`, color: selected ? C.teal : C.inkSoft }}>
+                    <Icon size={16} /><span className="text-xs font-bold">{option.label}</span>{selected && <Check size={14} className="mr-auto" />}
+                  </button>
+                );
+              })}</div>
+              <p className="text-[10px] mt-1.5 leading-5" style={{ color: C.inkSoft }}>يمكنك إضافة صورة لكل وسيلة وفتح صفحة الوثائق الاختيارية من لوحة الموصل بعد إنشاء الملف.</p>
+            </div>
             {authError && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{authError}</p>}
-            <button onClick={() => { if (!form.name || !parseLoginIdentifier(form.email)?.email || !normalizeAlgerianMobile(form.phone)) { setAuthError("أكمل الاسم والبريد الإلكتروني ورقم الهاتف في الحقول المخصصة."); return; } setAuthError(""); setStep(2); }} className="w-full py-3 rounded-xl font-black" style={{ background: C.teal, color: "#fff" }}>التالي: بيانات الموصل</button>
+            <button onClick={() => { if (!form.name || !parseLoginIdentifier(form.email)?.email || !normalizeAlgerianMobile(form.phone) || form.vehicles.length === 0) { setAuthError("أكمل الاسم والبريد الإلكتروني ورقم الهاتف، واختر وسيلة توصيل واحدة على الأقل."); return; } setAuthError(""); setStep(2); }} className="w-full py-3 rounded-xl font-black" style={{ background: C.teal, color: "#fff" }}>التالي: بيانات الموصل</button>
           </div>
         )}
 
@@ -769,6 +809,7 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
           <p className="text-[11px]" style={{ color: C.inkSoft }}>التواقيت: <b style={{ color: C.ink }}>{timeLabel}</b></p>
           <p className="text-[11px]" style={{ color: C.inkSoft }}>نطاق التغطية: <b style={{ color: C.ink }}>{form.wilaya} — {coverageLabel}</b></p>
           <p className="text-[11px]" style={{ color: C.inkSoft }}>المحلات: <b style={{ color: C.ink }}>{form.storeMode === "all" ? "التوصيل لجميع محلات المنطقة" : `${form.selectedStoreIds.length} محل محدد`}</b></p>
+          <p className="text-[11px]" style={{ color: C.inkSoft }}>وسائل التوصيل: <b style={{ color: C.ink }}>{vehicleLabel(form.vehicles)}</b></p>
           <p className="text-[11px]" style={{ color: C.inkSoft }}>البريد: <b dir="ltr" style={{ color: C.ink }}>{form.email || "—"}</b></p>
         </div>
 
@@ -843,6 +884,94 @@ function MerchantRegisterModal({ onSubmit, onClose }) {
       </div>
     </div>
   );
+}
+
+/* ---------------------------------------------------------
+   صور الملف ووثائقه — اختيارية في المرحلة الحالية
+--------------------------------------------------------- */
+function ProviderMediaManager({ providerId, providerRole, vehicles = [], accent = C.teal, title }) {
+  const [mediaItems, setMediaItems] = useState([]);
+  const [loadingMedia, setLoadingMedia] = useState(true);
+  const [uploadingSlot, setUploadingSlot] = useState("");
+  const [mediaError, setMediaError] = useState("");
+  const vehicleIds = normalizeCourierVehicles(vehicles);
+  const ownershipVehicleIds = ownershipDocumentVehicleIds(vehicles);
+  const isMerchant = providerRole === "merchant";
+  const storePhotos = mediaItems.filter((item) => item.kind === "store_photo");
+
+  async function withSignedUrls(rows) {
+    return Promise.all(rows.map(async (item) => {
+      const { data, error } = await supabase.storage.from(PROVIDER_MEDIA_BUCKET).createSignedUrl(item.storage_path, 60 * 30);
+      return { ...item, signedUrl: error ? "" : data?.signedUrl || "" };
+    }));
+  }
+  async function loadMedia() {
+    if (!providerId) return;
+    setLoadingMedia(true); setMediaError("");
+    const { data, error } = await supabase.from("provider_media").select("*").eq("provider_id", providerId).order("created_at", { ascending: true });
+    if (error) {
+      setMediaItems([]);
+      setMediaError(error.code === "42P01" ? "تجهيز مساحة الصور والوثائق لم يُطبّق بعد. طبّق ترحيل الوسائط الجديد في Supabase ثم أعد المحاولة." : "تعذر تحميل ملفاتك الخاصة حالياً.");
+    } else {
+      setMediaItems(await withSignedUrls(data || []));
+    }
+    setLoadingMedia(false);
+  }
+  useEffect(() => { void loadMedia(); }, [providerId]);
+
+  function slotItem(kind, vehicleType = null) { return mediaItems.find((item) => item.kind === kind && (item.vehicle_type || null) === vehicleType); }
+  async function uploadMedia(file, kind, vehicleType = null) {
+    if (!file || !providerId) return;
+    const isPhoto = kind === "store_photo" || kind === "vehicle_photo";
+    if (file.size > MAX_PROVIDER_UPLOAD_BYTES) { setMediaError("الحد الأقصى لحجم الملف هو 8 ميغابايت."); return; }
+    if (isPhoto && !file.type.startsWith("image/")) { setMediaError("اختر صورة بصيغة مدعومة لهذه الخانة."); return; }
+    if (!isPhoto && !(file.type.startsWith("image/") || file.type === "application/pdf")) { setMediaError("اختر صورة أو ملف PDF للوثيقة الاختيارية."); return; }
+    if (kind === "store_photo" && storePhotos.length >= MAX_STORE_PHOTOS) { setMediaError("يمكنك إدراج ثلاث صور للمتجر كحد أقصى."); return; }
+    if (kind !== "store_photo" && slotItem(kind, vehicleType)) { setMediaError("توجد بالفعل مادة مرتبطة بهذه الخانة؛ احذفها أولاً إذا أردت استبدالها."); return; }
+    const safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/-+/g, "-").slice(-90) || "file";
+    const storagePath = `${providerId}/${kind}/${vehicleType || "general"}-${crypto.randomUUID()}-${safeName}`;
+    const slotKey = `${kind}-${vehicleType || "general"}`;
+    setUploadingSlot(slotKey); setMediaError("");
+    const { error: uploadError } = await supabase.storage.from(PROVIDER_MEDIA_BUCKET).upload(storagePath, file, { cacheControl: "3600", upsert: false, contentType: file.type });
+    if (uploadError) { setUploadingSlot(""); setMediaError("تعذر رفع الملف إلى المساحة الخاصة. تحقق من تطبيق ترحيل الوسائط وصلاحيات الحساب."); return; }
+    const { error: recordError } = await supabase.from("provider_media").insert({
+      provider_id: providerId, provider_role: providerRole, kind, vehicle_type: vehicleType,
+      storage_path: storagePath, original_name: file.name, mime_type: file.type,
+    });
+    setUploadingSlot("");
+    if (recordError) { setMediaError("رُفع الملف لكن تعذر ربطه بملفك. لن يُعرض ضمن حسابك حتى تكتمل تهيئة قاعدة البيانات."); return; }
+    await loadMedia();
+  }
+  async function removeMedia(item) {
+    const { error } = await supabase.from("provider_media").delete().eq("id", item.id);
+    if (error) { setMediaError("تعذر إزالة مرجع الملف من ملفك."); return; }
+    await loadMedia();
+  }
+  function fileChange(event, kind, vehicleType = null) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) void uploadMedia(file, kind, vehicleType);
+  }
+  function UploadSlot({ label, note, kind, vehicleType = null, accept = "image/*,.pdf", existing }) {
+    const slotKey = `${kind}-${vehicleType || "general"}`;
+    if (existing) return <div className="p-3 rounded-xl flex items-center gap-2" style={{ background: "#fff", border: `1px solid ${C.line}` }}><FileText size={17} color={accent} /><div className="min-w-0 flex-1"><p className="text-xs font-bold truncate" style={{ color: C.ink }}>{existing.original_name}</p><p className="text-[10px] mt-0.5" style={{ color: C.inkSoft }}>مرفوع اختيارياً ولم تتم مراجعته أو اعتماده.</p></div>{existing.signedUrl && <a href={existing.signedUrl} target="_blank" rel="noreferrer" className="text-[11px] font-bold" style={{ color: accent }}>عرض</a>}<button type="button" onClick={() => void removeMedia(existing)} className="text-[11px] font-bold" style={{ color: C.rust }}>إزالة</button></div>;
+    return <label className="block p-3 rounded-xl cursor-pointer" style={{ background: "#fff", border: `1px dashed ${accent}88` }}><div className="flex items-start gap-2"><FileUp size={17} color={accent} /><div className="flex-1"><p className="text-xs font-bold" style={{ color: C.ink }}>{label}</p><p className="text-[10px] leading-5 mt-0.5" style={{ color: C.inkSoft }}>{note}</p></div>{uploadingSlot === slotKey && <Loader2 size={15} color={accent} className="animate-spin" />}</div><input type="file" accept={accept} onChange={(event) => fileChange(event, kind, vehicleType)} className="hidden" /></label>;
+  }
+
+  return <section className="space-y-4" data-testid={`${providerRole}-media-manager`}>
+    <div className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+      <div className="flex items-start gap-3"><span className="flex items-center justify-center rounded-xl shrink-0" style={{ width: 40, height: 40, background: accent + "18", color: accent }}><Images size={20} /></span><div><h3 className="font-black" style={{ color: C.ink }}>{title}</h3><p className="text-xs leading-5 mt-1" style={{ color: C.inkSoft }}>الصور تعرّف بنشاطك أو بوسائل توصيلك. تبقى الملفات خاصة بصاحب الحساب والإدارة، ولا تعرض الوثائق ضمن واجهة التسوق العامة.</p></div></div>
+    </div>
+    {mediaError && <p className="text-xs leading-5 font-bold p-3 rounded-xl" style={{ background: C.rust + "10", color: C.rust, border: `1px solid ${C.rust}33` }}>{mediaError}</p>}
+    {loadingMedia ? <div className="py-8 text-center"><Loader2 size={22} color={accent} className="animate-spin" style={{ margin: "0 auto" }} /></div> : <>
+      {isMerchant ? <section className="p-4 rounded-2xl space-y-3" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}><div><h4 className="font-black text-sm" style={{ color: C.ink }}>صور المتجر</h4><p className="text-[11px] leading-5 mt-1" style={{ color: C.inkSoft }}>أضف من صورة واحدة إلى ثلاث صور للمحل، واجهته أو منتجاته. تظهر هذه الصور في ملفك الإداري فقط إلى أن توسع المنصة عرضها العام لاحقاً.</p></div><div className="grid grid-cols-1 sm:grid-cols-3 gap-3">{storePhotos.map((item) => <article key={item.id} className="overflow-hidden rounded-xl bg-white" style={{ border: `1px solid ${C.line}` }}>{item.signedUrl ? <img src={item.signedUrl} alt="صورة المتجر المضافة" className="w-full h-28 object-cover" /> : <div className="h-28 flex items-center justify-center" style={{ background: C.paper }}><Images size={22} color={C.inkSoft} /></div>}<div className="p-2 flex items-center justify-between gap-2"><span className="text-[10px] truncate" style={{ color: C.inkSoft }}>{item.original_name}</span><button type="button" onClick={() => void removeMedia(item)} className="text-[10px] font-bold shrink-0" style={{ color: C.rust }}>إزالة</button></div></article>)}{storePhotos.length < MAX_STORE_PHOTOS && <label className="h-full min-h-36 p-3 rounded-xl cursor-pointer flex flex-col items-center justify-center text-center" style={{ background: "#fff", border: `1.5px dashed ${accent}88`, color: accent }}><Upload size={19} /><span className="text-xs font-bold mt-2">إدراج صورة {storePhotos.length + 1}</span><span className="text-[10px] mt-1" style={{ color: C.inkSoft }}>JPG أو PNG حتى 8 م.ب.</span><input type="file" accept="image/*" onChange={(event) => fileChange(event, "store_photo")} className="hidden" /></label>}</div></section> : <section className="p-4 rounded-2xl space-y-3" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}><div><h4 className="font-black text-sm" style={{ color: C.ink }}>صور وسائل التوصيل</h4><p className="text-[11px] leading-5 mt-1" style={{ color: C.inkSoft }}>أضف صورة لكل وسيلة اخترتها؛ لا يظهر أي شيء منها للزبائن تلقائياً.</p></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{vehicleIds.map((vehicleType) => { const option = VEHICLE_OPTIONS.find((item) => item.id === vehicleType); const existing = slotItem("vehicle_photo", vehicleType); return <div key={vehicleType} className="p-3 rounded-xl bg-white" style={{ border: `1px solid ${C.line}` }}>{existing?.signedUrl ? <img src={existing.signedUrl} alt={`صورة ${option?.label || "وسيلة التوصيل"}`} className="w-full h-28 rounded-lg object-cover mb-2" /> : <div className="h-24 rounded-lg flex items-center justify-center mb-2" style={{ background: C.paper }}><Bike size={24} color={C.inkSoft} /></div>}<div className="flex items-center justify-between gap-2"><span className="text-xs font-bold" style={{ color: C.ink }}>{option?.label}</span>{existing ? <button type="button" onClick={() => void removeMedia(existing)} className="text-[11px] font-bold" style={{ color: C.rust }}>إزالة</button> : <label className="text-[11px] font-bold cursor-pointer" style={{ color: accent }}>إضافة صورة<input type="file" accept="image/*" onChange={(event) => fileChange(event, "vehicle_photo", vehicleType)} className="hidden" /></label>}</div></div>; })}</div></section>}
+      <section className="p-4 rounded-2xl space-y-3" style={{ background: C.ochre + "10", border: `1px solid ${C.ochre}44` }}>
+        <div className="flex items-start gap-2"><ShieldAlert size={18} color={C.ochre} className="shrink-0 mt-0.5" /><div><h4 className="font-black text-sm" style={{ color: C.ink }}>إكمال الوثائق — اختياري الآن</h4><p className="text-[11px] leading-5 mt-1" style={{ color: C.inkSoft }}>هذه المساحة لا تعني مراجعة أو تصديقاً أو تأكيداً بأن المنصة استلمت وثائق رسمية. يمكن فتحها اختيارياً في هذه المرحلة، ثم نوضح أي التزام مسبقاً إذا أصبحت سياسة التحقق مطلوبة لاحقاً.</p></div></div>
+        {isMerchant ? <div className="grid grid-cols-1 sm:grid-cols-2 gap-2"><UploadSlot label="وثيقة هوية صاحب النشاط" note="صورة أو PDF اختياري لإثبات الهوية عند الحاجة مستقبلاً." kind="merchant_identity" existing={slotItem("merchant_identity")} /><UploadSlot label="وثيقة النشاط أو السجل التجاري" note="صورة أو PDF اختياري يصف نشاط المتجر." kind="merchant_business" existing={slotItem("merchant_business")} /></div> : <div className="space-y-2">{ownershipVehicleIds.length === 0 ? <p className="text-xs leading-5 p-3 rounded-xl" style={{ background: "#fff", color: C.inkSoft }}>اخترت الدراجة الهوائية فقط؛ لا نطلب وثيقة ملكية لها في هذه المرحلة.</p> : ownershipVehicleIds.map((vehicleType) => { const option = VEHICLE_OPTIONS.find((item) => item.id === vehicleType); return <UploadSlot key={vehicleType} label={`وثيقة ملكية ${option?.label || "الوسيلة"}`} note="صورة أو PDF اختياري لإثبات ملكية هذه الوسيلة عند الحاجة مستقبلاً." kind="vehicle_ownership" vehicleType={vehicleType} existing={slotItem("vehicle_ownership", vehicleType)} />; })}</div>}
+        <p className="text-[10px] leading-5" style={{ color: C.inkSoft }}>{PROVIDER_DOCUMENT_POLICY.futureRule}</p>
+      </section>
+    </>}
+  </section>;
 }
 
 /* ---------------------------------------------------------
@@ -1677,10 +1806,12 @@ function MerchantView({ stores, setStores, orders, messages, couriers, merchantO
         <button onClick={() => setTab("delivery")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "delivery" ? C.teal : "transparent", color: tab === "delivery" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "delivery" ? C.teal : C.line}` }}>إعدادات التوصيل</button>
         <button data-testid="merchant-offers-tab" onClick={() => setTab("offers")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "offers" ? C.teal : "transparent", color: tab === "offers" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "offers" ? C.teal : C.line}` }}>عروضي</button>
         <button data-testid="merchant-qr-tab" onClick={() => setTab("qr")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "qr" ? C.teal : "transparent", color: tab === "qr" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "qr" ? C.teal : C.line}` }}>QR المحل</button>
+        <button data-testid="merchant-media-tab" onClick={() => setTab("media")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "media" ? C.teal : "transparent", color: tab === "media" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "media" ? C.teal : C.line}` }}>صور المتجر والوثائق</button>
         <button onClick={() => setTab("messages")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "messages" ? C.teal : "transparent", color: tab === "messages" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "messages" ? C.teal : C.line}` }}>الرسائل</button>
       </div>
 
       {tab === "qr" && <MerchantQrPoster store={myStore} notify={notify} />}
+      {tab === "media" && <ProviderMediaManager providerId={myStore.id} providerRole="merchant" accent={C.rust} title="صور متجرك ووثائق النشاط" />}
 
       {tab === "products" && (
         <div className="space-y-4">
@@ -1876,7 +2007,7 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
             <span className="flex items-center justify-center rounded-xl" style={{ width: 44, height: 44, background: C.teal, color: "#fff" }}><Bike size={22} /></span>
             <div>
               <div className="font-black" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>{courier.name} {courier.status !== "approved" && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: C.ochre + "30", color: C.ochre }}>{courier.status === "pending" ? "بانتظار الموافقة" : courier.status}</span>}</div>
-              <div className="text-xs" style={{ color: C.inkSoft }}>{courier.vehicle} · نطاقه: {courier.communes.join("، ") || (courier.wilaya + " — كل البلديات")}</div>
+              <div className="text-xs" style={{ color: C.inkSoft }}>{vehicleLabel(courier.vehicles || courier.vehicle)} · نطاقه: {courier.communes.join("، ") || (courier.wilaya + " — كل البلديات")}</div>
               <div className="text-xs mt-1" style={{ color: C.tealDark }}>التواقيت: <b>{hoursText}</b> · {courier.storeMode === "all" ? "كل محلات المنطقة" : `${(courier.selectedStoreIds || []).length} محل محدد`}</div>
             </div>
           </div>
@@ -1890,6 +2021,7 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
           <button onClick={() => setTab("my")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "my" ? C.teal : "transparent", color: tab === "my" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "my" ? C.teal : C.line}` }}>طلباتي النشطة {myActiveOrders.length > 0 && `(${myActiveOrders.length})`}</button>
           <button onClick={() => setTab("history")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "history" ? C.teal : "transparent", color: tab === "history" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "history" ? C.teal : C.line}` }}>سجل التسليمات ({completedOrders.length})</button>
           <button onClick={() => setTab("hours")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "hours" ? C.teal : "transparent", color: tab === "hours" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "hours" ? C.teal : C.line}` }}>ساعات العمل</button>
+          <button data-testid="courier-vehicles-tab" onClick={() => setTab("vehicles")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "vehicles" ? C.teal : "transparent", color: tab === "vehicles" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "vehicles" ? C.teal : C.line}` }}>وسائلي والوثائق</button>
           <button onClick={() => setTab("messages")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "messages" ? C.teal : "transparent", color: tab === "messages" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "messages" ? C.teal : C.line}` }}>الرسائل</button>
         </div>
       </div>
@@ -1951,6 +2083,8 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
       )}
 
       {tab === "messages" && <MessagesInbox messages={messages} orders={[...myActiveOrders, ...completedOrders]} userId={userId} onArchiveMessage={archiveMessage} />}
+
+      {tab === "vehicles" && <ProviderMediaManager providerId={courier.id} providerRole="courier" vehicles={courier.vehicles || courier.vehicle} accent={C.teal} title="وسائل توصيلك ووثائق الملكية" />}
 
       {tab === "hours" && (
         <div className="p-5 rounded-2xl space-y-4" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
@@ -2179,7 +2313,7 @@ function AdminView({ stores, orders, messages, couriers, merchantOffers = [], ar
         <h3 className="font-black mb-3 flex items-center gap-2" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}><Bike size={17} color={C.teal} /> طلبات انضمام الموصلين</h3>
         <div className="space-y-2">
           {pendingCouriers.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>لا توجد طلبات جديدة.</p>}
-          {pendingCouriers.map((c) => (<div key={c.id} className="p-3 rounded-2xl flex items-center justify-between flex-wrap gap-2" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div><div className="font-bold text-sm" style={{ color: C.ink }}>{c.name}</div><div className="text-xs" style={{ color: C.inkSoft }}>{c.vehicle} · {c.wilaya} ({c.communes.join("، ") || c.wilaya + " — كل البلديات"}) · {c.phone}</div><div className="text-xs" style={{ color: C.inkSoft }}>الأوقات: {c.timeLabel || c.availability.map((a) => AVAILABILITY_SLOTS.find((s) => s.id === a)?.label).join(" / ") || "—"} · {c.storeMode === "all" ? "كل المحلات" : `${(c.selectedStoreIds || []).length} محل محدد`}</div></div><div className="flex gap-2"><button onClick={() => rejectCourier(c.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A20", color: "#8B3A2A" }}><X size={13} /> رفض</button><button onClick={() => approveCourier(c.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.teal, color: "#fff" }}><Check size={13} /> موافقة</button></div></div>))}
+          {pendingCouriers.map((c) => (<div key={c.id} className="p-3 rounded-2xl flex items-center justify-between flex-wrap gap-2" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div><div className="font-bold text-sm" style={{ color: C.ink }}>{c.name}</div><div className="text-xs" style={{ color: C.inkSoft }}>{vehicleLabel(c.vehicles || c.vehicle)} · {c.wilaya} ({c.communes.join("، ") || c.wilaya + " — كل البلديات"}) · {c.phone}</div><div className="text-xs" style={{ color: C.inkSoft }}>الأوقات: {c.timeLabel || c.availability.map((a) => AVAILABILITY_SLOTS.find((s) => s.id === a)?.label).join(" / ") || "—"} · {c.storeMode === "all" ? "كل المحلات" : `${(c.selectedStoreIds || []).length} محل محدد`}</div></div><div className="flex gap-2"><button onClick={() => rejectCourier(c.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A20", color: "#8B3A2A" }}><X size={13} /> رفض</button><button onClick={() => approveCourier(c.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.teal, color: "#fff" }}><Check size={13} /> موافقة</button></div></div>))}
         </div>
         {couriers.filter((c) => c.status === "approved").length > 0 && (<div className="mt-3 flex flex-wrap gap-2">{couriers.filter((c) => c.status === "approved").map((c) => <span key={c.id} className="text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1" style={{ background: C.sage + "20", color: C.tealDark }}><Bike size={12} /> {c.name} · {c.wilaya}</span>)}</div>)}
       </div>
@@ -2516,7 +2650,7 @@ export default function App() {
       })));
     }
     setCouriers(courierRows.map((courier) => ({
-      id: courier.id, name: "موصل", phone: "", vehicle: courier.vehicle || "", wilaya: courier.wilaya || "", communes: courier.communes || [],
+      id: courier.id, name: "موصل", phone: "", vehicle: courier.vehicle || "", vehicles: normalizeCourierVehicles(courier.vehicles?.length ? courier.vehicles : courier.vehicle), wilaya: courier.wilaya || "", communes: courier.communes || [],
       availability: courier.availability || [], storeMode: courier.store_mode || "all", selectedStoreIds: courier.selected_store_ids || [], status: courier.status,
     })));
     setOrders((ordersResult.data || []).map((order) => ({
@@ -2958,6 +3092,7 @@ export default function App() {
     const { error } = await supabase.from("couriers").upsert({
       id: userId,
       vehicle: "",
+      vehicles: [],
       wilaya: "غير محددة",
       communes: [],
       availability: [],
@@ -3078,9 +3213,12 @@ export default function App() {
     if (existingProfile?.role && existingProfile.role !== "courier") return { error: "هذا البريد مرتبط بدور مختلف. استخدم بريداً آخر أو بوابة الحساب الصحيحة." };
     const profile = await ensureSupabaseProfile({ user: form.verifiedSession.user, role: "courier", name: form.name, phone });
     if (profile.error) return profile;
+    const vehicleIds = normalizeCourierVehicles(form.vehicles);
+    if (vehicleIds.length === 0) return { error: "اختر وسيلة توصيل واحدة على الأقل قبل إرسال الطلب." };
     const courier = {
       id: form.verifiedSession.user.id,
-      vehicle: form.vehicle,
+      vehicle: vehicleLabel(vehicleIds),
+      vehicles: vehicleIds,
       wilaya: form.wilaya,
       communes: form.communes,
       availability: form.useCustomHours ? [form.hoursFrom, form.hoursTo] : form.availability,
@@ -3105,7 +3243,7 @@ export default function App() {
     if (courierError) {
       return { error: "تعذر حفظ ملف الموصل. بقي حساب الدخول صالحاً؛ طبّق ملف supabase/schema.sql ثم أرسل النموذج مجدداً لإكمال الملف." };
     }
-    const localCourier = { id: form.verifiedSession.user.id, name: form.name, phone, email: credential.email, vehicle: form.vehicle, wilaya: form.wilaya, commune: form.commune || "", communes: form.communes, availability: form.useCustomHours ? [] : form.availability, customHours: form.useCustomHours ? { from: form.hoursFrom, to: form.hoursTo } : null, timeLabel: form.timeLabel || "", coverageLabel: form.coverageLabel || "", coverageLevel: form.deliveryScope || "local", adjacentWilayas: form.adjacentWilayas || [], storeMode: form.storeMode, selectedStoreIds: form.selectedStoreIds, status: "pending" };
+    const localCourier = { id: form.verifiedSession.user.id, name: form.name, phone, email: credential.email, vehicle: vehicleLabel(vehicleIds), vehicles: vehicleIds, wilaya: form.wilaya, commune: form.commune || "", communes: form.communes, availability: form.useCustomHours ? [] : form.availability, customHours: form.useCustomHours ? { from: form.hoursFrom, to: form.hoursTo } : null, timeLabel: form.timeLabel || "", coverageLabel: form.coverageLabel || "", coverageLevel: form.deliveryScope || "local", adjacentWilayas: form.adjacentWilayas || [], storeMode: form.storeMode, selectedStoreIds: form.selectedStoreIds, status: "pending" };
     persistentSetCouriers((prev) => [...prev.filter((item) => item.id !== localCourier.id), localCourier]);
     await applySupabaseSession(activeSession);
     setShowCourierForm(false);

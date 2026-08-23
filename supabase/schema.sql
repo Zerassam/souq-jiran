@@ -37,6 +37,9 @@ create table if not exists public.couriers (
   updated_at timestamptz not null default now()
 );
 
+-- Multi-vehicle courier selection and private provider media are added by
+-- supabase/migrations/20260904_provider_media_and_multi_vehicle.sql.
+
 create table if not exists public.merchant_courier_approvals (
   merchant_id uuid not null references public.merchants(id) on delete cascade,
   courier_id uuid not null references public.couriers(id) on delete cascade,
