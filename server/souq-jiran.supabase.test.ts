@@ -588,4 +588,15 @@ describe("Souq Jiran Supabase integration", () => {
     expect(firebaseConfig).toContain('"source": "firebase-functions"');
     expect(firebaseConfig).toContain('"runtime": "nodejs22"');
   });
+
+  it("keeps the non-destructive cleanup audit compatible with optional tables and foreign-key ordering", () => {
+    const auditSource = readFileSync(resolve(projectRoot, "supabase/cleanup-audit-read-only.sql"), "utf8");
+
+    expect(auditSource).toContain("create temp table cleanup_audit_counts");
+    expect(auditSource).toContain("to_regclass(format('public.%I', candidate_table))");
+    expect(auditSource).toContain("order by conrelid::regclass::text, pg_get_constraintdef(oid);");
+    expect(auditSource).not.toContain("order by child_table::text");
+    expect(auditSource).not.toMatch(/\bdelete\s+from\b/i);
+    expect(auditSource).not.toMatch(/\bupdate\s+public\./i);
+  });
 });

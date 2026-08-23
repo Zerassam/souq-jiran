@@ -77,4 +77,4 @@ select
 from pg_constraint
 where contype = 'f'
   and confrelid in ('public.profiles'::regclass, 'auth.users'::regclass)
-order by child_table::text, foreign_key_definition;
+order by conrelid::regclass::text, pg_get_constraintdef(oid);
