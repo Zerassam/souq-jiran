@@ -809,4 +809,19 @@ describe("Souq Jiran Supabase integration", () => {
     expect(emailOtpReferralMigration).toContain("REFERRAL_MUST_BE_CLAIMED_BEFORE_FIRST_ORDER");
     expect(emailOtpReferralMigration).toContain("grant execute on function public.claim_customer_referral(text) to authenticated");
   });
+
+  it("documents local setup through a tracked, secret-free environment template", () => {
+    const readme = readFileSync(resolve(projectRoot, "README.md"), "utf8");
+    const localEnvironmentTemplate = readFileSync(resolve(projectRoot, "docs/local-environment.template"), "utf8");
+
+    expect(readme).toContain("pnpm install --frozen-lockfile");
+    expect(readme).toContain("docs/local-environment.template");
+    expect(readme).toContain("VITE_ANALYTICS_ENDPOINT");
+    expect(localEnvironmentTemplate).toContain("VITE_SUPABASE_URL=");
+    expect(localEnvironmentTemplate).toContain("VITE_ANALYTICS_ENDPOINT=");
+    expect(localEnvironmentTemplate).toContain("VITE_GOOGLE_MAPS_API_KEY=");
+    expect(localEnvironmentTemplate).toContain("SUPABASE_URL=");
+    expect(localEnvironmentTemplate).toContain("FIREBASE_SERVICE_ACCOUNT_JSON=");
+    expect(localEnvironmentTemplate).not.toContain("SUPABASE_SERVICE_ROLE_KEY=");
+  });
 });

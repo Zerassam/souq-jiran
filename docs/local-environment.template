@@ -1,0 +1,52 @@
+# سوق الجيران — قالب إعداد محلي فقط
+# انسخ هذا الملف إلى .env.local ثم املأ القيم من مشروعك الخاص.
+# لا تضع أي قيمة حقيقية في هذا الملف، ولا ترفعه مع أسرار.
+
+# --- واجهة Supabase (مطلوبة للبيانات والمصادقة الحية في المتصفح) ---
+VITE_SUPABASE_URL=
+VITE_SUPABASE_PUBLISHABLE_KEY=
+
+# --- الخرائط (اختياري؛ قيّد المفتاح بالنطاقات المصرح بها في Google Cloud) ---
+VITE_GOOGLE_MAPS_API_KEY=
+
+# --- تحليلات الواجهة (اختياري) ---
+VITE_ANALYTICS_ENDPOINT=
+VITE_ANALYTICS_WEBSITE_ID=
+
+# --- Supabase على الخادم (اختياري؛ لا تستخدم service_role في الواجهة) ---
+SUPABASE_URL=
+SUPABASE_KEY=
+SUPABASE_ANON_KEY=
+
+# --- خادم التطوير والجلسات ---
+NODE_ENV=development
+PORT=3000
+JWT_SECRET=replace-with-a-long-random-local-secret
+DATABASE_URL=
+
+# --- OAuth/المنصة المُدارة (اختياري للتشغيل المحلي البسيط) ---
+VITE_APP_ID=
+VITE_OAUTH_PORTAL_URL=
+OAUTH_SERVER_URL=
+
+# --- Firebase / FCM (اختياري؛ لا تضع JSON حساب الخدمة في متغير VITE_) ---
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+FIREBASE_SERVICE_ACCOUNT_JSON=
+
+# --- طلبات وإشعارات إدارية (اختياري) ---
+ADMIN_PHONE_NUMBER=
+ORDER_PUSH_WEBHOOK_SECRET=
+
+# --- تكاملات المنصة المُدارة (اتركها فارغة خارج بيئة المنصة) ---
+BUILT_IN_FORGE_API_URL=
+BUILT_IN_FORGE_API_KEY=
+OWNER_OPEN_ID=
+OWNER_NAME=
+
+# --- اختبارات اختيارية؛ لا تستخدم حسابات إنتاج ---
+E2E_BASE_URL=http://localhost:3000
