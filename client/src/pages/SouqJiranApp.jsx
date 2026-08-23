@@ -20,7 +20,7 @@ import {
   Package, Droplet, Sparkles, Map as MapIcon, List, Upload, Download,
   FileText, Phone, Palette, CreditCard, Bike, Lock, LogOut, Wallet,
   Percent, CalendarClock, Home, Sun, Sunset, Moon,
-  Mail, LogIn, UserPlus, ShieldCheck, Archive, MessageCircle, ArrowLeft, Pause, Play
+  Mail, LogIn, UserPlus, ShieldCheck, Archive, MessageCircle, ArrowLeft
 } from "lucide-react";
 
 /* ---------------------------------------------------------
@@ -315,17 +315,26 @@ function formatOfferEndsAt(endsAt) {
   return `ينتهي ${end.toLocaleDateString("ar-DZ", { day: "numeric", month: "short" })}`;
 }
 function OfferMarquee({ offers, onOpenStore }) {
-  const [paused, setPaused] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isInteracting, setIsInteracting] = useState(false);
   const activeOffers = useMemo(() => offers.filter((offer) => offer.status === "approved" && new Date(offer.startsAt).getTime() <= Date.now() && new Date(offer.endsAt).getTime() > Date.now()), [offers]);
+  useEffect(() => {
+    setActiveIndex((index) => (activeOffers.length ? index % activeOffers.length : 0));
+  }, [activeOffers.length]);
+  useEffect(() => {
+    const reducedMotion = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reducedMotion || isInteracting || activeOffers.length < 2) return undefined;
+    const timer = window.setInterval(() => setActiveIndex((index) => (index + 1) % activeOffers.length), 6500);
+    return () => window.clearInterval(timer);
+  }, [activeOffers.length, isInteracting]);
   if (!activeOffers.length) return null;
-  const items = [...activeOffers, ...activeOffers];
-  return <section data-testid="merchant-offer-marquee" className="merchant-offer-marquee" aria-label="عروض المتاجر المعتمدة" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocusCapture={() => setPaused(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setPaused(false); }}>
-    <div className="merchant-offer-marquee__header"><span className="merchant-offer-marquee__label"><Tag size={13} /> عروض تجار</span><button type="button" onClick={() => setPaused((value) => !value)} className="merchant-offer-marquee__control" aria-label={paused ? "استئناف تحريك عروض التجار" : "إيقاف تحريك عروض التجار"} aria-pressed={paused}>{paused ? <Play size={14} /> : <Pause size={14} />}<span>{paused ? "استئناف" : "إيقاف"}</span></button></div>
-    <div className={`merchant-offer-marquee__viewport${paused ? " is-paused" : ""}`}>
-      <div className="merchant-offer-marquee__track" aria-live="off">
-        {items.map((offer, index) => <button key={`${offer.id}-${index}`} type="button" tabIndex={index >= activeOffers.length ? -1 : 0} onClick={() => onOpenStore(offer.merchantId)} className="merchant-offer-marquee__item"><span className="merchant-offer-marquee__badge">عرض تاجر</span><span className="merchant-offer-marquee__store">{offer.storeName}</span><span className="merchant-offer-marquee__title">{offer.title}</span><span className="merchant-offer-marquee__value">{formatOfferValue(offer)}</span>{offer.description && <span className="merchant-offer-marquee__description">{offer.description}</span>}<span className="merchant-offer-marquee__ends">{formatOfferEndsAt(offer.endsAt)}</span></button>)}
-      </div>
+  const activeOffer = activeOffers[activeIndex];
+  return <section data-testid="merchant-offer-marquee" className="merchant-offer-marquee" aria-label="عروض المتاجر المعتمدة" aria-roledescription="شريط عروض" onMouseEnter={() => setIsInteracting(true)} onMouseLeave={() => setIsInteracting(false)} onFocusCapture={() => setIsInteracting(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setIsInteracting(false); }}>
+    <div className="merchant-offer-marquee__header"><span className="merchant-offer-marquee__label"><Tag size={13} /> عروض تجار</span></div>
+    <div className="merchant-offer-marquee__viewport" id="active-merchant-offer">
+      <button key={activeOffer.id} type="button" onClick={() => onOpenStore(activeOffer.merchantId)} className="merchant-offer-marquee__item"><span className="merchant-offer-marquee__badge">عرض تاجر</span><span className="merchant-offer-marquee__store">{activeOffer.storeName}</span><span className="merchant-offer-marquee__title">{activeOffer.title}</span><span className="merchant-offer-marquee__value">{formatOfferValue(activeOffer)}</span>{activeOffer.description && <span className="merchant-offer-marquee__description">{activeOffer.description}</span>}<span className="merchant-offer-marquee__ends">{formatOfferEndsAt(activeOffer.endsAt)}</span></button>
     </div>
+    <div className="merchant-offer-marquee__dots" role="tablist" aria-label="اختيار عرض تاجر">{activeOffers.map((offer, index) => <button key={offer.id} type="button" role="tab" aria-controls="active-merchant-offer" aria-selected={index === activeIndex} tabIndex={index === activeIndex ? 0 : -1} className={`merchant-offer-marquee__dot${index === activeIndex ? " is-active" : ""}`} onClick={() => setActiveIndex(index)}><span className="sr-only">{`عرض ${index + 1}: ${offer.title}`}</span></button>)}</div>
   </section>;
 }
 function DeptBadge({ id, size = 16 }) { const info = deptInfo(id); const Icon = info.icon; return <span className="inline-flex items-center justify-center" style={{ width: size + 14, height: size + 14, borderRadius: 999, background: info.color + "22", color: info.color }}><Icon size={size} strokeWidth={2.3} /></span>; }

@@ -126,18 +126,18 @@ describe("Souq Jiran Supabase integration", () => {
     const cssSource = readFileSync(resolve(projectRoot, "client/src/index.css"), "utf8");
 
     expect(appSource).toContain("function OfferMarquee");
-    expect(appSource).toContain('aria-label={paused ? "استئناف تحريك عروض التجار" : "إيقاف تحريك عروض التجار"}');
-    expect(appSource).toContain("setPaused((value) => !value)");
-    expect(appSource).toContain("onMouseEnter={() => setPaused(true)}");
-    expect(appSource).toContain("onFocusCapture={() => setPaused(true)}");
+    expect(appSource).toContain("const [activeIndex, setActiveIndex] = useState(0)");
+    expect(appSource).toContain("window.setInterval");
+    expect(appSource).toContain('role="tablist"');
+    expect(appSource).toContain('role="tab"');
+    expect(appSource).not.toContain("إيقاف تحريك عروض التجار");
     expect(appSource).not.toContain("const PROMOS");
     expect(appSource).not.toContain("خصم الترحيب");
     expect(appSource).not.toContain("خصم التوصيل");
     expect(appSource).not.toContain("عرض الجمعة");
     expect(appSource).not.toContain("applyPromo");
     expect(cssSource).toContain("@media (prefers-reduced-motion: reduce)");
-    expect(cssSource).toContain("animation-play-state: paused");
-    expect(cssSource).toContain("animation: merchant-offer-scroll");
+    expect(cssSource).toContain("merchant-offer-marquee__dot");
   });
 
   it("keeps referral rewards and community feedback separate from merchant offers", () => {
