@@ -31,6 +31,51 @@ const C = {
   teal: "#5B5BF7", tealDark: "#3730A3", rust: "#F45B7A", ochre: "#F59E0B",
   sage: "#10B981", line: "#E5E7F0", purple: "#8B5CF6",
 };
+const AMIRI_TTF_URL = "/manus-storage/Amiri-Regular_2c083de5.ttf";
+let arabicPdfFontBase64Promise;
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function getArabicPdfFontBase64() {
+  if (!arabicPdfFontBase64Promise) {
+    arabicPdfFontBase64Promise = fetch(AMIRI_TTF_URL)
+      .then((response) => {
+        if (!response.ok) throw new Error("Arabic PDF font download failed");
+        return response.arrayBuffer();
+      })
+      .then(arrayBufferToBase64)
+      .catch((error) => {
+        arabicPdfFontBase64Promise = undefined;
+        throw error;
+      });
+  }
+  return arabicPdfFontBase64Promise;
+}
+
+async function registerArabicPdfFont(pdf) {
+  const fontBase64 = await getArabicPdfFontBase64();
+  pdf.addFileToVFS("Amiri-Regular.ttf", fontBase64);
+  pdf.addFont("Amiri-Regular.ttf", "Amiri", "normal", 400, "Identity-H");
+  pdf.setFont("Amiri", "normal");
+}
+
+function writeArabicPdfText(pdf, text, x, y, size, color) {
+  pdf.setFont("Amiri", "normal");
+  pdf.setFontSize(size);
+  pdf.setTextColor(...color);
+  // jsPDF processes Arabic joining before drawing; this enables bidi layout too.
+  pdf.setR2L(true);
+  pdf.text(text, x, y, { align: "center", isInputRtl: true });
+  pdf.setR2L(false);
+}
 const LOGO_COLORS = [C.teal, C.rust, C.ochre, C.sage, C.purple];
 const PLATFORM_COURIER_FEE = 120;
 const MAX_DISCOVERY_STORES = 6;
@@ -1271,17 +1316,23 @@ function MerchantQrPoster({ store, notify }) {
     catch { notify("انسخ الرابط يدوياً من الحقل الظاهر."); }
   }
 
-  function downloadPoster() {
+  async function downloadPoster() {
     if (!qrDataUrl) { notify("جارٍ تجهيز الملصق، حاول بعد لحظات."); return; }
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    try {
+      await registerArabicPdfFont(pdf);
+    } catch {
+      notify("تعذر تحميل الخط العربي للملصق. تحقق من الاتصال ثم أعد المحاولة.");
+      return;
+    }
     pdf.setFillColor(247, 248, 252); pdf.rect(0, 0, 210, 297, "F");
     pdf.setFillColor(91, 91, 247); pdf.roundedRect(18, 18, 174, 20, 5, 5, "F");
-    pdf.setTextColor(255, 255, 255); pdf.setFontSize(19); pdf.text("SOUQ JIRAN · اطلب من المنزل", 105, 31, { align: "center" });
-    pdf.setTextColor(23, 32, 51); pdf.setFontSize(22); pdf.text(store.name, 105, 57, { align: "center" });
-    pdf.setFontSize(12); pdf.setTextColor(105, 115, 134); pdf.text(`${store.commune} · ${store.wilaya}`, 105, 66, { align: "center" });
+    writeArabicPdfText(pdf, "SOUQ JIRAN · اطلب من المنزل", 105, 31, 19, [255, 255, 255]);
+    writeArabicPdfText(pdf, store.name, 105, 57, 22, [23, 32, 51]);
+    writeArabicPdfText(pdf, `${store.commune} · ${store.wilaya}`, 105, 66, 12, [105, 115, 134]);
     pdf.addImage(qrDataUrl, "PNG", 47, 76, 116, 116);
-    pdf.setTextColor(23, 32, 51); pdf.setFontSize(15); pdf.text("امسح الرمز لتطلب مباشرة من محلك", 105, 210, { align: "center" });
-    pdf.setFontSize(10); pdf.setTextColor(105, 115, 134); pdf.text("سوق الجيران · طلبات محلية وتوصيل منظم", 105, 220, { align: "center" });
+    writeArabicPdfText(pdf, "امسح الرمز لتطلب مباشرة من محلك", 105, 210, 15, [23, 32, 51]);
+    writeArabicPdfText(pdf, "سوق الجيران · طلبات محلية وتوصيل منظم", 105, 220, 10, [105, 115, 134]);
     pdf.save(`souq-jiran-${store.name.replace(/[^\w\u0600-\u06FF]+/g, "-")}-qr.pdf`);
     notify("تم تنزيل ملصق PDF جاهز للطباعة.");
   }

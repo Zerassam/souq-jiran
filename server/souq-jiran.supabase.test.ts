@@ -475,6 +475,17 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).not.toContain("recordMockMessage");
   });
 
+  it("embeds an Arabic TTF font and uses RTL text options for merchant QR PDFs", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(appSource).toContain('const AMIRI_TTF_URL = "/manus-storage/Amiri-Regular_2c083de5.ttf"');
+    expect(appSource).toContain('pdf.addFileToVFS("Amiri-Regular.ttf", fontBase64)');
+    expect(appSource).toContain('pdf.addFont("Amiri-Regular.ttf", "Amiri", "normal", 400, "Identity-H")');
+    expect(appSource).toContain('pdf.setR2L(true)');
+    expect(appSource).toContain('isInputRtl: true');
+    expect(appSource).toContain('writeArabicPdfText(pdf, store.name');
+  });
+
   it("provides monthly CSV export and configurable coupon redemption rate alert for admin", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
 
