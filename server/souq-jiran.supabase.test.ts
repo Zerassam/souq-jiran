@@ -156,10 +156,13 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain('aria-pressed={language === option.code}');
     expect(appSource).toContain('<CustomerView language={language}');
     expect(appSource).toContain('<RoleBenefitsPage language={language}');
-    expect(cssSource).toContain('"Noto Naskh Arabic", "Sakkal Majalla"');
+    expect(cssSource).toContain('font-family: "Sakkal Majalla Local"');
+    expect(cssSource).toContain('/manus-storage/majalla_2fd8373d.ttf');
+    expect(cssSource).toContain('/manus-storage/majallab_7c5be6dd.ttf');
     expect(cssSource).toContain('html[lang="fr"] body');
     expect(cssSource).toContain('html[dir="ltr"] .role-join-card');
-    expect(htmlSource).toContain('family=Noto+Naskh+Arabic');
+    expect(htmlSource).not.toContain('family=Noto+Naskh+Arabic');
+    expect(htmlSource).toContain('family=Inter');
     expect(htmlSource).toContain('<html lang="ar" dir="rtl">');
   });
 

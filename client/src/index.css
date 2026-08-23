@@ -2,6 +2,22 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@font-face {
+  font-family: "Sakkal Majalla Local";
+  src: url("/manus-storage/majalla_2fd8373d.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sakkal Majalla Local";
+  src: url("/manus-storage/majallab_7c5be6dd.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -44,7 +60,7 @@
 }
 
 :root {
-  --font-arabic: "Noto Naskh Arabic", "Sakkal Majalla", Tahoma, serif;
+  --font-arabic: "Sakkal Majalla Local", "Sakkal Majalla", Tahoma, serif;
   --font-french: Inter, Arial, sans-serif;
   --primary: oklch(0.54 0.22 285);
   --primary-foreground: oklch(0.99 0.01 285);
