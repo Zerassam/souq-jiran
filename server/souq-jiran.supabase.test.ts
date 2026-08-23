@@ -136,8 +136,9 @@ describe("Souq Jiran Supabase integration", () => {
     expect(cleanupScript).toContain("admin-participating order detected");
     expect(cleanupScript).toContain("admin-participating message detected");
     expect(cleanupScript).toContain("preserved_admin_audit_rows");
-    expect(cleanupScript).toContain("deleting a non-admin would modify an admin archive audit row");
-    expect(cleanupScript).toContain("deleting orders would modify an admin archive notification");
+    expect(cleanupScript).toContain("preserved_admin_rows_with_detached_non_admin_reference");
+    expect(cleanupScript).toContain("archived_by_user_id is set to NULL by its ON DELETE SET NULL foreign key");
+    expect(cleanupScript).not.toContain("deleting a non-admin would modify an admin archive audit row");
     expect(cleanupScript).toContain("delete from auth.users");
     expect(cleanupScript).toContain("where p.role <> 'admin'");
     expect(cleanupScript).toContain("all_post_checks_passed");

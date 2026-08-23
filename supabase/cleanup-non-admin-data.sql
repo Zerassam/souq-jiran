@@ -169,14 +169,9 @@ begin
     execute 'select exists(select 1 from public.customer_referrals where referrer_id in (select id from cleanup_admin_ids) or referred_customer_id in (select id from cleanup_admin_ids))' into v_has_admin_related_data;
     if v_has_admin_related_data then raise exception 'CLEANUP_ABORTED: admin-linked referral record detected'; end if;
   end if;
-  if to_regclass('public.admin_archive_audit_logs') is not null then
-    execute 'select exists(select 1 from public.admin_archive_audit_logs where actor_id in (select id from cleanup_admin_ids) and archived_by_user_id in (select id from cleanup_non_admin_ids))' into v_has_admin_related_data;
-    if v_has_admin_related_data then raise exception 'CLEANUP_ABORTED: deleting a non-admin would modify an admin archive audit row'; end if;
-  end if;
-  if to_regclass('public.admin_archive_notifications') is not null then
-    execute 'select exists(select 1 from public.admin_archive_notifications where actor_id in (select id from cleanup_admin_ids) and order_id is not null)' into v_has_admin_related_data;
-    if v_has_admin_related_data then raise exception 'CLEANUP_ABORTED: deleting orders would modify an admin archive notification'; end if;
-  end if;
+  -- سجلات الأرشفة المنسوبة للأدمن تبقى كما هي. قد يُفصل مرجع الحساب أو الطلب
+  -- غير الإداري فقط تلقائياً إلى NULL وفق قيد ON DELETE SET NULL المثبت في
+  -- قاعدة البيانات؛ لا يُحذف السجل الإداري ولا يُستبدل محتواه أو لقطته.
 
   for r in
     select table_name
@@ -199,6 +194,18 @@ begin
   insert into cleanup_execution_log (execution_order, target, action, affected_rows, details)
   values (0, 'auth/users', 'preflight_verified', v_non_admin_count,
     format('admin_profiles=%s; auth_users=%s; profiles=%s', v_admin_count, v_auth_count, v_profile_count));
+
+  if to_regclass('public.admin_archive_audit_logs') is not null then
+    execute 'select count(*) from public.admin_archive_audit_logs where actor_id in (select id from cleanup_admin_ids) and archived_by_user_id in (select id from cleanup_non_admin_ids)' into v_row_count;
+    insert into cleanup_execution_log (execution_order, target, action, affected_rows, details)
+    values (15, 'public.admin_archive_audit_logs', 'preserved_admin_rows_with_detached_non_admin_reference', v_row_count, 'archived_by_user_id is set to NULL by its ON DELETE SET NULL foreign key');
+  end if;
+
+  if to_regclass('public.admin_archive_notifications') is not null then
+    execute 'select count(*) from public.admin_archive_notifications where actor_id in (select id from cleanup_admin_ids) and order_id is not null' into v_row_count;
+    insert into cleanup_execution_log (execution_order, target, action, affected_rows, details)
+    values (16, 'public.admin_archive_notifications', 'preserved_admin_rows_with_detached_order_reference', v_row_count, 'order_id is set to NULL by its ON DELETE SET NULL foreign key');
+  end if;
 
   if to_regclass('public.admin_archive_audit_logs') is not null then
     execute 'select count(*) from public.admin_archive_audit_logs where actor_id in (select id from cleanup_non_admin_ids)' into v_row_count;
