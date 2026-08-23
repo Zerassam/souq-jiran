@@ -737,6 +737,22 @@ describe("Souq Jiran Supabase integration", () => {
     expect(merchantViewSource).toContain("onClose={() => setShowMapPicker(false)}");
   });
 
+  it("waits for the current Supabase merchant session before rendering the no-store fallback", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+    const merchantViewStart = appSource.indexOf("function MerchantView");
+    const merchantViewEnd = appSource.indexOf("\nfunction ", merchantViewStart + 1);
+    const merchantViewSource = appSource.slice(merchantViewStart, merchantViewEnd);
+
+    expect(appSource).toContain("const sessionHydrationRef = useRef(0);");
+    expect(appSource).toContain("const [isResolvingMerchantStore, setIsResolvingMerchantStore] = useState(false);");
+    expect(appSource).toContain("if (hydrationId !== sessionHydrationRef.current) return;");
+    expect(appSource).toContain("isResolvingMerchantStore={isResolvingMerchantStore}");
+    expect(merchantViewSource).toContain("isResolvingMerchantStore = false");
+    expect(merchantViewSource).toContain('data-testid="merchant-store-hydration"');
+    expect(merchantViewSource.indexOf("if (isResolvingMerchantStore)")).toBeLessThan(merchantViewSource.indexOf("if (!myStore)"));
+    expect(appSource).toContain("setCart(loadedCart); setMyStoreId(null); setNotifications(loadedNotifications);");
+  });
+
   it("uses the public production domain for QR routes and keeps customer referral compatible with Email OTP", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
     const emailOtpReferralMigration = readFileSync(resolve(projectRoot, "supabase/migrations/20260831_email_otp_referral_binding.sql"), "utf8");

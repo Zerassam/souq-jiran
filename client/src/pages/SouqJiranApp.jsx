@@ -1376,7 +1376,7 @@ function MerchantQrPoster({ store, notify }) {
   </section>;
 }
 
-function MerchantView({ stores, setStores, orders, messages, couriers, merchantOffers = [], myStoreId, setMyStoreId, notify, onStartMerchantRegistration, createProduct, createBulkProducts, removeProductRemote, setProductAvailability, setMerchantOrderStatus, merchantConfirmSettlement, reportCustomerAccount, archiveOrder, archiveMessage, submitMerchantOffer, pauseMerchantOffer, userId }) {
+function MerchantView({ stores, setStores, orders, messages, couriers, merchantOffers = [], myStoreId, setMyStoreId, notify, onStartMerchantRegistration, createProduct, createBulkProducts, removeProductRemote, setProductAvailability, setMerchantOrderStatus, merchantConfirmSettlement, reportCustomerAccount, archiveOrder, archiveMessage, submitMerchantOffer, pauseMerchantOffer, userId, isResolvingMerchantStore = false }) {
   const myStore = stores.find((s) => s.id === myStoreId);
   const [stage2, setStage2] = useState({ open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: true, deliveryCommunes: [], logoText: "", logoColor: C.teal, ccp: "", idDocName: "" });
   const [tab, setTab] = useState("products");
@@ -1438,6 +1438,16 @@ function MerchantView({ stores, setStores, orders, messages, couriers, merchantO
     if (!result) return;
     notify(editingOfferId ? "أُعيد إرسال التعديل للمراجعة." : "أُرسل العرض للمراجعة الإدارية.");
     resetOfferForm();
+  }
+
+  if (isResolvingMerchantStore) {
+    return (
+      <div className="max-w-md mx-auto p-6 rounded-2xl space-y-3 text-center" style={{ background: "#fff", border: `1px solid ${C.line}` }} data-testid="merchant-store-hydration">
+        <Loader2 size={30} color={C.teal} className="animate-spin" style={{ margin: "0 auto" }} />
+        <h3 className="font-black text-lg" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>جارٍ تحميل لوحة محلك</h3>
+        <p className="text-sm leading-6" style={{ color: C.inkSoft }}>نتحقق من بيانات المتجر المرتبطة بحسابك بأمان.</p>
+      </div>
+    );
   }
 
   if (!myStore) {
@@ -2193,7 +2203,9 @@ export default function App() {
   const [adminLoginRequested, setAdminLoginRequested] = useState(false);
   const [showRoleGuide, setShowRoleGuide] = useState(false);
   const [focusedOrderId, setFocusedOrderId] = useState(null);
+  const [isResolvingMerchantStore, setIsResolvingMerchantStore] = useState(false);
   const prevOrdersRef = useRef(null);
+  const sessionHydrationRef = useRef(0);
 
   const focusedOrder = useMemo(() => orders.find((order) => order.id === focusedOrderId) || null, [orders, focusedOrderId]);
 
@@ -2212,7 +2224,9 @@ export default function App() {
       if (cancelled) return;
       setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]);
       setAccounts([]); setAuth(null); setReferralCode(""); setRewardCoupons([]); setMerchantOffers([]); setReferralAnalytics({ totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0, redeemedValue: 0 });
-      setCart(loadedCart); setMyStoreId(loadedMyStoreId); setNotifications(loadedNotifications);
+      // معرّف المتجر يُشتق دائماً من جلسة Supabase الحالية. لا نعيد استعمال قيمة
+      // محلية قديمة كي لا تُعرض لوحة تاجر قبل التأكد من الحساب الحالي.
+      setCart(loadedCart); setMyStoreId(null); setNotifications(loadedNotifications);
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -2241,7 +2255,9 @@ export default function App() {
   }
 
   async function applySupabaseSession(session) {
+    const hydrationId = ++sessionHydrationRef.current;
     if (!session?.user) {
+      setIsResolvingMerchantStore(false);
       setAuth(null);
       setMyStoreId(null);
       setRole("customer");
@@ -2251,11 +2267,15 @@ export default function App() {
       await refreshSupabaseData("public");
       return;
     }
+    setIsResolvingMerchantStore(true);
     const nextAuth = await resolveSupabaseUser(session.user);
+    if (hydrationId !== sessionHydrationRef.current) return;
     setAuth(nextAuth);
     setRole(nextAuth.type);
     if (nextAuth.type === "merchant") setMyStoreId(nextAuth.id);
+    else setMyStoreId(null);
     await refreshSupabaseData(nextAuth.type);
+    if (hydrationId === sessionHydrationRef.current) setIsResolvingMerchantStore(false);
   }
 
   async function syncNativeFcmToken(profileId, suppliedToken) {
@@ -2984,7 +3004,7 @@ export default function App() {
 
         <div className="mt-4">
           {role === "customer" && (showRoleGuide ? <RoleBenefitsPage onBack={() => setShowRoleGuide(false)} onMerchant={() => { setShowRoleGuide(false); if (auth?.type === "merchant") { setRole("merchant"); persistentSetMyStoreId(auth.id); } else setShowMerchantForm(true); }} onCourier={() => { setShowRoleGuide(false); if (auth?.type === "courier") setRole("courier"); else setShowCourierForm(true); }} /> : <CustomerView stores={stores} merchantOffers={merchantOffers} setStores={persistentSetStores} cart={cart} setCart={persistentSetCart} orders={orders} setOrders={persistentSetOrders} couriers={couriers} placeOrder={placeOrder} notify={notify} customerId={auth?.id || null} customerConfirmDelivery={customerConfirmDelivery} quoteDelivery={quoteDelivery} referralCode={referralCode} rewardCoupons={rewardCoupons} claimReferralCode={claimCustomerReferral} publicStoreId={publicQrDestination.storeId} publicCourierId={publicQrDestination.courierId} />)}
-          {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} merchantOffers={merchantOffers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} onStartMerchantRegistration={() => setShowMerchantForm(true)} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} merchantConfirmSettlement={merchantConfirmSettlement} reportCustomerAccount={reportCustomerAccount} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} submitMerchantOffer={submitMerchantOffer} pauseMerchantOffer={pauseMerchantOffer} userId={auth?.id || null} />}
+          {role === "merchant" && <MerchantView stores={stores} setStores={persistentSetStores} orders={orders} messages={messages} couriers={couriers} merchantOffers={merchantOffers} myStoreId={myStoreId} setMyStoreId={persistentSetMyStoreId} notify={notify} onStartMerchantRegistration={() => setShowMerchantForm(true)} createProduct={createProduct} createBulkProducts={createBulkProducts} removeProductRemote={removeProductRemote} setProductAvailability={setProductAvailability} setMerchantOrderStatus={setMerchantOrderStatus} merchantConfirmSettlement={merchantConfirmSettlement} reportCustomerAccount={reportCustomerAccount} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} submitMerchantOffer={submitMerchantOffer} pauseMerchantOffer={pauseMerchantOffer} userId={auth?.id || null} isResolvingMerchantStore={isResolvingMerchantStore} />}
           {role === "courier" && <CourierDashboard courierId={auth?.id || null} stores={stores} orders={orders} messages={messages} couriers={couriers} setCouriers={persistentSetCouriers} notify={notify} onLogout={signOut} claimReadyOrder={claimReadyOrder} courierConfirmPickup={courierConfirmPickup} courierStartDelivery={courierStartDelivery} courierConfirmDelivery={courierConfirmDelivery} courierConfirmRemittance={courierConfirmRemittance} archiveOrder={archiveOrderForCurrentUser} archiveMessage={archiveMessageForCurrentUser} userId={auth?.id || null} />}
           {role === "admin" && <AdminView stores={stores} orders={orders} messages={messages} couriers={couriers} merchantOffers={merchantOffers} archiveAuditLogs={archiveAuditLogs} archiveNotifications={archiveNotifications} orderNotifications={adminOrderNotifications} archiveAlertSettings={archiveAlertSettings} testAccountCandidates={testAccountCandidates} testAccountReviewAuditLogs={testAccountReviewAuditLogs} customerReports={customerReports} customerBlacklist={customerBlacklist} deliveryPricing={deliveryPricing} referralAnalytics={referralAnalytics} notify={notify} setProviderStatus={setProviderStatus} deleteOrderPermanently={deleteOrderPermanently} deleteMessagePermanently={deleteMessagePermanently} deleteTestAccount={deleteTestAccount} markArchiveNotificationRead={markArchiveNotificationRead} markOrderNotificationRead={markOrderNotificationRead} markAllOrderNotificationsRead={markAllOrderNotificationsRead} saveArchiveAlertSettings={saveArchiveAlertSettings} setCustomerBlacklist={setCustomerBlacklistStatus} saveDeliveryPricing={saveDeliveryPricingConfig} reviewMerchantOffer={reviewMerchantOffer} />}
         </div>
