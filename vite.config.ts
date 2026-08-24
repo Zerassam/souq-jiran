@@ -167,6 +167,20 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+
+          // Keep the app shell cacheable across content releases while preserving
+          // Firebase/Capacitor as a chunk that is requested only by Google/FCM flows.
+          if (id.includes("/firebase/") || id.includes("/@capacitor/")) return "firebase-platform";
+          if (id.includes("/@supabase/")) return "supabase-client";
+          if (id.includes("/react/") || id.includes("/react-dom/") || id.includes("/scheduler/")) return "react-runtime";
+          if (id.includes("/lucide-react/")) return "icon-library";
+        },
+      },
+    },
   },
   server: {
     host: true,
