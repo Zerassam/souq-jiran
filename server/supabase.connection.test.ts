@@ -23,6 +23,18 @@ describe("Supabase configuration", () => {
     expect(response.ok).toBe(true);
   });
 
+  it("advertises Email OTP as enabled without starting a user session", async () => {
+    const response = await fetch(`${projectUrl}/auth/v1/settings`, {
+      headers: {
+        apikey: publishableKey!,
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    const settings = await response.json();
+    expect(settings.external).toMatchObject({ email: true });
+  });
+
   it("exposes the public catalogue while RLS hides account and order data", async () => {
     for (const table of ["merchants", "products"]) {
       const response = await fetch(`${projectUrl}/rest/v1/${table}?select=*&limit=1`, {
