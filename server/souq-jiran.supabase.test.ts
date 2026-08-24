@@ -72,6 +72,8 @@ describe("Souq Jiran Supabase integration", () => {
 
     expect(appSource).toContain('supabase.rpc("update_my_fcm_token"');
     expect(appSource).toContain("listenForNativeFcmToken");
+    expect(appSource).toContain('const loadFirebaseHelpers = () => import("@/lib/firebase")');
+    expect(appSource).not.toContain('from "@/lib/firebase"');
     expect(firebaseSource).toContain("FirebaseMessaging.requestPermissions");
     expect(firebaseSource).toContain("FirebaseMessaging.getToken");
     expect(firebaseSource).toContain("requestGoogleProfilePrefill");

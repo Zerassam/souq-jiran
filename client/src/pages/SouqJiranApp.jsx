@@ -1,10 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import {
-  listenForNativeFcmToken,
-  listenForNativeOrderNotifications,
-  requestGoogleProfilePrefill,
-  requestNativeFcmToken,
-} from "@/lib/firebase";
+const loadFirebaseHelpers = () => import("@/lib/firebase");
 import { FULL_COMMUNES_BY_WILAYA } from "@/data/algeriaCommunes";
 import { MapView as GoogleMapView } from "@/components/Map";
 import React, { useState, useEffect, useMemo, useRef } from "react";
@@ -698,7 +693,7 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
 
   async function fillFromGoogle() {
     try {
-      const profile = await requestGoogleProfilePrefill();
+      const profile = await (await loadFirebaseHelpers()).requestGoogleProfilePrefill();
       setForm((current) => ({ ...current, name: profile.name || current.name, email: profile.email }));
       setAuthError("");
     } catch (googleError) { setAuthError(googleError?.message || "تعذر إكمال الملء من Google. أدخل بياناتك يدوياً."); }
@@ -846,7 +841,7 @@ function MerchantRegisterModal({ onSubmit, onClose }) {
   function setNationwideCoverage() { setForm((current) => ({ ...current, nationwideCoverage: true, deliveryWilayas: [...WILAYAS], deliveryCommunes: [] })); }
   async function fillFromGoogle() {
     try {
-      const profile = await requestGoogleProfilePrefill();
+      const profile = await (await loadFirebaseHelpers()).requestGoogleProfilePrefill();
       setForm((current) => ({ ...current, ownerName: profile.name || current.ownerName, email: profile.email }));
       setAuthError("");
     } catch (googleError) { setAuthError(googleError?.message || "تعذر إكمال الملء من Google. أدخل بياناتك يدوياً."); }
@@ -1136,7 +1131,7 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
     setNotice("");
     setIsSubmitting(true);
     try {
-      const profile = await requestGoogleProfilePrefill();
+      const profile = await (await loadFirebaseHelpers()).requestGoogleProfilePrefill();
       if (!profile?.email) {
         setError("تعذر جلب البريد من Google. أدخل بياناتك يدوياً أو أكمل إعداد Google Sign-In في Firebase.");
         return;
@@ -2519,7 +2514,7 @@ export default function App() {
     let cancelled = false;
     // يطلب Android الإذن مرة واحدة فقط لكل تثبيت. لا نربط الرمز بحساب قبل
     // وجود جلسة، ثم تعيد syncNativeFcmToken قراءته وحفظه بعد تسجيل الدخول.
-    void requestNativeFcmToken().catch(() => null);
+    void loadFirebaseHelpers().then(({ requestNativeFcmToken }) => requestNativeFcmToken()).catch(() => null);
     (async () => {
       const [loadedCart, loadedMyStoreId, loadedNotifications] = await Promise.all([
         loadKey(STORAGE.cart, { storeId: null, items: [], address: null }), loadKey(STORAGE.myStoreId, null), loadKey(STORAGE.notifications, []),
@@ -2583,7 +2578,7 @@ export default function App() {
 
   async function syncNativeFcmToken(profileId, suppliedToken) {
     try {
-      const token = suppliedToken || await requestNativeFcmToken();
+    const token = suppliedToken || await (await loadFirebaseHelpers()).requestNativeFcmToken();
       if (!token || !profileId) return;
       const { error } = await supabase.rpc("update_my_fcm_token", { p_token: token });
       if (error && error.code !== "42883") console.warn("تعذر حفظ رمز FCM:", error.message);
@@ -2738,7 +2733,9 @@ export default function App() {
     if (!auth?.id) return undefined;
     void syncNativeFcmToken(auth.id);
     let listener;
-    void listenForNativeFcmToken((token) => { void syncNativeFcmToken(auth.id, token); }).then((handle) => { listener = handle; });
+    void loadFirebaseHelpers()
+      .then(({ listenForNativeFcmToken }) => listenForNativeFcmToken((token) => { void syncNativeFcmToken(auth.id, token); }))
+      .then((handle) => { listener = handle; });
     return () => { void listener?.remove(); };
   }, [auth?.id]);
 
@@ -2758,16 +2755,18 @@ export default function App() {
   useEffect(() => {
     if (!auth?.id) return undefined;
     let listener;
-    void listenForNativeOrderNotifications(
-      (notification) => {
-        const heading = notification.title || "تحديث جديد على الطلب";
-        const body = notification.body || "اضغط على التنبيه لمراجعة تفاصيل الطلب.";
-        pushNotification(`${heading}: ${body}`);
-        notify(heading);
-        void refreshSupabaseData(auth.type);
-      },
-      (notification) => { void openOrderFromPush(notification.data); },
-    ).then((handle) => { listener = handle; });
+    void loadFirebaseHelpers()
+      .then(({ listenForNativeOrderNotifications }) => listenForNativeOrderNotifications(
+        (notification) => {
+          const heading = notification.title || "تحديث جديد على الطلب";
+          const body = notification.body || "اضغط على التنبيه لمراجعة تفاصيل الطلب.";
+          pushNotification(`${heading}: ${body}`);
+          notify(heading);
+          void refreshSupabaseData(auth.type);
+        },
+        (notification) => { void openOrderFromPush(notification.data); },
+      ))
+      .then((handle) => { listener = handle; });
     return () => { void listener?.remove(); };
   }, [auth?.id, auth?.type]);
 
