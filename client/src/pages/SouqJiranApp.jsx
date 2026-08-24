@@ -8,9 +8,6 @@ import {
 import { FULL_COMMUNES_BY_WILAYA } from "@/data/algeriaCommunes";
 import { MapView as GoogleMapView } from "@/components/Map";
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import Papa from "papaparse";
-import QRCode from "qrcode";
-import { jsPDF } from "jspdf";
 import {
   Store, ShoppingCart, ShoppingBag, ShoppingBasket, Search, MapPin, Clock,
   Plus, Minus, Trash2, Check, X, CheckCircle2, ClipboardList,
@@ -32,6 +29,10 @@ const C = {
   teal: "#5B5BF7", tealDark: "#3730A3", rust: "#F45B7A", ochre: "#F59E0B",
   sage: "#10B981", line: "#E5E7F0", purple: "#8B5CF6",
 };
+// أدوات التصدير والرموز لا تُحتاج عند فتح السوق؛ تُحمّل فقط عند استعمالها.
+const loadCsvParser = () => import("papaparse").then(({ default: parser }) => parser);
+const loadQrCode = () => import("qrcode").then(({ default: qrCode }) => qrCode);
+const loadJsPdf = () => import("jspdf").then(({ jsPDF }) => jsPDF);
 const LANGUAGE_OPTIONS = [
   { code: "ar", label: "العربية", shortLabel: "ع" },
   { code: "fr", label: "Français", shortLabel: "FR" },
@@ -654,11 +655,16 @@ function BulkImportModal({ onConfirm, onClose }) {
     const file = e.target.files[0]; if (!file) return;
     setFileName(file.name); setError("");
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      const parsed = Papa.parse(String(ev.target.result), { header: true, skipEmptyLines: true });
-      const cleaned = parsed.data.map((r, i) => ({ id: "tmp" + i, name: (r["الاسم"] || r["name"] || "").trim(), price: Number(r["السعر"] || r["price"] || 0), unit: (r["الوحدة"] || r["unit"] || "الوحدة").trim(), department: DEPARTMENTS.some((d) => d.id === (r["القسم"] || r["department"])) ? (r["القسم"] || r["department"]) : "pantry" })).filter((r) => r.name && r.price > 0);
-      if (cleaned.length === 0) setError("لم يتم العثور على صفوف صالحة.");
-      setRows(cleaned);
+    reader.onload = async (ev) => {
+      try {
+        const Papa = await loadCsvParser();
+        const parsed = Papa.parse(String(ev.target.result), { header: true, skipEmptyLines: true });
+        const cleaned = parsed.data.map((r, i) => ({ id: "tmp" + i, name: (r["الاسم"] || r["name"] || "").trim(), price: Number(r["السعر"] || r["price"] || 0), unit: (r["الوحدة"] || r["unit"] || "الوحدة").trim(), department: DEPARTMENTS.some((d) => d.id === (r["القسم"] || r["department"])) ? (r["القسم"] || r["department"]) : "pantry" })).filter((r) => r.name && r.price > 0);
+        if (cleaned.length === 0) setError("لم يتم العثور على صفوف صالحة.");
+        setRows(cleaned);
+      } catch {
+        setRows([]); setError("تعذر قراءة ملف CSV. أعد المحاولة بملف صالح.");
+      }
     };
     reader.readAsText(file, "UTF-8");
   }
@@ -1227,7 +1233,7 @@ function ReferralRewardsPanel({ referralCode, rewardCoupons, notify, claimReferr
   useEffect(() => {
     let active = true;
     if (!inviteLink) { setQrDataUrl(""); return undefined; }
-    QRCode.toDataURL(inviteLink, { errorCorrectionLevel: "H", width: 600, margin: 2, color: { dark: C.ink, light: "#FFFFFF" } }).then((value) => { if (active) setQrDataUrl(value); }).catch(() => notify("تعذر إنشاء رمز الدعوة."));
+    void loadQrCode().then((QRCode) => QRCode.toDataURL(inviteLink, { errorCorrectionLevel: "H", width: 600, margin: 2, color: { dark: C.ink, light: "#FFFFFF" } })).then((value) => { if (active) setQrDataUrl(value); }).catch(() => notify("تعذر إنشاء رمز الدعوة."));
     return () => { active = false; };
   }, [inviteLink, notify]);
   const available = rewardCoupons.filter((coupon) => coupon.status === "available");
@@ -1587,7 +1593,7 @@ function MerchantQrPoster({ store, notify }) {
 
   useEffect(() => {
     let active = true;
-    QRCode.toDataURL(deepLink, { errorCorrectionLevel: "H", width: 900, margin: 2, color: { dark: C.ink, light: "#FFFFFF" } })
+    void loadQrCode().then((QRCode) => QRCode.toDataURL(deepLink, { errorCorrectionLevel: "H", width: 900, margin: 2, color: { dark: C.ink, light: "#FFFFFF" } }))
       .then((value) => { if (active) setQrDataUrl(value); })
       .catch(() => notify("تعذر إنشاء رمز QR لهذا المحل."));
     return () => { active = false; };
@@ -1600,11 +1606,13 @@ function MerchantQrPoster({ store, notify }) {
 
   async function downloadPoster() {
     if (!qrDataUrl) { notify("جارٍ تجهيز الملصق، حاول بعد لحظات."); return; }
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    let pdf;
     try {
+      const JsPdf = await loadJsPdf();
+      pdf = new JsPdf({ orientation: "portrait", unit: "mm", format: "a4" });
       await registerArabicPdfFont(pdf);
     } catch {
-      notify("تعذر تحميل الخط العربي للملصق. تحقق من الاتصال ثم أعد المحاولة.");
+      notify("تعذر تجهيز ملصق PDF العربي. تحقق من الاتصال ثم أعد المحاولة.");
       return;
     }
     pdf.setFillColor(247, 248, 252); pdf.rect(0, 0, 210, 297, "F");
@@ -1923,7 +1931,7 @@ function CourierQrCard({ courier, notify }) {
 
   useEffect(() => {
     let active = true;
-    QRCode.toDataURL(deepLink, { errorCorrectionLevel: "H", width: 560, margin: 2, color: { dark: C.ink, light: "#FFFFFF" } })
+    void loadQrCode().then((QRCode) => QRCode.toDataURL(deepLink, { errorCorrectionLevel: "H", width: 560, margin: 2, color: { dark: C.ink, light: "#FFFFFF" } }))
       .then((value) => { if (active) setQrDataUrl(value); })
       .catch(() => { if (active) notify("تعذر إنشاء رمز QR لملف الموصل."); });
     return () => { active = false; };

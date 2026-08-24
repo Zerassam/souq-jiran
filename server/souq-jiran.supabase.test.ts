@@ -578,6 +578,17 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain('writeArabicPdfText(pdf, store.name');
   });
 
+  it("loads export-only CSV, QR, and PDF libraries lazily instead of shipping them in the initial app bundle", () => {
+    const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
+
+    expect(appSource).toContain('const loadCsvParser = () => import("papaparse")');
+    expect(appSource).toContain('const loadQrCode = () => import("qrcode")');
+    expect(appSource).toContain('const loadJsPdf = () => import("jspdf")');
+    expect(appSource).not.toContain('import Papa from "papaparse"');
+    expect(appSource).not.toContain('import QRCode from "qrcode"');
+    expect(appSource).not.toContain('import { jsPDF } from "jspdf"');
+  });
+
   it("uses the published domain rather than a temporary preview origin in QR links", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
     const merchantQrSource = appSource.slice(appSource.indexOf("function MerchantQrPoster"), appSource.indexOf("function MerchantView"));
