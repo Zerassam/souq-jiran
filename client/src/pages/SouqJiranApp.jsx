@@ -516,12 +516,21 @@ function mapGridStyle(size = 34) { return { backgroundImage: `linear-gradient(${
 function MapPreview({ x = 50, y = 50, height = 64 }) { return (<div className="relative rounded-lg overflow-hidden" style={{ height, ...mapGridStyle(18) }}><span className="absolute" style={{ left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -95%)" }}><MapPin size={18} color={C.rust} fill={C.rust + "33"} /></span></div>); }
 function MapPicker({ initial, title = "حدد الموقع على الخريطة", onConfirm, onClose }) {
   const [pos, setPos] = useState(initial || { x: 50, y: 50 });
-  function handleClick(e) { const rect = e.currentTarget.getBoundingClientRect(); const x = ((e.clientX - rect.left) / rect.width) * 100; const y = ((e.clientY - rect.top) / rect.height) * 100; setPos({ x: Math.max(3, Math.min(97, x)), y: Math.max(3, Math.min(97, y)) }); }
+  const [locationError, setLocationError] = useState("");
+  const [locating, setLocating] = useState(false);
+  function handleClick(e) { const rect = e.currentTarget.getBoundingClientRect(); const x = ((e.clientX - rect.left) / rect.width) * 100; const y = ((e.clientY - rect.top) / rect.height) * 100; setPos((current) => ({ ...current, x: Math.max(3, Math.min(97, x)), y: Math.max(3, Math.min(97, y)) })); }
+  function locateMe() {
+    if (!navigator.geolocation) { setLocationError("هذا الجهاز لا يدعم تحديد الموقع. أدخل الإحداثيات أو اختر النقطة يدوياً."); return; }
+    setLocating(true); setLocationError("");
+    navigator.geolocation.getCurrentPosition(({ coords }) => { setPos((current) => ({ ...current, latitude: coords.latitude, longitude: coords.longitude })); setLocating(false); }, (error) => { setLocating(false); setLocationError(error.code === 1 ? "اسمح للتطبيق باستخدام الموقع ثم حاول مجدداً." : "تعذر تحديد الموقع حالياً. يمكنك الاختيار يدوياً."); }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+  }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(35,32,27,0.5)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl p-5" style={{ background: C.paper }}>
         <div className="flex items-center justify-between mb-1"><h3 className="font-black flex items-center gap-1.5" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}><Navigation size={16} color={C.teal} /> {title}</h3><button onClick={onClose}><X size={18} color={C.inkSoft} /></button></div>
-        <p className="text-xs mb-3" style={{ color: C.inkSoft }}>انقر في أي نقطة على الخريطة لتثبيت الموقع.</p>
+        <p className="text-xs mb-3" style={{ color: C.inkSoft }}>استخدم GPS لتثبيت الإحداثيات الحقيقية، أو اختر نقطة يدوياً كحل احتياطي.</p>
+        <button type="button" onClick={locateMe} disabled={locating} className="w-full mb-3 py-2 rounded-xl text-xs font-black disabled:opacity-50" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}><Navigation size={14} className="inline ml-1" /> {locating ? "جارٍ تحديد الموقع..." : "استخدام موقعي الحالي بدقة GPS"}</button>
+        {locationError && <p className="text-xs font-bold mb-2" style={{ color: C.rust }}>{locationError}</p>}
         <div onClick={handleClick} className="relative rounded-xl cursor-crosshair overflow-hidden" style={{ height: 230, ...mapGridStyle(30) }}><span className="absolute" style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: "translate(-50%, -95%)" }}><MapPin size={30} color={C.rust} fill={C.rust + "33"} strokeWidth={2.2} /></span></div>
         <button onClick={() => { onConfirm(pos); onClose(); }} className="w-full mt-4 py-2.5 rounded-xl font-black flex items-center justify-center gap-1.5" style={{ background: C.teal, color: "#fff" }}><Check size={15} /> تأكيد هذا الموقع</button>
       </div>
@@ -680,7 +689,8 @@ function BulkImportModal({ onConfirm, onClose }) {
    تسجيل موصّل — مواقيت، نطاق تغطية، اختيار المحلات
 --------------------------------------------------------- */
 function CourierRegisterModal({ stores, onSubmit, onClose }) {
-  const [form, setForm] = useState({ name: "", email: "", phone: "", vehicles: ["motorcycle"], wilaya: "", commune: "", communes: [], deliveryScope: "local", adjacentWilayas: [], availability: [], useCustomHours: false, hoursFrom: "08:00", hoursTo: "18:00", storeMode: "all", selectedStoreIds: [] });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", wilaya: "", commune: "", addressLabel: "", latitude: null, longitude: null, vehicles: ["motorcycle"], communes: [], deliveryScope: "local", adjacentWilayas: [], availability: [], useCustomHours: false, hoursFrom: "08:00", hoursTo: "18:00", storeMode: "all", selectedStoreIds: [] });
+  const [showMapPicker, setShowMapPicker] = useState(false);
   const [step, setStep] = useState(1);
   const [authError, setAuthError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -735,6 +745,7 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
             <input required placeholder="الاسم الكامل" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
             <input required type="email" autoComplete="email" data-testid="courier-email-input" placeholder="البريد الإلكتروني" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} dir="ltr" />
             <input required placeholder="رقم الهاتف للتواصل (05/06/07)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} inputMode="tel" dir="ltr" />
+            <div className="space-y-2"><p className="text-xs font-bold" style={{ color: C.ink }}>منطقة الموصل وعنوانه</p><div className="flex gap-2"><select aria-label="ولاية الموصل" value={form.wilaya} onChange={(e) => setForm({ ...form, wilaya: e.target.value, commune: "", communes: [] })} className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }}><option value="">اختر الولاية</option>{WILAYAS.map((wilaya) => <option key={wilaya} value={wilaya}>{wilaya}</option>)}</select><select aria-label="بلدية الموصل" value={form.commune} onChange={(e) => setForm({ ...form, commune: e.target.value })} disabled={!form.wilaya} className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none disabled:opacity-50" style={{ border: `1px solid ${C.line}` }}><option value="">اختر البلدية</option>{getCommunes(form.wilaya).map((commune) => <option key={commune} value={commune}>{commune}</option>)}</select></div><input aria-label="عنوان الموصل" placeholder="العنوان التفصيلي (اختياري)" value={form.addressLabel} onChange={(e) => setForm({ ...form, addressLabel: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /><button type="button" onClick={() => setShowMapPicker(true)} className="w-full py-2 rounded-xl text-xs font-bold" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}><Navigation size={14} className="inline ml-1" /> {Number.isFinite(form.latitude) && Number.isFinite(form.longitude) ? "تم حفظ موقع GPS" : "تحديد الموقع عبر GPS"}</button></div>
             <div>
               <div className="flex items-center justify-between gap-2 mb-1.5"><span className="text-xs font-bold" style={{ color: C.ink }}>وسائل التوصيل المستخدمة</span><span className="text-[10px]" style={{ color: C.inkSoft }}>يمكنك اختيار أكثر من وسيلة</span></div>
               <div className="grid grid-cols-2 gap-2">{VEHICLE_OPTIONS.map((option) => {
@@ -819,6 +830,7 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
           <button disabled={isSubmitting} onClick={submit} className="flex-1 py-3 rounded-xl font-black disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ إنشاء الحساب..." : "إرسال طلب الانضمام"}</button>
         </div>
         </>}
+        {showMapPicker && <MapPicker initial={Number.isFinite(form.latitude) ? { latitude: form.latitude, longitude: form.longitude, x: 50, y: 50 } : undefined} title="حدد موقع الموصل" onConfirm={(position) => { setForm((current) => ({ ...current, latitude: Number(position.latitude) || null, longitude: Number(position.longitude) || null })); setShowMapPicker(false); }} onClose={() => setShowMapPicker(false)} />}
       </div>
     </div>
   );
@@ -828,8 +840,9 @@ function CourierRegisterModal({ stores, onSubmit, onClose }) {
    تسجيل تاجر — بيانات الحساب ثم بيانات المحل ونطاق التوصيل
 --------------------------------------------------------- */
 function MerchantRegisterModal({ onSubmit, onClose }) {
-  const [form, setForm] = useState({ ownerName: "", email: "", phone: "", storeName: "", wilaya: "", commune: "", deliveryWilayas: [], deliveryCommunes: [], nationwideCoverage: false });
+  const [form, setForm] = useState({ ownerName: "", email: "", phone: "", storeName: "", wilaya: "", commune: "", addressLabel: "", latitude: null, longitude: null, hasOwnDelivery: true, deliveryWilayas: [], deliveryCommunes: [], nationwideCoverage: false });
   const [step, setStep] = useState(1);
+  const [showMapPicker, setShowMapPicker] = useState(false);
   const [authError, setAuthError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [communeSearch, setCommuneSearch] = useState("");
@@ -876,13 +889,15 @@ function MerchantRegisterModal({ onSubmit, onClose }) {
         </div>}
         {step === 2 && <div className="space-y-4">
           <div><label className="text-xs font-bold flex items-center gap-1 mb-1.5" style={{ color: C.ink }}><Store size={13} /> بيانات المحل</label><input aria-label="اسم المحل" placeholder="اسم المحل" value={form.storeName} onChange={(event) => setForm({ ...form, storeName: event.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /></div>
-          <div><label className="text-xs font-bold flex items-center gap-1 mb-1.5" style={{ color: C.ink }}><MapPin size={13} /> موقع المحل ونطاق التوصيل</label><div className="flex gap-2"><select value={form.wilaya} onChange={(event) => setForm({ ...form, wilaya: event.target.value, commune: "", deliveryCommunes: [] })} className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }}><option value="" disabled>اختر الولاية</option>{WILAYAS.map((wilaya) => <option key={wilaya} value={wilaya}>{wilaya}</option>)}</select><select value={form.commune} onChange={(event) => setForm({ ...form, commune: event.target.value })} disabled={!form.wilaya} className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none disabled:opacity-50" style={{ border: `1px solid ${C.line}` }}><option value="">بلدية المحل</option>{getCommunes(form.wilaya).map((commune) => <option key={commune} value={commune}>{commune}</option>)}</select></div></div>
-          <div className="space-y-2"><div className="flex items-center justify-between"><p className="text-[11px] font-bold" style={{ color: C.ink }}>الولايات المغطاة</p><button type="button" onClick={setNationwideCoverage} className="text-[11px] font-bold px-2 py-1 rounded-lg" style={{ color: C.rust, border: `1px solid ${C.rust}55` }}>تغطية كامل التراب الوطني (58 ولاية)</button></div><div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">{WILAYAS.map((wilaya) => <button key={wilaya} type="button" onClick={() => toggleDeliveryWilaya(wilaya)} className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: form.deliveryWilayas.includes(wilaya) ? C.rust : "transparent", color: form.deliveryWilayas.includes(wilaya) ? "#fff" : C.inkSoft, border: `1px solid ${form.deliveryWilayas.includes(wilaya) ? C.rust : C.line}` }}>{wilaya}</button>)}</div></div>
+          <div><label className="text-xs font-bold flex items-center gap-1 mb-1.5" style={{ color: C.ink }}><MapPin size={13} /> موقع المحل ونطاق التوصيل</label><div className="flex gap-2"><select value={form.wilaya} onChange={(event) => setForm({ ...form, wilaya: event.target.value, commune: "", deliveryCommunes: [] })} className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }}><option value="" disabled>اختر الولاية</option>{WILAYAS.map((wilaya) => <option key={wilaya} value={wilaya}>{wilaya}</option>)}</select><select value={form.commune} onChange={(event) => setForm({ ...form, commune: event.target.value })} disabled={!form.wilaya} className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none disabled:opacity-50" style={{ border: `1px solid ${C.line}` }}><option value="">بلدية المحل</option>{getCommunes(form.wilaya).map((commune) => <option key={commune} value={commune}>{commune}</option>)}</select></div><input aria-label="عنوان المحل" placeholder="العنوان التفصيلي (الشارع، رقم المحل...)" value={form.addressLabel} onChange={(event) => setForm({ ...form, addressLabel: event.target.value })} className="w-full mt-2 px-3 py-2.5 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /><button type="button" onClick={() => setShowMapPicker(true)} className="w-full mt-2 py-2.5 rounded-xl text-xs font-black" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}><Navigation size={14} className="inline ml-1" /> {Number.isFinite(form.latitude) && Number.isFinite(form.longitude) ? "تم تحديد موقع المحل بدقة GPS" : "تحديد موقع المحل بدقة عبر GPS"}</button>{Number.isFinite(form.latitude) && <p className="text-[10px] mt-1" dir="ltr" style={{ color: C.inkSoft }}>{form.latitude.toFixed(6)}, {form.longitude.toFixed(6)}</p>}</div>
+          <div className="space-y-2"><p className="text-[11px] font-bold" style={{ color: C.ink }}>من سيتولى التوصيل؟</p><div className="grid grid-cols-2 gap-2"><button type="button" onClick={() => setForm((current) => ({ ...current, hasOwnDelivery: true }))} className="px-3 py-2 rounded-xl text-xs font-bold" style={{ background: form.hasOwnDelivery ? C.teal : "transparent", color: form.hasOwnDelivery ? "#fff" : C.inkSoft, border: `1px solid ${form.hasOwnDelivery ? C.teal : C.line}` }}>توصيل المحل</button><button type="button" onClick={() => setForm((current) => ({ ...current, hasOwnDelivery: false }))} className="px-3 py-2 rounded-xl text-xs font-bold" style={{ background: !form.hasOwnDelivery ? C.teal : "transparent", color: !form.hasOwnDelivery ? "#fff" : C.inkSoft, border: `1px solid ${!form.hasOwnDelivery ? C.teal : C.line}` }}>توصيل المنصة</button></div><p className="text-[10px]" style={{ color: C.inkSoft }}>يمكن تغيير هذا الإعداد لاحقاً؛ اختيار توصيل المنصة لا يعتمد على GPS الخاص بالمحل.</p><div className="flex items-center justify-between"><p className="text-[11px] font-bold" style={{ color: C.ink }}>الولايات المغطاة</p><button type="button" onClick={setNationwideCoverage} className="text-[11px] font-bold px-2 py-1 rounded-lg" style={{ color: C.rust, border: `1px solid ${C.rust}55` }}>تغطية كامل التراب الوطني (58 ولاية)</button></div><div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">{WILAYAS.map((wilaya) => <button key={wilaya} type="button" onClick={() => toggleDeliveryWilaya(wilaya)} className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: form.deliveryWilayas.includes(wilaya) ? C.rust : "transparent", color: form.deliveryWilayas.includes(wilaya) ? "#fff" : C.inkSoft, border: `1px solid ${form.deliveryWilayas.includes(wilaya) ? C.rust : C.line}` }}>{wilaya}</button>)}</div></div>
           {form.wilaya && <div><div className="flex items-center justify-between gap-2 mb-2"><p className="text-[11px]" style={{ color: C.inkSoft }}>بلديات ولاية المحل: ابحث، حدد الكل، أو ألغِ أي بلدية بالنقر.</p><button type="button" onClick={() => setForm((current) => ({ ...current, deliveryCommunes: getCommunes(form.wilaya) }))} className="text-[11px] font-bold" style={{ color: C.rust }}>تحديد كافة البلديات</button></div><input value={communeSearch} onChange={(event) => setCommuneSearch(event.target.value)} placeholder="بحث داخل البلديات" className="w-full px-3 py-2 rounded-xl text-xs outline-none mb-2" style={{ border: `1px solid ${C.line}` }} /> <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">{getCommunes(form.wilaya).filter((commune) => commune.includes(communeSearch.trim())).map((commune) => <button key={commune} type="button" onClick={() => toggleDeliveryCommune(commune)} className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: form.deliveryCommunes.includes(commune) ? C.rust : "transparent", color: form.deliveryCommunes.includes(commune) ? "#fff" : C.inkSoft, border: `1px solid ${form.deliveryCommunes.includes(commune) ? C.rust : C.line}` }}>{commune}</button>)}</div></div>}
           <div className="p-3.5 rounded-xl space-y-1" style={{ background: C.rust + "12", border: `1px solid ${C.rust}35` }}><p className="text-[11px] font-bold" style={{ color: C.rust }}>معاينة طلب الانضمام</p><p className="text-[11px]" style={{ color: C.inkSoft }}>المحل: <b style={{ color: C.ink }}>{form.storeName || "—"}</b></p><p className="text-[11px]" style={{ color: C.inkSoft }}>التغطية: <b style={{ color: C.ink }}>{form.nationwideCoverage ? "كامل التراب الوطني" : `${form.deliveryWilayas.length || 0} ولاية`}</b></p><p className="text-[11px]" style={{ color: C.inkSoft }}>البريد: <b dir="ltr" style={{ color: C.ink }}>{form.email || "—"}</b></p></div>
         </div>}
         {step === 2 && <div className="flex gap-2"><button onClick={() => setStep(1)} className="flex-1 py-3 rounded-xl font-bold text-sm" style={{ background: "transparent", color: C.inkSoft, border: `1px solid ${C.line}` }}>رجوع</button><button disabled={isSubmitting} onClick={submit} className="flex-1 py-3 rounded-xl font-black disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{isSubmitting ? "جارٍ إنشاء الحساب..." : "إرسال طلب الانضمام"}</button></div>}
       </div>
+      {showMapPicker && <MapPicker initial={Number.isFinite(form.latitude) ? { latitude: form.latitude, longitude: form.longitude, x: 50, y: 50 } : undefined} title="حدد موقع المحل بدقة" onConfirm={(position) => setForm((current) => ({ ...current, latitude: Number(position.latitude) || null, longitude: Number(position.longitude) || null }))} onClose={() => setShowMapPicker(false)} />}
+
     </div>
   );
 }
@@ -1072,6 +1087,12 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
   const [fullName, setFullName] = useState("");
   const [registrationEmail, setRegistrationEmail] = useState("");
   const [registrationPhone, setRegistrationPhone] = useState("");
+  const [registrationWilaya, setRegistrationWilaya] = useState("");
+  const [registrationCommune, setRegistrationCommune] = useState("");
+  const [registrationAddress, setRegistrationAddress] = useState("");
+  const [registrationLatitude, setRegistrationLatitude] = useState(null);
+  const [registrationLongitude, setRegistrationLongitude] = useState(null);
+  const [showRegistrationMap, setShowRegistrationMap] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [emailOtpRequested, setEmailOtpRequested] = useState(false);
   const [error, setError] = useState("");
@@ -1112,6 +1133,11 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
             name: fullName.trim(),
             phone: normalizeAlgerianMobile(registrationPhone),
             contact_email: email,
+            wilaya: registrationWilaya,
+            commune: registrationCommune,
+            address_label: registrationAddress.trim(),
+            latitude: registrationLatitude,
+            longitude: registrationLongitude,
           } : undefined,
         },
       });
@@ -1159,7 +1185,7 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
     try {
       const { data, error: verifyError } = await supabase.auth.verifyOtp({ email: emailCredential.email, token: otpCode, type: "email" });
       if (verifyError || !data.session) throw verifyError || new Error("تعذر فتح جلسة آمنة بعد التحقق من الرمز.");
-      result = await authenticate({ mode, type, identifier: emailCredential.email, name: fullName.trim(), phone: normalizedPhone, verifiedSession: data.session });
+      result = await authenticate({ mode, type, identifier: emailCredential.email, name: fullName.trim(), phone: normalizedPhone, wilaya: registrationWilaya, commune: registrationCommune, addressLabel: registrationAddress.trim(), latitude: registrationLatitude, longitude: registrationLongitude, verifiedSession: data.session });
     } catch (submissionError) {
       result = { error: submissionError?.message || "تعذر إكمال العملية. حاول مرة أخرى." };
     } finally {
@@ -1183,7 +1209,7 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
           <button onClick={() => { resetEmailOtp(); setMode("login"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "login" ? C.ink : "transparent", color: mode === "login" ? "#fff" : C.inkSoft }}>دخول بالبريد</button>
           {allowRegistration && <button onClick={() => { resetEmailOtp(); setMode("register"); setError(""); setNotice(""); }} className="flex-1 px-3 py-2 rounded-xl text-xs font-bold" style={{ background: mode === "register" ? C.ink : "transparent", color: mode === "register" ? "#fff" : C.inkSoft }}>حساب جديد</button>}
         </div></>}
-        {mode === "register" ? <div className="space-y-2"><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><User size={15} color={C.inkSoft} /><input aria-label="الاسم الكامل" type="text" lang="ar" dir="auto" inputMode="text" enterKeyHint="next" autoCapitalize="words" spellCheck={false} placeholder="الاسم الكامل" value={fullName} onChange={(event) => { resetEmailOtp(); setFullName(event.target.value); }} className="flex-1 outline-none text-sm bg-transparent" autoComplete="name" /></div><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Mail size={15} color={C.inkSoft} /><input aria-label="البريد الإلكتروني" type="email" autoComplete="email" placeholder="name@example.com" value={registrationEmail} onChange={(event) => { resetEmailOtp(); setRegistrationEmail(event.target.value); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="email" /></div><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input aria-label="رقم الهاتف للتواصل" type="tel" placeholder="0551234567" value={registrationPhone} onChange={(event) => { resetEmailOtp(); setRegistrationPhone(event.target.value); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="tel" enterKeyHint="next" autoComplete="tel" /></div><button type="button" disabled={isSubmitting} onClick={fillFromGoogle} className="w-full py-2.5 rounded-xl text-xs font-bold disabled:opacity-50" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}>تعبئة الاسم والبريد من Google</button></div> : <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Mail size={15} color={C.inkSoft} /><input data-testid="auth-identifier-input" type="email" autoComplete="email" placeholder="البريد الإلكتروني" value={identifier} onChange={(e) => { resetEmailOtp(); setIdentifier(e.target.value); }} onKeyDown={(e) => e.key === "Enter" && submit()} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="email" /></div>}
+        {mode === "register" ? <div className="space-y-2"><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><User size={15} color={C.inkSoft} /><input aria-label="الاسم الكامل" type="text" lang="ar" dir="auto" inputMode="text" enterKeyHint="next" autoCapitalize="words" spellCheck={false} placeholder="الاسم الكامل" value={fullName} onChange={(event) => { resetEmailOtp(); setFullName(event.target.value); }} className="flex-1 outline-none text-sm bg-transparent" autoComplete="name" /></div><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Mail size={15} color={C.inkSoft} /><input aria-label="البريد الإلكتروني" type="email" autoComplete="email" placeholder="name@example.com" value={registrationEmail} onChange={(event) => { resetEmailOtp(); setRegistrationEmail(event.target.value); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="email" /></div><div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Phone size={15} color={C.inkSoft} /><input aria-label="رقم الهاتف للتواصل" type="tel" placeholder="0551234567" value={registrationPhone} onChange={(event) => { resetEmailOtp(); setRegistrationPhone(event.target.value); }} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="tel" enterKeyHint="next" autoComplete="tel" /></div><div className="space-y-2 pt-1"><p className="text-xs font-bold" style={{ color: C.ink }}>موقع الحساب (اختياري للعميل، مطلوب للتاجر والموصل عند الحاجة)</p><div className="flex gap-2"><select aria-label="ولاية التسجيل" value={registrationWilaya} onChange={(event) => { resetEmailOtp(); setRegistrationWilaya(event.target.value); setRegistrationCommune(""); }} className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }}><option value="">اختر الولاية</option>{WILAYAS.map((wilaya) => <option key={wilaya} value={wilaya}>{wilaya}</option>)}</select><select aria-label="بلدية التسجيل" value={registrationCommune} onChange={(event) => { resetEmailOtp(); setRegistrationCommune(event.target.value); }} disabled={!registrationWilaya} className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none bg-white disabled:opacity-50" style={{ border: `1px solid ${C.line}` }}><option value="">اختر البلدية</option>{getCommunes(registrationWilaya).map((commune) => <option key={commune} value={commune}>{commune}</option>)}</select></div><input aria-label="العنوان التفصيلي للتسجيل" placeholder="العنوان التفصيلي (اختياري)" value={registrationAddress} onChange={(event) => { resetEmailOtp(); setRegistrationAddress(event.target.value); }} className="w-full px-3 py-2.5 rounded-xl text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /><button type="button" onClick={() => setShowRegistrationMap(true)} className="w-full py-2 rounded-xl text-xs font-bold" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}><Navigation size={14} className="inline ml-1" /> {Number.isFinite(registrationLatitude) && Number.isFinite(registrationLongitude) ? "تم حفظ موقع GPS" : "تحديد الموقع عبر GPS"}</button></div><button type="button" disabled={isSubmitting} onClick={fillFromGoogle} className="w-full py-2.5 rounded-xl text-xs font-bold disabled:opacity-50" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}>تعبئة الاسم والبريد من Google</button></div> : <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${C.line}` }}><Mail size={15} color={C.inkSoft} /><input data-testid="auth-identifier-input" type="email" autoComplete="email" placeholder="البريد الإلكتروني" value={identifier} onChange={(e) => { resetEmailOtp(); setIdentifier(e.target.value); }} onKeyDown={(e) => e.key === "Enter" && submit()} className="flex-1 outline-none text-sm bg-transparent" dir="ltr" inputMode="email" /></div>}
         {emailOtpRequested && <div data-testid="email-otp" className="p-3 rounded-xl space-y-2" style={{ background: C.ochre + "12", border: `1px solid ${C.ochre}44` }}><p className="text-xs leading-5 font-bold" style={{ color: C.ink }}>أدخل رمز التحقق الذي وصلك إلى بريدك الإلكتروني.</p><input aria-label="رمز التحقق البريدي" value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, EMAIL_OTP_LENGTH))} placeholder={`رمز من ${EMAIL_OTP_LENGTH} أرقام`} inputMode="numeric" autoComplete="one-time-code" className="w-full px-3 py-2 rounded-lg text-sm outline-none bg-white" style={{ border: `1px solid ${C.line}` }} /><button type="button" disabled={isSubmitting} onClick={requestEmailOtp} className="text-xs font-bold" style={{ color: C.teal }}>إعادة إرسال رمز البريد</button></div>}
         {error && <p className="text-xs font-bold" style={{ color: "#8B3A2A" }}>{error}</p>}
         {notice && <p className="text-xs font-bold" style={{ color: C.sage }}>{notice}</p>}
@@ -1193,6 +1219,8 @@ function AuthModal({ authenticate, requestAccountRecovery, onClose, adminOnly = 
         {!adminOnly && mode === "register" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>البريد ورقم الهاتف مطلوبان. رقم الهاتف للتواصل فقط؛ التحقق والدخول يتمان برمز يُرسل إلى البريد.</p>}
         {!adminOnly && mode === "recover" && <p className="text-[10px] text-center" style={{ color: C.inkSoft }}>أدخل بريد الحساب؛ يرسل التطبيق رمز دخول آمن بدلاً من كلمة مرور أو رسالة SMS.</p>}
       </div>
+      {showRegistrationMap && <MapPicker initial={Number.isFinite(registrationLatitude) ? { latitude: registrationLatitude, longitude: registrationLongitude, x: 50, y: 50 } : undefined} title="حدد موقعك بدقة" onConfirm={(position) => { setRegistrationLatitude(Number(position.latitude) || null); setRegistrationLongitude(Number(position.longitude) || null); setShowRegistrationMap(false); }} onClose={() => setShowRegistrationMap(false)} />}
+
     </div>
   );
 }
@@ -3127,7 +3155,7 @@ export default function App() {
     return true;
   }
 
-  async function ensureSupabaseProfile({ user, role: profileRole, name, phone }) {
+  async function ensureSupabaseProfile({ user, role: profileRole, name, phone, wilaya = "", commune = "", addressLabel = "", latitude = null, longitude = null }) {
     const { data: existing, error: lookupError } = await supabase
       .from("profiles")
       .select("id")
@@ -3141,6 +3169,11 @@ export default function App() {
       name,
       phone,
       email: user.email,
+      wilaya: wilaya || null,
+      commune: commune || null,
+      address_label: addressLabel || null,
+      latitude: Number.isFinite(latitude) ? latitude : null,
+      longitude: Number.isFinite(longitude) ? longitude : null,
     });
     if (error) return { error: "تعذر إنشاء ملف المستخدم. طبّق ملف supabase/schema.sql ثم سجّل الدخول لإكمال ملفك." };
     return {};
@@ -3163,7 +3196,7 @@ export default function App() {
     return {};
   }
 
-  async function authenticate({ mode, type, identifier, name = "", phone = "", verifiedSession = null }) {
+  async function authenticate({ mode, type, identifier, name = "", phone = "", wilaya = "", commune = "", addressLabel = "", latitude = null, longitude = null, verifiedSession = null }) {
     const credential = parseLoginIdentifier(identifier);
     if (!credential?.email) return { error: "التحقق والدخول متاحان عبر بريد إلكتروني صالح فقط." };
     if (!verifiedSession?.user || verifiedSession.user.email?.toLowerCase() !== credential.email.toLowerCase()) {
@@ -3181,7 +3214,7 @@ export default function App() {
         return { error: "هذا البريد مرتبط بدور مختلف. اختر بوابة الحساب الصحيحة أو استخدم بريداً جديداً." };
       }
       await applySupabaseSession(verifiedSession);
-      const profile = await ensureSupabaseProfile({ user: verifiedSession.user, role: type, name: accountName, phone: accountPhone });
+      const profile = await ensureSupabaseProfile({ user: verifiedSession.user, role: type, name: accountName, phone: accountPhone, wilaya, commune, addressLabel, latitude, longitude });
       if (profile.error) return profile;
       if (type === "courier") {
         const courierRequest = await ensureCourierReviewRequest(verifiedSession.user.id);
@@ -3235,7 +3268,7 @@ export default function App() {
     const { data: existingProfile, error: profileLookupError } = await supabase.from("profiles").select("role").eq("id", form.verifiedSession.user.id).maybeSingle();
     if (profileLookupError) return { error: "تعذر التحقق من دور الحساب. حاول مرة أخرى بعد تسجيل الدخول." };
     if (existingProfile?.role && existingProfile.role !== "merchant") return { error: "هذا البريد مرتبط بدور مختلف. استخدم بريداً آخر أو بوابة الحساب الصحيحة." };
-    const profile = await ensureSupabaseProfile({ user: form.verifiedSession.user, role: "merchant", name: form.ownerName || form.name, phone });
+    const profile = await ensureSupabaseProfile({ user: form.verifiedSession.user, role: "merchant", name: form.ownerName || form.name, phone, wilaya: form.wilaya, commune: form.commune, addressLabel: form.addressLabel, latitude: form.latitude, longitude: form.longitude });
     if (profile.error) return profile;
     const merchant = {
       id: form.verifiedSession.user.id,
@@ -3246,13 +3279,17 @@ export default function App() {
       delivery_wilayas: form.deliveryWilayas || [form.wilaya],
       delivery_communes: form.deliveryCommunes || [],
       nationwide_coverage: Boolean(form.nationwideCoverage),
+      has_own_delivery: Boolean(form.hasOwnDelivery),
+      address_label: form.addressLabel || null,
+      latitude: Number.isFinite(form.latitude) ? form.latitude : null,
+      longitude: Number.isFinite(form.longitude) ? form.longitude : null,
       status: "pending_review",
     };
     const { error } = await supabase.from("merchants").insert(merchant);
     if (error) {
       return { error: "تعذر حفظ ملف المحل. بقي حساب الدخول صالحاً؛ طبّق ملف supabase/schema.sql ثم أرسل النموذج مجدداً لإكمال الملف." };
     }
-    const store = { id: form.verifiedSession.user.id, name: form.name, phone, email: credential.email, wilaya: form.wilaya, commune: form.commune, address: "", lat: form.lat, lng: form.lng, distance: "—", status: "pending_review", rating: 0, open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: true, deliveryWilayas: form.deliveryWilayas || [form.wilaya], deliveryCommunes: form.deliveryCommunes || [], nationwideCoverage: Boolean(form.nationwideCoverage), approvedCourierIds: [], commissionType: "percentage", commissionRate: 10, subscriptionFee: 3000, duesPaid: 0, logo: { text: form.name.slice(0, 2), color: C.teal }, ccp: "", idDocName: "", products: [], reviews: [] };
+    const store = { id: form.verifiedSession.user.id, name: form.name, phone, email: credential.email, wilaya: form.wilaya, commune: form.commune, address: form.addressLabel || "", addressLabel: form.addressLabel || "", lat: form.latitude, lng: form.longitude, latitude: form.latitude, longitude: form.longitude, distance: "—", status: "pending_review", rating: 0, open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: Boolean(form.hasOwnDelivery), deliveryWilayas: form.deliveryWilayas || [form.wilaya], deliveryCommunes: form.deliveryCommunes || [], nationwideCoverage: Boolean(form.nationwideCoverage), approvedCourierIds: [], commissionType: "percentage", commissionRate: 10, subscriptionFee: 3000, duesPaid: 0, logo: { text: form.name.slice(0, 2), color: C.teal }, ccp: "", idDocName: "", products: [], reviews: [] };
     persistentSetStores((prev) => [...prev.filter((item) => item.id !== store.id), store]);
     await applySupabaseSession(form.verifiedSession);
     setShowMerchantForm(false);
@@ -3270,7 +3307,7 @@ export default function App() {
     const { data: existingProfile, error: profileLookupError } = await supabase.from("profiles").select("role").eq("id", form.verifiedSession.user.id).maybeSingle();
     if (profileLookupError) return { error: "تعذر التحقق من دور الحساب. حاول مرة أخرى بعد تسجيل الدخول." };
     if (existingProfile?.role && existingProfile.role !== "courier") return { error: "هذا البريد مرتبط بدور مختلف. استخدم بريداً آخر أو بوابة الحساب الصحيحة." };
-    const profile = await ensureSupabaseProfile({ user: form.verifiedSession.user, role: "courier", name: form.name, phone });
+    const profile = await ensureSupabaseProfile({ user: form.verifiedSession.user, role: "courier", name: form.name, phone, wilaya: form.wilaya, commune: form.commune, addressLabel: form.addressLabel, latitude: form.latitude, longitude: form.longitude });
     if (profile.error) return profile;
     const vehicleIds = normalizeCourierVehicles(form.vehicles);
     if (vehicleIds.length === 0) return { error: "اختر وسيلة توصيل واحدة على الأقل قبل إرسال الطلب." };
@@ -3285,6 +3322,9 @@ export default function App() {
       selected_store_ids: [],
       coverage_level: form.deliveryScope || "local",
       adjacent_wilayas: form.adjacentWilayas || [],
+      address_label: form.addressLabel || null,
+      latitude: Number.isFinite(form.latitude) ? form.latitude : null,
+      longitude: Number.isFinite(form.longitude) ? form.longitude : null,
       status: "pending",
     };
     let activeSession = form.verifiedSession;
@@ -3302,7 +3342,7 @@ export default function App() {
     if (courierError) {
       return { error: "تعذر حفظ ملف الموصل. بقي حساب الدخول صالحاً؛ طبّق ملف supabase/schema.sql ثم أرسل النموذج مجدداً لإكمال الملف." };
     }
-    const localCourier = { id: form.verifiedSession.user.id, name: form.name, phone, email: credential.email, vehicle: vehicleLabel(vehicleIds), vehicles: vehicleIds, wilaya: form.wilaya, commune: form.commune || "", communes: form.communes, availability: form.useCustomHours ? [] : form.availability, customHours: form.useCustomHours ? { from: form.hoursFrom, to: form.hoursTo } : null, timeLabel: form.timeLabel || "", coverageLabel: form.coverageLabel || "", coverageLevel: form.deliveryScope || "local", adjacentWilayas: form.adjacentWilayas || [], storeMode: form.storeMode, selectedStoreIds: form.selectedStoreIds, status: "pending" };
+    const localCourier = { id: form.verifiedSession.user.id, name: form.name, phone, email: credential.email, vehicle: vehicleLabel(vehicleIds), vehicles: vehicleIds, wilaya: form.wilaya, commune: form.commune || "", address: form.addressLabel || "", addressLabel: form.addressLabel || "", latitude: form.latitude, longitude: form.longitude, communes: form.communes, availability: form.useCustomHours ? [] : form.availability, customHours: form.useCustomHours ? { from: form.hoursFrom, to: form.hoursTo } : null, timeLabel: form.timeLabel || "", coverageLabel: form.coverageLabel || "", coverageLevel: form.deliveryScope || "local", adjacentWilayas: form.adjacentWilayas || [], storeMode: form.storeMode, selectedStoreIds: form.selectedStoreIds, status: "pending" };
     persistentSetCouriers((prev) => [...prev.filter((item) => item.id !== localCourier.id), localCourier]);
     await applySupabaseSession(activeSession);
     setShowCourierForm(false);
