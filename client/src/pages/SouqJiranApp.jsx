@@ -1360,9 +1360,22 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
       if (cancelled) return;
       if (error) {
         setDeliveryScheduleSlots([]);
-        setScheduleError(error.code === "42883" ? "يلزم تشغيل ترحيل جدولة التوصيل أولاً." : uiText(language, "noDeliveryWindows"));
+        const message = String(error.message || "");
+        setScheduleError(error.code === "42883"
+          ? "يلزم تشغيل ترحيل جدولة التوصيل أولاً."
+          : message.includes("CUSTOMER_ROLE_REQUIRED")
+            ? "يلزم تسجيل الدخول بحساب عميل لاختيار موعد التوصيل."
+            : uiText(language, "noDeliveryWindows"));
       } else {
-        setDeliveryScheduleSlots(data || []);
+        // Keep only server-issued, 90-minute windows. Never invent a fallback
+        // slot on the client because availability belongs to Supabase.
+        const validSlots = (Array.isArray(data) ? data : []).filter((slot) => {
+          const start = Date.parse(slot?.window_start || "");
+          const end = Date.parse(slot?.window_end || "");
+          return Number.isFinite(start) && Number.isFinite(end) && end - start === 90 * 60 * 1000 && ["next_available", "selected_window"].includes(slot?.schedule_mode);
+        });
+        setDeliveryScheduleSlots(validSlots);
+        if (validSlots.length === 0) setScheduleError(uiText(language, "noDeliveryWindows"));
       }
       setScheduleLoading(false);
     });
@@ -1546,7 +1559,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                   <div className="flex items-center justify-between pt-1"><span className="font-bold text-sm" style={{ color: C.ink }}>{uiText(language, "cashOnDelivery")}</span><PriceTag amount={finalTotal} size="lg" /></div>
                 </div>
                 <p className="text-xs font-bold mb-3" style={{ color: checkoutDisabled ? C.inkSoft : C.sage }}>{checkoutHint}</p>
-                <button disabled={checkoutDisabled} onClick={async () => { const ok = await placeOrder(cartStore, null, discountAmount, cart.address, deliveryChoice, deliveryFee, appliedReward?.code, selectedDeliverySlot ? { mode: deliveryScheduleSlots[0]?.window_start === selectedDeliverySlot.window_start ? "next_available" : "selected_window", start: selectedDeliverySlot.window_start, end: selectedDeliverySlot.window_end } : null); if (!ok) return; setAppliedReward(null); setRewardCouponInput(""); setShowCart(false); setTab("orders"); setDeliveryChoice("pickup"); setDeliveryQuote(null); setSelectedDeliverySlot(null); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>{uiText(language, "confirmCashOrder")}</button>
+                <button disabled={checkoutDisabled} onClick={async () => { const ok = await placeOrder(cartStore, null, discountAmount, cart.address, deliveryChoice, deliveryFee, appliedReward?.code, selectedDeliverySlot ? { mode: selectedDeliverySlot.schedule_mode, start: selectedDeliverySlot.window_start, end: selectedDeliverySlot.window_end } : null); if (!ok) return; setAppliedReward(null); setRewardCouponInput(""); setShowCart(false); setTab("orders"); setDeliveryChoice("pickup"); setDeliveryQuote(null); setSelectedDeliverySlot(null); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>{uiText(language, "confirmCashOrder")}</button>
               </>
             )}
           </div>
@@ -2512,9 +2525,8 @@ export default function App() {
   function markAllRead() { setNotifications((prev) => { const next = prev.map((n) => ({ ...n, read: true })); saveKey(STORAGE.notifications, next); return next; }); }
   useEffect(() => {
     let cancelled = false;
-    // يطلب Android الإذن مرة واحدة فقط لكل تثبيت. لا نربط الرمز بحساب قبل
-    // وجود جلسة، ثم تعيد syncNativeFcmToken قراءته وحفظه بعد تسجيل الدخول.
-    void loadFirebaseHelpers().then(({ requestNativeFcmToken }) => requestNativeFcmToken()).catch(() => null);
+    // لا نطلب إذن FCM قبل وجود جلسة Supabase؛ الرمز لا يجوز ربطه بحساب
+    // مجهول، كما أن Android قد يرفض الطلب المبكر داخل WebView.
     (async () => {
       const [loadedCart, loadedMyStoreId, loadedNotifications] = await Promise.all([
         loadKey(STORAGE.cart, { storeId: null, items: [], address: null }), loadKey(STORAGE.myStoreId, null), loadKey(STORAGE.notifications, []),
@@ -2731,12 +2743,36 @@ export default function App() {
 
   useEffect(() => {
     if (!auth?.id) return undefined;
-    void syncNativeFcmToken(auth.id);
+    let active = true;
     let listener;
-    void loadFirebaseHelpers()
-      .then(({ listenForNativeFcmToken }) => listenForNativeFcmToken((token) => { void syncNativeFcmToken(auth.id, token); }))
-      .then((handle) => { listener = handle; });
-    return () => { void listener?.remove(); };
+    const profileId = auth.id;
+
+    const bootstrapFcm = async () => {
+      try {
+        const { listenForNativeFcmToken } = await loadFirebaseHelpers();
+        if (!active) return;
+        // Attach the rotation listener before the initial getToken call so a
+        // newly-created or refreshed Android token cannot be missed.
+        listener = await listenForNativeFcmToken((token) => {
+          if (active) void syncNativeFcmToken(profileId, token);
+        });
+        if (!active) {
+          await listener?.remove();
+          listener = undefined;
+          return;
+        }
+        await syncNativeFcmToken(profileId);
+      } catch (error) {
+        // FCM is optional and must never block a logged-in customer/merchant.
+        console.warn("تعذر تهيئة مزامنة FCM بعد تسجيل الدخول:", error);
+      }
+    };
+
+    void bootstrapFcm();
+    return () => {
+      active = false;
+      void listener?.remove();
+    };
   }, [auth?.id]);
 
   function getOrderIdFromPushData(data) {
@@ -2796,15 +2832,31 @@ export default function App() {
   async function placeOrder(store, _promo, _discountAmount = 0, address = null, deliveryType = "pickup", deliveryFee = 0, rewardCouponCode = null, deliverySchedule = null) {
     if (!auth || auth.type !== "customer") { notify("سجّل الدخول كعميل لإرسال طلبك."); return false; }
     if (!store || cart.items.length === 0) return false;
+
+    const scheduleMode = deliveryType === "pickup" ? "none" : deliverySchedule?.mode;
+    const scheduleStart = deliverySchedule?.start || null;
+    const scheduleEnd = deliverySchedule?.end || null;
+    if (deliveryType !== "pickup") {
+      const startMs = Date.parse(scheduleStart || "");
+      const endMs = Date.parse(scheduleEnd || "");
+      if (![
+        "next_available",
+        "selected_window",
+      ].includes(scheduleMode) || !Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs - startMs !== 90 * 60 * 1000) {
+        notify("اختر نافذة توصيل متاحة مدتها 90 دقيقة قبل تأكيد الطلب.");
+        return false;
+      }
+    }
+
     const { error } = await supabase.rpc("create_customer_order", {
       p_merchant_id: store.id,
       p_items: cart.items.map((item) => ({ product_id: item.id, qty: item.qty })),
       p_delivery_choice: deliveryType,
       p_delivery_address: address,
       p_delivery_fee: deliveryFee,
-      p_delivery_schedule_mode: deliverySchedule?.mode || "none",
-      p_requested_delivery_window_start: deliverySchedule?.start || null,
-      p_requested_delivery_window_end: deliverySchedule?.end || null,
+      p_delivery_schedule_mode: scheduleMode,
+      p_requested_delivery_window_start: scheduleStart,
+      p_requested_delivery_window_end: scheduleEnd,
     });
     if (error) { notify("تعذر إرسال الطلب: " + error.message); return false; }
     if (rewardCouponCode) {

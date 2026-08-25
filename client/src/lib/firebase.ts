@@ -43,16 +43,28 @@ export async function requestGoogleProfilePrefill(): Promise<GoogleProfilePrefil
     throw new Error("خدمة Google غير مهيأة لهذا التطبيق بعد.");
   }
 
-  const { user } = await FirebaseAuthentication.signInWithGoogle();
-  const email = String(user?.email || "").trim().toLowerCase();
-  if (!email) {
-    throw new Error("لم تُرجع Google بريداً إلكترونياً صالحاً. اختر حساباً آخر.");
-  }
+  try {
+    // The native plugin reads the Android OAuth client from google-services.json.
+    // Do not pass an undocumented webClientId option: it is not part of the
+    // current plugin contract and would make the native call fail silently.
+    const { user } = await FirebaseAuthentication.signInWithGoogle();
+    const email = String(user?.email || "").trim().toLowerCase();
+    if (!email) {
+      throw new Error("لم تُرجع Google بريداً إلكترونياً صالحاً. اختر حساباً آخر.");
+    }
 
-  return {
-    name: String(user?.displayName || "").trim(),
-    email,
-  };
+    return {
+      name: String(user?.displayName || "").trim(),
+      email,
+    };
+  } catch (error) {
+    const details = error && typeof error === "object" ? error as { code?: unknown; message?: unknown } : {};
+    const code = String(details.code || details.message || "").toLowerCase();
+    if (code.includes("developer_error") || code.includes("10") || code.includes("12500")) {
+      throw new Error("تعذر تسجيل Google على هذا الإصدار. تحقّق من SHA-1 في Firebase ومن تنزيل google-services.json بعد إضافة البصمة.");
+    }
+    throw error;
+  }
 }
 
 export async function getFirebaseMessaging(): Promise<Messaging | null> {
@@ -62,13 +74,16 @@ export async function getFirebaseMessaging(): Promise<Messaging | null> {
 
 export async function requestNativeFcmToken(): Promise<string | null> {
   if (!isNativeFirebaseRuntime()) return null;
+
   const current = await FirebaseMessaging.checkPermissions();
   const permission = current.receive === "prompt"
     ? await FirebaseMessaging.requestPermissions()
     : current;
   if (permission.receive !== "granted") return null;
+
   const result = await FirebaseMessaging.getToken();
-  return result.token || null;
+  const token = String(result.token || "").trim();
+  return token || null;
 }
 
 export async function listenForNativeFcmToken(onToken: (token: string) => void) {

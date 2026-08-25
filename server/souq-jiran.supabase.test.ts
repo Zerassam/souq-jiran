@@ -68,10 +68,16 @@ describe("Souq Jiran Supabase integration", () => {
     const firebaseSource = readFileSync(resolve(projectRoot, "client/src/lib/firebase.ts"), "utf8");
     const migration = readFileSync(resolve(projectRoot, "supabase/migrations/20260827_firebase_fcm_columns.sql"), "utf8");
     const capacitorConfig = readFileSync(resolve(projectRoot, "capacitor.config.ts"), "utf8");
+    const androidVariables = readFileSync(resolve(projectRoot, "android/variables.gradle"), "utf8");
     const manifest = readFileSync(resolve(projectRoot, "android/app/src/main/AndroidManifest.xml"), "utf8");
 
     expect(appSource).toContain('supabase.rpc("update_my_fcm_token"');
     expect(appSource).toContain("listenForNativeFcmToken");
+    expect(appSource).toContain("Attach the rotation listener before the initial getToken call");
+    expect(appSource).toContain("await syncNativeFcmToken(profileId);");
+    expect(appSource).not.toContain("requestNativeFcmToken()).catch(() => null");
+    expect(appSource).toContain("endMs - startMs !== 90 * 60 * 1000");
+    expect(appSource).toContain("selectedDeliverySlot.schedule_mode");
     expect(appSource).toContain('const loadFirebaseHelpers = () => import("@/lib/firebase")');
     expect(appSource).not.toContain('from "@/lib/firebase"');
     expect(firebaseSource).toContain("FirebaseMessaging.requestPermissions");
@@ -87,7 +93,10 @@ describe("Souq Jiran Supabase integration", () => {
     expect(migration).toContain("if auth.uid() is null then");
     expect(migration).toContain("raise exception 'Authentication required';");
     expect(capacitorConfig).toContain("FirebaseAuthentication");
+    expect(capacitorConfig).toContain("google.com");
     expect(capacitorConfig).toContain("FirebaseMessaging");
+    expect(androidVariables).toContain("rgcfaIncludeGoogle = true");
+    expect(androidVariables).toContain("androidxCredentialsVersion = '1.3.0'");
     expect(manifest).toContain('android.permission.POST_NOTIFICATIONS');
   });
 
@@ -864,6 +873,8 @@ describe("Souq Jiran Supabase integration", () => {
     expect(schema).toContain("select coalesce((select role from public.profiles where id = auth.uid()), '');");
 
     expect(customerView).toContain('supabase.rpc("delivery_schedule_options"');
+    expect(customerView).toContain('slot?.schedule_mode');
+    expect(customerView).toContain('p_delivery_choice: deliveryChoice');
     expect(customerView).toContain('data-testid="delivery-schedule-options"');
     expect(customerView).toContain('uiText(language, "scheduleRequested")');
     expect(appSource).toContain("تم إرسال طلب الموعد — بانتظار تأكيد التاجر.");
