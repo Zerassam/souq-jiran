@@ -26,6 +26,8 @@ jobs:
 
       - name: Install Dependencies
         run: pnpm install --no-frozen-lockfile --ignore-scripts
+        env:
+          PNPM_CONFIG_IGNORE_PATCHES: true
 
       - name: Setup Java JDK
         uses: actions/setup-java@v4
