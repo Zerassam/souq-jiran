@@ -1,6 +1,7 @@
--- Allow an authenticated merchant to update only the coordinates of their own store.
--- The function keeps the merchants table protected from broad client-side updates.
--- Keep this migration self-contained for fresh installations and safe replays.
+-- Repair the merchant location schema when an earlier deployment created the RPC
+-- before the latitude and longitude columns. Safe to run repeatedly and does not
+-- create, alter, or delete merchant records.
+
 alter table public.merchants
   add column if not exists latitude numeric(10,7) check (latitude between -90 and 90),
   add column if not exists longitude numeric(10,7) check (longitude between -180 and 180);
@@ -42,5 +43,4 @@ $$;
 revoke execute on function public.merchant_update_location(numeric, numeric) from public, anon;
 grant execute on function public.merchant_update_location(numeric, numeric) to authenticated;
 
--- Make the new RPC visible immediately to PostgREST without waiting for a restart.
 notify pgrst, 'reload schema';

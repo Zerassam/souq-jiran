@@ -1746,13 +1746,23 @@ function MerchantView({ stores, setStores, orders, messages, couriers, merchantO
   function updateStore(patch) { setStores((prev) => prev.map((s) => (s.id === myStoreId ? { ...s, ...patch } : s))); }
   async function updateStoreLocation({ latitude, longitude }) {
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) { notify("إحداثيات الموقع غير صالحة."); return false; }
+    const previousLocation = {
+      lat: myStore.lat ?? null,
+      lng: myStore.lng ?? null,
+      latitude: myStore.latitude ?? null,
+      longitude: myStore.longitude ?? null,
+    };
     updateStore({ lat: latitude, lng: longitude, latitude, longitude });
     const { error } = await supabase.rpc("merchant_update_location", { p_latitude: latitude, p_longitude: longitude });
     if (error) {
       const missingRpc = error.code === "42883" || /merchant_update_location|schema cache/i.test(error.message || "");
+      const missingCoordinates = error.code === "42703" || /column.*(latitude|longitude).*does not exist/i.test(error.message || "");
+      updateStore(previousLocation);
       notify(missingRpc
-        ? "تم تحديث الموقع محلياً، لكن دالة حفظ الموقع غير مفعّلة في Supabase. شغّل ترحيل merchant_location_update ثم أعد المحاولة."
-        : "تم تحديث الموقع محلياً، لكن تعذر مزامنته مع الحساب: " + error.message);
+        ? "تعذر حفظ الموقع لأن دالة Supabase غير مفعّلة. شغّل ترحيل merchant_location_update ثم أعد المحاولة."
+        : missingCoordinates
+          ? "تعذر حفظ الموقع لأن أعمدة الإحداثيات غير مفعّلة في Supabase. شغّل ترحيل 20260907_merchant_location_columns_repair ثم أعد المحاولة."
+          : "تعذر مزامنة موقع المتجر: " + error.message);
       return false;
     }
     notify("تم تحديث موقع المحل وحفظه بنجاح.");

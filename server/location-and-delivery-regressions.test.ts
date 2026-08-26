@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 const appSource = readFileSync(resolve(process.cwd(), "client/src/pages/SouqJiranApp.jsx"), "utf8");
 const migrationSource = readFileSync(resolve(process.cwd(), "supabase/migrations/20260906_profile_location_blacklist_guard.sql"), "utf8");
+const merchantLocationRepairSource = readFileSync(resolve(process.cwd(), "supabase/migrations/20260907_merchant_location_columns_repair.sql"), "utf8");
 
 describe("location and delivery regression guards", () => {
   it("keeps a real GPS picker for merchant and courier registration", () => {
@@ -25,7 +26,15 @@ describe("location and delivery regression guards", () => {
     expect(locationMigration).toContain("revoke execute on function public.merchant_update_location(numeric, numeric) from public, anon");
     expect(locationMigration).toContain("grant execute on function public.merchant_update_location(numeric, numeric) to authenticated");
     expect(locationMigration).toContain("notify pgrst, 'reload schema'");
-    expect(appSource).toContain("دالة حفظ الموقع غير مفعّلة في Supabase");
+    expect(locationMigration).toContain("add column if not exists latitude");
+    expect(locationMigration).toContain("add column if not exists longitude");
+    expect(merchantLocationRepairSource).toContain("alter table public.merchants");
+    expect(merchantLocationRepairSource).toContain("add column if not exists latitude");
+    expect(merchantLocationRepairSource).toContain("add column if not exists longitude");
+    expect(merchantLocationRepairSource).toContain("create or replace function public.merchant_update_location");
+    expect(merchantLocationRepairSource).toContain("notify pgrst, 'reload schema'");
+    expect(appSource).toContain("أعمدة الإحداثيات غير مفعّلة في Supabase");
+    expect(appSource).toContain("updateStore(previousLocation)");
   });
 
   it("persists location and delivery ownership for every provider role", () => {
