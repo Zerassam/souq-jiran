@@ -63,7 +63,7 @@ export function MapView({
     } catch (error) {
       onMapError?.(error instanceof Error ? error : new Error("تعذر تهيئة الخريطة"));
     }
-  }, [initialCenter.lat, initialCenter.lng, initialZoom, onMapError, onMapReady]);
+  }, [initialCenter.lat, initialCenter.lng, initialZoom]);
 
   useEffect(() => {
     const map = mapRef.current;

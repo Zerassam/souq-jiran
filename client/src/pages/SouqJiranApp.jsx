@@ -515,24 +515,53 @@ function WilayaCommuneSelect({ wilaya, commune, onChange, allowAllWilaya = false
 function mapGridStyle(size = 34) { return { backgroundImage: `linear-gradient(${C.teal}08 1px, transparent 1px), linear-gradient(90deg, ${C.teal}08 1px, transparent 1px), radial-gradient(circle at 80% 20%, ${C.purple}1c, transparent 34%)`, backgroundSize: `${size}px ${size}px, ${size}px ${size}px, auto`, backgroundColor: "#F9FAFF" }; }
 function MapPreview({ x = 50, y = 50, height = 64 }) { return (<div className="relative rounded-lg overflow-hidden" style={{ height, ...mapGridStyle(18) }}><span className="absolute" style={{ left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -95%)" }}><MapPin size={18} color={C.rust} fill={C.rust + "33"} /></span></div>); }
 function MapPicker({ initial, title = "حدد الموقع على الخريطة", onConfirm, onClose }) {
-  const [pos, setPos] = useState(initial || { x: 50, y: 50 });
+  const hasInitialCoordinates = Number.isFinite(initial?.latitude) && Number.isFinite(initial?.longitude);
+  const legacyPercentMode = !hasInitialCoordinates && Number.isFinite(initial?.x) && Number.isFinite(initial?.y);
+  const [pos, setPos] = useState(hasInitialCoordinates ? { latitude: initial.latitude, longitude: initial.longitude } : (initial || { latitude: 28.0339, longitude: 1.6596 }));
   const [locationError, setLocationError] = useState("");
   const [locating, setLocating] = useState(false);
-  function handleClick(e) { const rect = e.currentTarget.getBoundingClientRect(); const x = ((e.clientX - rect.left) / rect.width) * 100; const y = ((e.clientY - rect.top) / rect.height) * 100; setPos((current) => ({ ...current, x: Math.max(3, Math.min(97, x)), y: Math.max(3, Math.min(97, y)) })); }
-  function locateMe() {
-    if (!navigator.geolocation) { setLocationError("هذا الجهاز لا يدعم تحديد الموقع. أدخل الإحداثيات أو اختر النقطة يدوياً."); return; }
-    setLocating(true); setLocationError("");
-    navigator.geolocation.getCurrentPosition(({ coords }) => { setPos((current) => ({ ...current, latitude: coords.latitude, longitude: coords.longitude })); setLocating(false); }, (error) => { setLocating(false); setLocationError(error.code === 1 ? "اسمح للتطبيق باستخدام الموقع ثم حاول مجدداً." : "تعذر تحديد الموقع حالياً. يمكنك الاختيار يدوياً."); }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+  const mapRef = useRef(null);
+  const geographicPosition = Number.isFinite(pos.latitude) && Number.isFinite(pos.longitude);
+  function handleMapClick(event) {
+    const { lat, lng } = event.latlng;
+    setPos({ latitude: lat, longitude: lng });
+    setLocationError("");
   }
+  function handleLegacyClick(event) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 100;
+    const y = ((event.clientY - rect.top) / rect.height) * 100;
+    setPos((current) => ({ ...current, x: Math.max(3, Math.min(97, x)), y: Math.max(3, Math.min(97, y)) }));
+  }
+  function locateMe() {
+    if (!navigator.geolocation) { setLocationError("هذا الجهاز لا يدعم تحديد الموقع. اختر النقطة على الخريطة."); return; }
+    setLocating(true); setLocationError("");
+    navigator.geolocation.getCurrentPosition(({ coords }) => {
+      const next = { latitude: coords.latitude, longitude: coords.longitude };
+      setPos(next);
+      mapRef.current?.setView([next.latitude, next.longitude], Math.max(mapRef.current.getZoom(), 15));
+      setLocating(false);
+    }, (error) => {
+      setLocating(false);
+      setLocationError(error.code === 1 ? "اسمح للتطبيق باستخدام الموقع ثم حاول مجدداً." : "تعذر تحديد الموقع حالياً. اختر النقطة على الخريطة.");
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+  }
+  function confirm() {
+    if (!legacyPercentMode && !geographicPosition) { setLocationError("اختر نقطة على الخريطة قبل التأكيد."); return; }
+    onConfirm(pos);
+    onClose();
+  }
+  const initialCenter = geographicPosition ? { lat: pos.latitude, lng: pos.longitude } : { lat: 28.0339, lng: 1.6596 };
+  const markers = geographicPosition ? [{ id: "selected-location", position: initialCenter, title: "الموقع المحدد" }] : [];
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(35,32,27,0.5)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl p-5" style={{ background: C.paper }}>
-        <div className="flex items-center justify-between mb-1"><h3 className="font-black flex items-center gap-1.5" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}><Navigation size={16} color={C.teal} /> {title}</h3><button onClick={onClose}><X size={18} color={C.inkSoft} /></button></div>
-        <p className="text-xs mb-3" style={{ color: C.inkSoft }}>استخدم GPS لتثبيت الإحداثيات الحقيقية، أو اختر نقطة يدوياً كحل احتياطي.</p>
-        <button type="button" onClick={locateMe} disabled={locating} className="w-full mb-3 py-2 rounded-xl text-xs font-black disabled:opacity-50" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}><Navigation size={14} className="inline ml-1" /> {locating ? "جارٍ تحديد الموقع..." : "استخدام موقعي الحالي بدقة GPS"}</button>
+        <div className="flex items-center justify-between mb-1"><h3 className="font-black flex items-center gap-1.5" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}><Navigation size={16} color={C.teal} /> {title}</h3><button onClick={onClose} aria-label="إغلاق محدد الموقع"><X size={18} color={C.inkSoft} /></button></div>
+        <p className="text-xs mb-3" style={{ color: C.inkSoft }}>{legacyPercentMode ? "اختر النقطة يدوياً." : "انقر على الخريطة لتحديد الموقع بدقة، أو استخدم GPS."}</p>
+        {!legacyPercentMode && <button type="button" onClick={locateMe} disabled={locating} className="w-full mb-3 py-2 rounded-xl text-xs font-black disabled:opacity-50" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}><Navigation size={14} className="inline ml-1" /> {locating ? "جارٍ تحديد الموقع..." : "استخدام موقعي الحالي بدقة GPS"}</button>}
         {locationError && <p className="text-xs font-bold mb-2" style={{ color: C.rust }}>{locationError}</p>}
-        <div onClick={handleClick} className="relative rounded-xl cursor-crosshair overflow-hidden" style={{ height: 230, ...mapGridStyle(30) }}><span className="absolute" style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: "translate(-50%, -95%)" }}><MapPin size={30} color={C.rust} fill={C.rust + "33"} strokeWidth={2.2} /></span></div>
-        <button onClick={() => { onConfirm(pos); onClose(); }} className="w-full mt-4 py-2.5 rounded-xl font-black flex items-center justify-center gap-1.5" style={{ background: C.teal, color: "#fff" }}><Check size={15} /> تأكيد هذا الموقع</button>
+        {legacyPercentMode ? <div onClick={handleLegacyClick} className="relative rounded-xl cursor-crosshair overflow-hidden" style={{ height: 230, ...mapGridStyle(30) }}><span className="absolute" style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: "translate(-50%, -95%)" }}><MapPin size={30} color={C.rust} fill={C.rust + "33"} strokeWidth={2.2} /></span></div> : <><div className="rounded-xl overflow-hidden" data-testid="merchant-location-map"><GoogleMapView className="h-[280px]" initialCenter={initialCenter} initialZoom={geographicPosition ? 14 : 6} markers={markers} onMapReady={(map) => { mapRef.current = map; map.on("click", handleMapClick); }} onMapError={() => setLocationError("تعذر تحميل الخريطة. تحقق من الاتصال ثم حاول مجدداً.")} /></div>{geographicPosition && <p className="text-[10px] mt-1 text-center" dir="ltr" style={{ color: C.inkSoft }}>{pos.latitude.toFixed(6)}, {pos.longitude.toFixed(6)}</p>}</>}
+        <button onClick={confirm} data-testid="confirm-location" className="w-full mt-4 py-2.5 rounded-xl font-black flex items-center justify-center gap-1.5" style={{ background: C.teal, color: "#fff" }}><Check size={15} /> تأكيد هذا الموقع</button>
       </div>
     </div>
   );
@@ -1715,6 +1744,14 @@ function MerchantView({ stores, setStores, orders, messages, couriers, merchantO
   });
 
   function updateStore(patch) { setStores((prev) => prev.map((s) => (s.id === myStoreId ? { ...s, ...patch } : s))); }
+  async function updateStoreLocation({ latitude, longitude }) {
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) { notify("إحداثيات الموقع غير صالحة."); return false; }
+    updateStore({ lat: latitude, lng: longitude, latitude, longitude });
+    const { error } = await supabase.rpc("merchant_update_location", { p_latitude: latitude, p_longitude: longitude });
+    if (error) { notify("تم تحديث الموقع محلياً، لكن تعذر مزامنته مع الحساب: " + error.message); return false; }
+    notify("تم تحديث موقع المحل وحفظه بنجاح.");
+    return true;
+  }
 
   function completeProfile() {
     if (!stage2.logoText) { notify("أدخل حرفين على الأقل لشعار محلك"); return; }
@@ -1841,7 +1878,7 @@ function MerchantView({ stores, setStores, orders, messages, couriers, merchantO
         <MapPreview x={myStore.lng ?? 50} y={myStore.lat ?? 50} height={64} />
         <button onClick={() => setMyStoreId(null)} className="mt-3 text-xs font-bold flex items-center gap-1" style={{ color: C.inkSoft }}><ChevronLeft size={13} /> تبديل المحل</button>
       </div>
-      {showMapPicker && <MapPicker title="تعديل موقع المحل" initial={{ x: myStore.lng ?? 50, y: myStore.lat ?? 50 }} onConfirm={(pos) => updateStore({ lat: pos.y, lng: pos.x })} onClose={() => setShowMapPicker(false)} />}
+      {showMapPicker && <MapPicker title="تعديل موقع المحل" initial={Number.isFinite(myStore.latitude ?? myStore.lat) && Number.isFinite(myStore.longitude ?? myStore.lng) ? { latitude: Number(myStore.latitude ?? myStore.lat), longitude: Number(myStore.longitude ?? myStore.lng) } : undefined} onConfirm={(pos) => updateStoreLocation({ latitude: pos.latitude, longitude: pos.longitude })} onClose={() => setShowMapPicker(false)} />}
 
       <div className="dashboard-tabs flex gap-2 flex-wrap">
         <button onClick={() => setTab("products")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "products" ? C.teal : "transparent", color: tab === "products" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "products" ? C.teal : C.line}` }}>المنتجات</button>

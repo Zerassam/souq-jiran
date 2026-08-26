@@ -13,6 +13,18 @@ describe("location and delivery regression guards", () => {
     expect(appSource).toContain("longitude: Number(position.longitude)");
   });
 
+  it("lets merchants select and persist an exact map location from settings", () => {
+    expect(appSource).toContain('data-testid="merchant-location-map"');
+    expect(appSource).toContain('data-testid="confirm-location"');
+    expect(appSource).toContain('map.on("click", handleMapClick)');
+    expect(appSource).toContain('updateStoreLocation({ latitude: pos.latitude, longitude: pos.longitude })');
+    expect(appSource).toContain('supabase.rpc("merchant_update_location"');
+    const locationMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260826_merchant_location_update.sql"), "utf8");
+    expect(locationMigration).toContain("create or replace function public.merchant_update_location");
+    expect(locationMigration).toContain("where id = auth.uid()");
+    expect(locationMigration).toContain("grant execute on function public.merchant_update_location(numeric, numeric) to authenticated");
+  });
+
   it("persists location and delivery ownership for every provider role", () => {
     expect(appSource).toContain("has_own_delivery: Boolean(form.hasOwnDelivery)");
     expect(appSource).toContain("role: \"courier\", name: form.name, phone, wilaya: form.wilaya");
