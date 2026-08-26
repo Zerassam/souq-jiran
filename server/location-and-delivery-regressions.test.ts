@@ -27,3 +27,16 @@ describe("location and delivery regression guards", () => {
     expect(migrationSource).toContain("grant execute on function public.is_customer_blacklisted(uuid) to authenticated;");
   });
 });
+
+it("does not make a delivery window mandatory for immediate delivery", () => {
+  expect(appSource).toContain('deliverySchedule?.mode || "none"');
+  expect(appSource).toContain('deliveryType !== "pickup" && scheduleMode !== "none"');
+  expect(appSource).toContain("تابع بالتوصيل الفوري");
+});
+
+it("keeps the SQL migration for optional scheduling reviewable", () => {
+  const optionalMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260906_optional_delivery_schedule.sql"), "utf8");
+  expect(optionalMigration).toContain("p_delivery_schedule_mode text default 'none'");
+  expect(optionalMigration).toContain("DELIVERY_WINDOW_MUST_BE_90_MINUTES");
+  expect(optionalMigration).toContain("v_schedule_status text := 'not_requested'");
+});

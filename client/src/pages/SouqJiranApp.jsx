@@ -1343,8 +1343,9 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const addressReady = Boolean(cart.address?.wilaya && cart.address?.commune && cart.address?.label?.trim());
   const needsDeliveryAddress = deliveryChoice !== "pickup";
   const needsDeliveryQuote = deliveryChoice === "courier";
-  const needsDeliverySchedule = deliveryChoice !== "pickup";
-  const checkoutDisabled = cartCount === 0 || Boolean(belowMinOrder) || quoteLoading || scheduleLoading || (needsDeliveryAddress && !addressReady) || (needsDeliveryQuote && !deliveryQuote) || (needsDeliverySchedule && !selectedDeliverySlot) || (requiresVerifiedEmail && !emailVerified);
+  // Delivery can be confirmed immediately; a 90-minute window is optional.
+  // GPS refines the address and quote, but must not hard-block checkout.
+  const checkoutDisabled = cartCount === 0 || Boolean(belowMinOrder) || quoteLoading || (needsDeliveryAddress && !addressReady) || (needsDeliveryQuote && !deliveryQuote) || (requiresVerifiedEmail && !emailVerified);
   const checkoutHint = cartCount === 0
     ? uiText(language, "cartEmpty")
     : belowMinOrder
@@ -1353,8 +1354,6 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
         ? uiText(language, "checkoutNeedsAddress")
         : needsDeliveryQuote && !deliveryQuote
           ? uiText(language, "checkoutNeedsQuote")
-          : needsDeliverySchedule && !selectedDeliverySlot
-            ? uiText(language, "checkoutNeedsSchedule")
           : requiresVerifiedEmail && !emailVerified
             ? uiText(language, "checkoutNeedsEmail")
             : uiText(language, "checkoutReady");
@@ -1572,7 +1571,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                 {deliveryChoice === "courier" && quoteLoading && <p className="text-xs mb-3" style={{ color: C.inkSoft }}>{uiText(language, "calculatingDelivery")}</p>}
                 {deliveryChoice === "courier" && deliveryQuote && <div className="mb-3 p-3 rounded-xl text-xs" style={{ background: C.teal + "0F", border: `1px solid ${C.teal}30`, color: C.ink }}><div className="font-bold" style={{ color: C.teal }}>{uiText(language, "serverQuote")}</div><div className="mt-1">{uiText(language, "distanceEta", { distance: Number(deliveryQuote.distanceKm || 0).toFixed(1), eta: deliveryQuote.etaMinutes || "—" })}{deliveryQuote.isInterwilaya ? ` · ${uiText(language, "interwilaya")}` : ""}</div></div>}
                 {deliveryChoice === "courier" && quoteError && <p className="text-xs font-bold mb-3" style={{ color: "#8B3A2A" }}>{quoteError}</p>}
-                {deliveryChoice !== "pickup" && addressReady && <div data-testid="delivery-schedule-options" className="mb-3 p-3 rounded-xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}><div className="text-xs font-black flex items-center gap-1" style={{ color: C.ink }}><CalendarClock size={14} color={C.teal} /> {uiText(language, "deliverySchedule")}</div><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>{uiText(language, "chooseDeliveryWindow")}</p>{scheduleLoading && <p className="text-xs mt-2" style={{ color: C.inkSoft }}>{uiText(language, "loadingDeliveryWindows")}</p>}{!scheduleLoading && (scheduleError || deliveryScheduleSlots.length === 0) && <p className="text-xs mt-2 font-bold" style={{ color: C.rust }}>{scheduleError || uiText(language, "noDeliveryWindows")}</p>}{deliveryScheduleSlots.length > 0 && <div className="mt-2 grid gap-2">{deliveryScheduleSlots.map((slot, index) => { const selected = selectedDeliverySlot?.window_start === slot.window_start; return <button key={slot.window_start} onClick={() => setSelectedDeliverySlot(slot)} className="text-right px-3 py-2 rounded-xl text-xs font-bold" style={{ background: selected ? C.teal : "#fff", color: selected ? "#fff" : C.ink, border: `1px solid ${selected ? C.teal : C.line}` }}>{index === 0 && <span className="ms-1" style={{ color: selected ? "#fff" : C.teal }}>{uiText(language, "nextAvailable")} · </span>}{new Date(slot.window_start).toLocaleString(localeFor(language), { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} – {new Date(slot.window_end).toLocaleTimeString(localeFor(language), { hour: "2-digit", minute: "2-digit" })}</button>; })}</div>}</div>}
+                {deliveryChoice !== "pickup" && addressReady && <div data-testid="delivery-schedule-options" className="mb-3 p-3 rounded-xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}><div className="text-xs font-black flex items-center gap-1" style={{ color: C.ink }}><CalendarClock size={14} color={C.teal} /> {uiText(language, "deliverySchedule")}</div><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>{uiText(language, "chooseDeliveryWindow")}</p>{scheduleLoading && <p className="text-xs mt-2" style={{ color: C.inkSoft }}>{uiText(language, "loadingDeliveryWindows")}</p>}{!scheduleLoading && (scheduleError || deliveryScheduleSlots.length === 0) && <p className="text-xs mt-2" style={{ color: C.inkSoft }}>{scheduleError ? `${scheduleError} — يمكنك متابعة الطلب دون موعد.` : "لا توجد نافذة متاحة حالياً؛ يمكنك تأكيد التوصيل الفوري أو المحاولة لاحقاً."}</p>}{deliveryScheduleSlots.length > 0 && <div className="mt-2 grid gap-2">{deliveryScheduleSlots.map((slot, index) => { const selected = selectedDeliverySlot?.window_start === slot.window_start; return <button key={slot.window_start} onClick={() => setSelectedDeliverySlot(slot)} className="text-right px-3 py-2 rounded-xl text-xs font-bold" style={{ background: selected ? C.teal : "#fff", color: selected ? "#fff" : C.ink, border: `1px solid ${selected ? C.teal : C.line}` }}>{index === 0 && <span className="ms-1" style={{ color: selected ? "#fff" : C.teal }}>{uiText(language, "nextAvailable")} · </span>}{new Date(slot.window_start).toLocaleString(localeFor(language), { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} – {new Date(slot.window_end).toLocaleTimeString(localeFor(language), { hour: "2-digit", minute: "2-digit" })}</button>; })}</div>}</div>}
                 {requiresVerifiedEmail && <div className="mb-3 p-3 rounded-xl" style={{ background: C.teal + "12", border: `1px solid ${C.teal}35` }}><div className="text-xs font-black" style={{ color: C.teal }}>{uiText(language, "emailConfirmation")}</div><p className="text-[11px] mt-1 leading-5" style={{ color: C.inkSoft }}>{emailVerified ? uiText(language, "emailVerifiedCopy") : uiText(language, "emailRequiredCopy")}</p></div>}
 
                 <div className="flex gap-2 mb-3"><input value={rewardCouponInput} onChange={(e) => setRewardCouponInput(e.target.value.toUpperCase())} placeholder={uiText(language, "rewardCoupon")} dir="ltr" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /><button onClick={applyRewardCoupon} className="px-4 py-2 rounded-xl text-xs font-bold" style={{ background: C.teal, color: "#fff" }}>{uiText(language, "applyCoupon")}</button></div>
@@ -2861,17 +2860,18 @@ export default function App() {
     if (!auth || auth.type !== "customer") { notify("سجّل الدخول كعميل لإرسال طلبك."); return false; }
     if (!store || cart.items.length === 0) return false;
 
-    const scheduleMode = deliveryType === "pickup" ? "none" : deliverySchedule?.mode;
+    const scheduleMode = deliveryType === "pickup" ? "none" : (deliverySchedule?.mode || "none");
     const scheduleStart = deliverySchedule?.start || null;
     const scheduleEnd = deliverySchedule?.end || null;
-    if (deliveryType !== "pickup") {
+    // Scheduling is optional; validate the strict window only when a slot is selected.
+    if (deliveryType !== "pickup" && scheduleMode !== "none") {
       const startMs = Date.parse(scheduleStart || "");
       const endMs = Date.parse(scheduleEnd || "");
       if (![
         "next_available",
         "selected_window",
       ].includes(scheduleMode) || !Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs - startMs !== 90 * 60 * 1000) {
-        notify("اختر نافذة توصيل متاحة مدتها 90 دقيقة قبل تأكيد الطلب.");
+        notify("نافذة الموعد غير صالحة؛ اختر نافذة أخرى أو تابع بالتوصيل الفوري.");
         return false;
       }
     }
