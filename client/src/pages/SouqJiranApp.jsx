@@ -513,7 +513,15 @@ function WilayaCommuneSelect({ wilaya, commune, onChange, allowAllWilaya = false
    الخريطة
 --------------------------------------------------------- */
 function mapGridStyle(size = 34) { return { backgroundImage: `linear-gradient(${C.teal}08 1px, transparent 1px), linear-gradient(90deg, ${C.teal}08 1px, transparent 1px), radial-gradient(circle at 80% 20%, ${C.purple}1c, transparent 34%)`, backgroundSize: `${size}px ${size}px, ${size}px ${size}px, auto`, backgroundColor: "#F9FAFF" }; }
-function MapPreview({ x = 50, y = 50, height = 64 }) { return (<div className="relative rounded-lg overflow-hidden" style={{ height, ...mapGridStyle(18) }}><span className="absolute" style={{ left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -95%)" }}><MapPin size={18} color={C.rust} fill={C.rust + "33"} /></span></div>); }
+function MapPreview({ latitude, longitude, height = 96, onClick }) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  const hasCoordinates = Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+  if (!hasCoordinates) {
+    return <button type="button" onClick={onClick} className="relative w-full rounded-xl overflow-hidden text-right" style={{ height, ...mapGridStyle(18) }} aria-label="اختيار موقع المحل على الخريطة"><span className="absolute inset-0 flex items-center justify-center gap-2 text-xs font-bold" style={{ color: C.teal }}><MapPin size={17} /> اختر موقع المحل لعرض الخريطة</span></button>;
+  }
+  return <button type="button" onClick={onClick} className="relative w-full rounded-xl overflow-hidden text-right shadow-sm" style={{ height, border: `1px solid ${C.line}` }} aria-label="فتح خريطة موقع المحل لتعديله"><div className="pointer-events-none absolute inset-0"><GoogleMapView initialCenter={{ lat, lng }} initialZoom={15} markers={[{ id: "merchant-store-location", position: { lat, lng }, title: "موقع المحل" }]} className="h-full w-full rounded-none" /></div><span className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black shadow-sm" style={{ background: "#ffffffeb", color: C.teal }}><MapPin size={12} /> موقع المحل</span></button>;
+}
 function MapPicker({ initial, title = "حدد الموقع على الخريطة", onConfirm, onClose }) {
   const hasInitialCoordinates = Number.isFinite(initial?.latitude) && Number.isFinite(initial?.longitude);
   const legacyPercentMode = !hasInitialCoordinates && Number.isFinite(initial?.x) && Number.isFinite(initial?.y);
@@ -1891,7 +1899,7 @@ function MerchantView({ stores, setStores, orders, messages, couriers, merchantO
           <span className="flex items-center gap-1"><Percent size={12} /> {myStore.commissionType === "percentage" ? `عمولة ${myStore.commissionRate}% لكل طلب` : `اشتراك شهري ${money(myStore.subscriptionFee)}`}</span>
         </div>
         <div className="flex items-center justify-between mb-1.5"><span className="text-xs font-bold flex items-center gap-1" style={{ color: C.ink }}><MapPin size={12} /> {myStore.address || "لم يُحدد عنوان تفصيلي"}</span><button onClick={() => setShowMapPicker(true)} className="text-xs font-bold" style={{ color: C.teal }}>تعديل الموقع</button></div>
-        <MapPreview x={myStore.lng ?? 50} y={myStore.lat ?? 50} height={64} />
+        <MapPreview latitude={myStore.latitude ?? myStore.lat} longitude={myStore.longitude ?? myStore.lng} height={96} onClick={() => setShowMapPicker(true)} />
         <button onClick={() => setMyStoreId(null)} className="mt-3 text-xs font-bold flex items-center gap-1" style={{ color: C.inkSoft }}><ChevronLeft size={13} /> تبديل المحل</button>
       </div>
       {showMapPicker && <MapPicker title="تعديل موقع المحل" initial={Number.isFinite(myStore.latitude ?? myStore.lat) && Number.isFinite(myStore.longitude ?? myStore.lng) ? { latitude: Number(myStore.latitude ?? myStore.lat), longitude: Number(myStore.longitude ?? myStore.lng) } : undefined} onConfirm={(pos) => updateStoreLocation({ latitude: pos.latitude, longitude: pos.longitude })} onClose={() => setShowMapPicker(false)} />}

@@ -18,6 +18,10 @@ describe("location and delivery regression guards", () => {
     expect(appSource).toContain('data-testid="merchant-location-map"');
     expect(appSource).toContain('data-testid="confirm-location"');
     expect(appSource).toContain('onMapClick={handleMapClick}');
+    expect(appSource).toContain('initialCenter={{ lat, lng }}');
+    expect(appSource).toContain('title: "موقع المحل"');
+    expect(appSource).toContain('latitude={myStore.latitude ?? myStore.lat}');
+    expect(appSource).toContain('longitude={myStore.longitude ?? myStore.lng}');
     expect(appSource).toContain('updateStoreLocation({ latitude: pos.latitude, longitude: pos.longitude })');
     expect(appSource).toContain('supabase.rpc("merchant_update_location"');
     const locationMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260826_merchant_location_update.sql"), "utf8");
