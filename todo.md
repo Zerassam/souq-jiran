@@ -356,3 +356,4 @@
 - [x] مراجعة YAML والفروقات ومزامنة ملفات سير العمل إلى GitHub دون تنفيذ بناء محلي.
 - [x] إصلاح سيرَي GitHub Actions بإضافة pnpm/action-setup@v3 قبل أوامر البناء، ثم دفع التحديث إلى github/main
 - [x] إصلاح محدد الموقع التفاعلي في إعدادات التاجر لالتقاط إحداثيات Leaflet وحفظها وتحديثها
+- [x] ترتيب pnpm/action-setup@v3 قبل actions/setup-node@v4 في سيرَي GitHub Actions ثم دفع التحديث إلى github/main
