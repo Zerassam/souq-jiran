@@ -16,7 +16,7 @@ describe("location and delivery regression guards", () => {
   it("lets merchants select and persist an exact map location from settings", () => {
     expect(appSource).toContain('data-testid="merchant-location-map"');
     expect(appSource).toContain('data-testid="confirm-location"');
-    expect(appSource).toContain('map.on("click", handleMapClick)');
+    expect(appSource).toContain('onMapClick={handleMapClick}');
     expect(appSource).toContain('updateStoreLocation({ latitude: pos.latitude, longitude: pos.longitude })');
     expect(appSource).toContain('supabase.rpc("merchant_update_location"');
     const locationMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260826_merchant_location_update.sql"), "utf8");

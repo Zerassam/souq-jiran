@@ -18,6 +18,7 @@ interface MapViewProps {
   initialZoom?: number;
   markers?: MapMarker[];
   onMapReady?: (map: L.Map) => void;
+  onMapClick?: (event: L.LeafletMouseEvent) => void;
   onMapError?: (error: Error) => void;
 }
 
@@ -31,6 +32,7 @@ export function MapView({
   initialZoom = 5,
   markers = [],
   onMapReady,
+  onMapClick,
   onMapError,
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -53,9 +55,11 @@ export function MapView({
 
       mapRef.current = map;
       markerLayerRef.current = L.layerGroup().addTo(map);
+      if (onMapClick) map.on("click", onMapClick);
       onMapReady?.(map);
 
       return () => {
+        if (onMapClick) map.off("click", onMapClick);
         map.remove();
         mapRef.current = null;
         markerLayerRef.current = null;
@@ -63,7 +67,7 @@ export function MapView({
     } catch (error) {
       onMapError?.(error instanceof Error ? error : new Error("تعذر تهيئة الخريطة"));
     }
-  }, [initialCenter.lat, initialCenter.lng, initialZoom]);
+  }, [initialCenter.lat, initialCenter.lng, initialZoom, onMapClick, onMapReady]);
 
   useEffect(() => {
     const map = mapRef.current;
