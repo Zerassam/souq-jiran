@@ -359,3 +359,4 @@
 - [x] ترتيب pnpm/action-setup@v3 قبل actions/setup-node@v4 في سيرَي GitHub Actions ثم دفع التحديث إلى github/main
 - [x] استئناف تدقيق وإصلاح محدد الموقع التفاعلي في إعدادات التاجر والتحقق من حفظ الإحداثيات
 - [ ] إصلاح غياب public.merchant_update_location في Supabase الفعلية ومعالجة رسالة فشل مزامنة موقع المتجر
+- [x] تشخيص وإصلاح فشل build في سير نشر GitHub Pages ثم دفع التحديث والتحقق من التشغيل

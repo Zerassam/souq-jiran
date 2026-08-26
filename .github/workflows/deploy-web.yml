@@ -53,13 +53,16 @@ jobs:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
         run: pnpm exec vite build --outDir dist-pages --base "$VITE_BASE_PATH"
 
+      - name: Verify static web bundle
+        run: test -f client/dist-pages/index.html
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist-pages
+          path: client/dist-pages
 
   deploy:
     needs: build
