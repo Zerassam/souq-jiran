@@ -6,6 +6,7 @@ const appSource = readFileSync(resolve(process.cwd(), "client/src/pages/SouqJira
 const migrationSource = readFileSync(resolve(process.cwd(), "supabase/migrations/20260906_profile_location_blacklist_guard.sql"), "utf8");
 const merchantLocationRepairSource = readFileSync(resolve(process.cwd(), "supabase/migrations/20260907_merchant_location_columns_repair.sql"), "utf8");
 const merchantBusinessHoursMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260908_merchant_business_hours.sql"), "utf8");
+const parallelDeliveryMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260909_parallel_delivery_and_coverage_zones.sql"), "utf8");
 
 describe("location and delivery regression guards", () => {
   it("يحفظ ساعات العمل ويعيد تحميلها قبل إظهار وسم الفتح أو الإغلاق", () => {
@@ -53,6 +54,12 @@ describe("location and delivery regression guards", () => {
     expect(appSource).toContain("updateStore(previousLocation)");
   });
 
+  it("restores the stored merchant coordinates and address with the merchant row", () => {
+    expect(appSource).toContain("latitude: merchant.latitude ?? null, longitude: merchant.longitude ?? null, addressLabel: merchant.address_label || \"\"");
+    expect(appSource).toContain("updateStore({ lat: latitude, lng: longitude, latitude, longitude })");
+    expect(appSource).toContain("supabase.from(\"merchants\").select(\"*\")");
+  });
+
   it("persists location and delivery ownership for every provider role", () => {
     expect(appSource).toContain("has_own_delivery: Boolean(form.hasOwnDelivery)");
     expect(appSource).toContain("role: \"courier\", name: form.name, phone, wilaya: form.wilaya");
@@ -79,4 +86,39 @@ it("keeps the SQL migration for optional scheduling reviewable", () => {
   expect(optionalMigration).toContain("p_delivery_schedule_mode text default 'none'");
   expect(optionalMigration).toContain("DELIVERY_WINDOW_MUST_BE_90_MINUTES");
   expect(optionalMigration).toContain("v_schedule_status text := 'not_requested'");
+});
+
+it("uses one safe back policy for Android and visible customer navigation", () => {
+  expect(appSource).toContain('App.addListener("backButton"');
+  expect(appSource).toContain('const nestedBack = new Event("souq-jiran:back", { cancelable: true })');
+  expect(appSource).toContain("window.dispatchEvent(nestedBack)");
+  expect(appSource).toContain('window.addEventListener("souq-jiran:back", handleBack)');
+  expect(appSource).toContain('if (showCart) { setShowCart(false); event.preventDefault(); return; }');
+  expect(appSource).toContain('if (openStoreId) { setOpenStoreId(null); setActiveDept("all"); event.preventDefault(); return; }');
+  expect(appSource).toContain('data-testid="app-back-button"');
+});
+
+it("keeps store delivery and platform delivery independently selectable", () => {
+  expect(appSource).toContain("const platformCourierEnabled = Boolean(cartStore && cartStore.platformDeliveryEnabled !== false)");
+  expect(appSource).toContain("const storeDeliveryEnabled = Boolean(cartStore?.hasOwnDelivery || cartStore?.storeDeliveryEnabled)");
+  expect(appSource).toContain('const deliveryFee = deliveryChoice === "pickup" ? 0 : Number(deliveryQuote?.fee || 0)');
+  expect(appSource).toContain('const needsDeliveryQuote = deliveryChoice !== "pickup"');
+  expect(appSource).toContain('storeDeliveryEnabled && { id: "store", label: "توصيل المحل"');
+  expect(appSource).toContain('{ id: "courier", label: "موصل معتمد من المنصة"');
+  expect(appSource).toContain("يمكن تفعيل توصيل المحل وتوصيل المنصة معاً");
+  expect(appSource).toContain('supabase.rpc("merchant_save_delivery_preferences"');
+  expect(parallelDeliveryMigration).toContain("case when p_delivery_choice='pickup' then 0 else v_quote.fee end");
+  expect(parallelDeliveryMigration).not.toContain("when p_delivery_choice='store' then v_merchant.delivery_fee");
+});
+
+it("keeps multi-zone coverage and a non-destructive Supabase migration reviewable", () => {
+  expect(appSource).toContain("deliveryCoverageZones.map((zone, index)");
+  expect(appSource).toContain("+ إضافة منطقة أخرى");
+  expect(parallelDeliveryMigration).toContain("add column if not exists platform_delivery_enabled boolean not null default true");
+  expect(parallelDeliveryMigration).toContain("add column if not exists delivery_coverage_zones jsonb not null default '[]'::jsonb");
+  expect(parallelDeliveryMigration).toContain("create or replace function public.merchant_save_delivery_preferences");
+  expect(parallelDeliveryMigration).toContain("create or replace function public.merchant_covers_delivery_destination");
+  expect(parallelDeliveryMigration).toContain("p_delivery_choice = 'store' and not v_merchant.has_own_delivery");
+  expect(parallelDeliveryMigration).toContain("p_delivery_choice = 'courier' and not v_merchant.platform_delivery_enabled");
+  expect(parallelDeliveryMigration).not.toContain("update public.merchants\nset delivery_coverage_zones");
 });

@@ -3,6 +3,7 @@ const loadFirebaseHelpers = () => import("@/lib/firebase");
 import { FULL_COMMUNES_BY_WILAYA } from "@/data/algeriaCommunes";
 import { MapView as GoogleMapView } from "@/components/Map";
 import { getStoreBusinessHours, isStoreOpenAtHour } from "@/lib/store-hours";
+import { App as CapacitorApp } from "@capacitor/app";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Store, ShoppingCart, ShoppingBag, ShoppingBasket, Search, MapPin, Clock,
@@ -1372,7 +1373,10 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const cartSubtotal = cart.items.reduce((a, i) => a + i.qty * i.price, 0);
   const rewardDiscountAmount = appliedReward ? Math.min(Number(appliedReward.amount || 0), cartSubtotal) : 0;
   const discountAmount = rewardDiscountAmount;
-  const deliveryFee = deliveryChoice === "store" ? (cartStore?.deliveryFee || 0) : deliveryChoice === "courier" ? Number(deliveryQuote?.fee || 0) : 0;
+  // The administration-owned quote is the source of truth for both delivery
+  // services. A merchant only publishes whether their own service is available;
+  // they do not override the platform distance price in the checkout.
+  const deliveryFee = deliveryChoice === "pickup" ? 0 : Number(deliveryQuote?.fee || 0);
   const finalTotal = Math.max(0, cartSubtotal - discountAmount + deliveryFee);
   const belowMinOrder = cartStore && cartStore.minOrder && cartSubtotal < cartStore.minOrder;
   const isInterwilaya = Boolean(deliveryQuote?.isInterwilaya || (cart.address?.wilaya && cartStore?.wilaya && cart.address.wilaya !== cartStore.wilaya));
@@ -1380,7 +1384,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const emailVerified = Boolean(customerId);
   const addressReady = Boolean(cart.address?.wilaya && cart.address?.commune && cart.address?.label?.trim());
   const needsDeliveryAddress = deliveryChoice !== "pickup";
-  const needsDeliveryQuote = deliveryChoice === "courier";
+  const needsDeliveryQuote = deliveryChoice !== "pickup";
   // Delivery can be confirmed immediately; a 90-minute window is optional.
   // GPS refines the address and quote, but must not hard-block checkout.
   const checkoutDisabled = cartCount === 0 || Boolean(belowMinOrder) || quoteLoading || (needsDeliveryAddress && !addressReady) || (needsDeliveryQuote && !deliveryQuote) || (requiresVerifiedEmail && !emailVerified);
@@ -1398,11 +1402,13 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
 
   // The customer chooses the platform delivery service, not a named courier.
   // Assignment occurs after the merchant marks the order ready, preserving courier privacy.
-  const platformCourierEnabled = Boolean(cartStore && !cartStore.hasOwnDelivery);
+  // Existing stores pre-date this field; only an explicit false disables platform delivery.
+  const platformCourierEnabled = Boolean(cartStore && cartStore.platformDeliveryEnabled !== false);
+  const storeDeliveryEnabled = Boolean(cartStore?.hasOwnDelivery || cartStore?.storeDeliveryEnabled);
 
   useEffect(() => {
     let cancelled = false;
-    if (deliveryChoice !== "courier" || !cartStore?.id || !cart.address?.wilaya || !cart.address?.commune) {
+    if (deliveryChoice === "pickup" || !cartStore?.id || !cart.address?.wilaya || !cart.address?.commune) {
       setDeliveryQuote(null); setQuoteError(""); setQuoteLoading(false); return undefined;
     }
     setQuoteLoading(true); setQuoteError("");
@@ -1447,6 +1453,22 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
     return () => { cancelled = true; };
   }, [deliveryChoice, cartStore?.id, cart.address?.wilaya, cart.address?.commune, cart.address?.label, language]);
 
+  // Android back events are dispatched by the app shell. The customer view owns
+  // its local navigation state, so it consumes the event before the shell can
+  // fall back to browser history or app exit.
+  useEffect(() => {
+    const handleBack = (event) => {
+      if (showMapPicker) { setShowMapPicker(false); event.preventDefault(); return; }
+      if (reviewingOrder) { setReviewingOrder(null); event.preventDefault(); return; }
+      if (invoiceOrder) { setInvoiceOrder(null); event.preventDefault(); return; }
+      if (showCart) { setShowCart(false); event.preventDefault(); return; }
+      if (openStoreId) { setOpenStoreId(null); setActiveDept("all"); event.preventDefault(); return; }
+      if (tab !== "browse") { setTab("browse"); event.preventDefault(); }
+    };
+    window.addEventListener("souq-jiran:back", handleBack);
+    return () => window.removeEventListener("souq-jiran:back", handleBack);
+  }, [invoiceOrder, openStoreId, reviewingOrder, showCart, showMapPicker, tab]);
+
   function addToCart(store, product) {
     setCart((prev) => {
       const sameStore = prev.storeId === store.id || prev.items.length === 0;
@@ -1479,7 +1501,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const visibleDepts = openStore ? DEPARTMENTS.filter((d) => openStore.products.some((p) => p.department === d.id)) : [];
   const shownProducts = openStore ? openStore.products.filter((p) => activeDept === "all" || p.department === activeDept) : [];
   const deliveryOptions = [
-    cartStore?.hasOwnDelivery && { id: "store", label: "توصيل المحل", desc: money(cartStore.deliveryFee), icon: Truck2 },
+    storeDeliveryEnabled && { id: "store", label: "توصيل المحل", desc: "يُسلّم المحل الطلب — تُحسب الرسوم بالمسافة بعد إدخال العنوان", icon: Truck2 },
     { id: "courier", label: "موصل معتمد من المنصة", desc: platformCourierEnabled ? "يُسند تلقائياً عند الجاهزية — تُحسب الرسوم بعد إدخال العنوان" : "التوصيل عبر المنصة غير مفعّل لهذا المحل", icon: Bike, disabled: !platformCourierEnabled },
     { id: "pickup", label: "استلام ذاتي من المحل", desc: "بدون رسوم توصيل", icon: Home },
   ].filter(Boolean);
@@ -1736,7 +1758,7 @@ function MerchantDeliverySchedulePanel({ merchantId, notify }) {
     if (rpcError) { setError(rpcError.message || "تعذر حفظ جدول الحجز."); return; }
     notify("تم حفظ إعدادات جدولة التوصيل.");
   }
-  return <div className="p-4 rounded-2xl space-y-3" style={{ background: "#fff", border: `1px solid ${C.line}` }} data-testid="merchant-delivery-schedule-panel"><div className="flex items-start justify-between gap-3"><div><h3 className="font-black text-sm flex items-center gap-1" style={{ color: C.ink }}><CalendarClock size={15} color={C.teal} /> حجز مواعيد التوصيل</h3><p className="text-[11px] mt-1 leading-5" style={{ color: C.inkSoft }}>تظهر للعميل نوافذ مدتها 90 دقيقة فقط داخل هذا الجدول. الطلب يبقى بانتظار تأكيدك.</p></div><button onClick={() => setSettings((current) => ({ ...current, scheduling_enabled: !current.scheduling_enabled }))} className="px-3 py-1.5 rounded-full text-xs font-black shrink-0" style={{ background: settings.scheduling_enabled ? C.teal : C.paperDark, color: settings.scheduling_enabled ? "#fff" : C.inkSoft }}>{settings.scheduling_enabled ? "الحجوزات مفعلة" : "الحجوزات متوقفة"}</button></div>{loading ? <p className="text-xs" style={{ color: C.inkSoft }}>جارٍ تحميل إعدادات الحجز…</p> : <><label className="text-xs font-bold block" style={{ color: C.inkSoft }}>مدة التحضير الافتراضية بالدقائق<input type="number" min="0" max="720" value={settings.preparation_minutes} onChange={(event) => setSettings((current) => ({ ...current, preparation_minutes: event.target.value }))} className="w-full mt-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /></label><div className="space-y-2">{dayNames.map((dayName, day) => { const range = settings.weekly_schedule?.[day]?.[0] || {}; return <div key={day} className="grid grid-cols-[72px_1fr_1fr] gap-2 items-center"><span className="text-xs font-bold" style={{ color: C.ink }}>{dayName}</span><input aria-label={`بداية ${dayName}`} type="time" value={range.start || ""} onChange={(event) => updateDay(String(day), "start", event.target.value)} className="px-2 py-1.5 rounded-lg text-xs outline-none" style={{ border: `1px solid ${C.line}` }} /><input aria-label={`نهاية ${dayName}`} type="time" value={range.end || ""} onChange={(event) => updateDay(String(day), "end", event.target.value)} className="px-2 py-1.5 rounded-lg text-xs outline-none" style={{ border: `1px solid ${C.line}` }} /></div>; })}</div><p className="text-[11px] leading-5" style={{ color: C.inkSoft }}>لإيقاف الحجوزات لفترة، عطّل الزر أعلاه ثم احفظ؛ تعود النوافذ للظهور عند إعادة التفعيل.</p>{error && <p className="text-xs font-bold" style={{ color: C.rust }}>{error}</p>}<button disabled={saving} onClick={saveSchedule} className="w-full py-2.5 rounded-xl text-sm font-black disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{saving ? "جارٍ الحفظ…" : "حفظ جدول الحجوزات"}</button></>}</div>;
+  return <div className="p-4 rounded-2xl space-y-3" style={{ background: "#fff", border: `1px solid ${C.line}` }} data-testid="merchant-delivery-schedule-panel"><div className="flex items-start justify-between gap-3"><div><h3 className="font-black text-sm flex items-center gap-1" style={{ color: C.ink }}><CalendarClock size={15} color={C.teal} /> الحجوزات المسبقة الاختيارية</h3><p className="text-[11px] mt-1 leading-5" style={{ color: C.inkSoft }}>تظهر نوافذ من 90 دقيقة للعميل الذي يختار موعداً مسبقاً. الطلب الفوري لا يتأثر بهذا الجدول.</p></div><button onClick={() => setSettings((current) => ({ ...current, scheduling_enabled: !current.scheduling_enabled }))} className="px-3 py-1.5 rounded-full text-xs font-black shrink-0" style={{ background: settings.scheduling_enabled ? C.teal : C.paperDark, color: settings.scheduling_enabled ? "#fff" : C.inkSoft }}>{settings.scheduling_enabled ? "الحجوزات مفعلة" : "الحجوزات متوقفة"}</button></div>{loading ? <p className="text-xs" style={{ color: C.inkSoft }}>جارٍ تحميل إعدادات الحجز…</p> : <><label className="text-xs font-bold block" style={{ color: C.inkSoft }}>مدة تجهيز الطلب (بالدقائق)<input type="number" min="0" max="720" value={settings.preparation_minutes} onChange={(event) => setSettings((current) => ({ ...current, preparation_minutes: event.target.value }))} className="w-full mt-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /></label><div className="space-y-2">{dayNames.map((dayName, day) => { const range = settings.weekly_schedule?.[day]?.[0] || {}; return <div key={day} className="grid grid-cols-[72px_1fr_1fr] gap-2 items-center"><span className="text-xs font-bold" style={{ color: C.ink }}>{dayName}</span><input aria-label={`بداية ${dayName}`} type="time" value={range.start || ""} onChange={(event) => updateDay(String(day), "start", event.target.value)} className="px-2 py-1.5 rounded-lg text-xs outline-none" style={{ border: `1px solid ${C.line}` }} /><input aria-label={`نهاية ${dayName}`} type="time" value={range.end || ""} onChange={(event) => updateDay(String(day), "end", event.target.value)} className="px-2 py-1.5 rounded-lg text-xs outline-none" style={{ border: `1px solid ${C.line}` }} /></div>; })}</div><p className="text-[11px] leading-5" style={{ color: C.inkSoft }}>عطّل هذا الخيار إن لم تعرض حجوزات مسبقة؛ تظل الطلبات الفورية مستقلة ومتاحة وفق حالة المتجر.</p>{error && <p className="text-xs font-bold" style={{ color: C.rust }}>{error}</p>}<button disabled={saving} onClick={saveSchedule} className="w-full py-2.5 rounded-xl text-sm font-black disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{saving ? "جارٍ الحفظ…" : "حفظ إعدادات الحجوزات"}</button></>}</div>;
 }
 
 function MerchantView({ stores, setStores, orders, messages, couriers, merchantOffers = [], myStoreId, setMyStoreId, notify, onStartMerchantRegistration, createProduct, createBulkProducts, removeProductRemote, setProductAvailability, setMerchantOrderStatus, merchantConfirmSettlement, reportCustomerAccount, archiveOrder, archiveMessage, submitMerchantOffer, pauseMerchantOffer, userId, isResolvingMerchantStore = false }) {
@@ -1749,6 +1771,7 @@ function MerchantView({ stores, setStores, orders, messages, couriers, merchantO
   const [invoiceOrder, setInvoiceOrder] = useState(null);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [showMapPicker, setShowMapPicker] = useState(false);
+  const [savingDeliveryPreferences, setSavingDeliveryPreferences] = useState(false);
   const [editingOfferId, setEditingOfferId] = useState(null);
   const [offerForm, setOfferForm] = useState(() => {
     const start = new Date();
@@ -1757,6 +1780,39 @@ function MerchantView({ stores, setStores, orders, messages, couriers, merchantO
   });
 
   function updateStore(patch) { setStores((prev) => prev.map((s) => (s.id === myStoreId ? { ...s, ...patch } : s))); }
+  const deliveryCoverageZones = useMemo(() => {
+    const zones = Array.isArray(myStore?.deliveryCoverageZones) ? myStore.deliveryCoverageZones : [];
+    if (zones.length > 0) return zones.map((zone) => ({ wilaya: zone?.wilaya || "", mainCommune: zone?.mainCommune || "", coveredCommunes: Array.isArray(zone?.coveredCommunes) ? zone.coveredCommunes : [] }));
+    return [{ wilaya: myStore?.wilaya || "", mainCommune: myStore?.commune || "", coveredCommunes: Array.isArray(myStore?.deliveryCommunes) ? myStore.deliveryCommunes : [] }];
+  }, [myStore?.commune, myStore?.deliveryCommunes, myStore?.deliveryCoverageZones, myStore?.wilaya]);
+  function updateDeliveryCoverageZone(index, patch) { updateStore({ deliveryCoverageZones: deliveryCoverageZones.map((zone, currentIndex) => currentIndex === index ? { ...zone, ...patch } : zone) }); }
+  function toggleDeliveryCoverageCommune(index, commune) { const zone = deliveryCoverageZones[index]; const coveredCommunes = zone.coveredCommunes.includes(commune) ? zone.coveredCommunes.filter((item) => item !== commune) : [...zone.coveredCommunes, commune]; updateDeliveryCoverageZone(index, { coveredCommunes }); }
+  function addDeliveryCoverageZone() { updateStore({ deliveryCoverageZones: [...deliveryCoverageZones, { wilaya: myStore?.wilaya || "", mainCommune: myStore?.commune || "", coveredCommunes: [] }] }); }
+  function removeDeliveryCoverageZone(index) { if (deliveryCoverageZones.length === 1) { notify("أبقِ منطقة واحدة على الأقل أو أوقف مساري التوصيل إن كان الاستلام الذاتي فقط."); return; } updateStore({ deliveryCoverageZones: deliveryCoverageZones.filter((_, currentIndex) => currentIndex !== index) }); }
+  async function saveDeliveryPreferences() {
+    const coverageZones = deliveryCoverageZones.map((zone) => ({ wilaya: zone.wilaya, mainCommune: zone.mainCommune, coveredCommunes: zone.coveredCommunes }));
+    setSavingDeliveryPreferences(true);
+    const { error } = await supabase.rpc("merchant_save_delivery_preferences", { p_has_own_delivery: Boolean(myStore.hasOwnDelivery), p_platform_delivery_enabled: myStore.platformDeliveryEnabled !== false, p_delivery_fee: Number(myStore.deliveryFee) || 0, p_coverage_zones: coverageZones });
+    setSavingDeliveryPreferences(false);
+    if (error) {
+      const missingRpc = error.code === "42883" || /merchant_save_delivery_preferences|schema cache/i.test(error.message || "");
+      notify(missingRpc ? "يلزم تشغيل ترحيل التوصيل المتوازي 20260909 في Supabase SQL Editor قبل الحفظ." : `تعذر حفظ إعدادات التوصيل: ${error.message}`);
+      return;
+    }
+    updateStore({ deliveryCoverageZones: coverageZones, platformDeliveryEnabled: myStore.platformDeliveryEnabled !== false });
+    notify("تم حفظ مسارات التوصيل ومناطق التغطية.");
+  }
+  useEffect(() => {
+    const handleBack = (event) => {
+      if (showMapPicker) { setShowMapPicker(false); event.preventDefault(); return; }
+      if (showBulkImport) { setShowBulkImport(false); event.preventDefault(); return; }
+      if (invoiceOrder) { setInvoiceOrder(null); event.preventDefault(); return; }
+      if (editingOfferId) { setEditingOfferId(null); event.preventDefault(); return; }
+      if (tab !== "products") { setTab("products"); event.preventDefault(); }
+    };
+    window.addEventListener("souq-jiran:back", handleBack);
+    return () => window.removeEventListener("souq-jiran:back", handleBack);
+  }, [editingOfferId, invoiceOrder, showBulkImport, showMapPicker, tab]);
   useEffect(() => {
     if (!myStore) return;
     const { openingHour, closingHour } = getStoreBusinessHours(myStore);
@@ -1999,26 +2055,21 @@ function MerchantView({ stores, setStores, orders, messages, couriers, merchantO
         <div className="space-y-5">
           <MerchantDeliverySchedulePanel merchantId={myStoreId} notify={notify} />
           <div className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
-            <span className="text-xs font-bold flex items-center gap-1 mb-1.5" style={{ color: C.ink }}><Truck2 size={13} /> هل تملك توصيلاً خاصاً؟</span>
-            <div className="flex gap-2 mb-3"><button onClick={() => updateStore({ hasOwnDelivery: true })} className="flex-1 py-2.5 rounded-xl text-sm font-bold" style={{ background: myStore.hasOwnDelivery ? C.teal : "transparent", color: myStore.hasOwnDelivery ? "#fff" : C.inkSoft, border: `1px solid ${myStore.hasOwnDelivery ? C.teal : C.line}` }}>نعم، لدي توصيل خاص</button><button onClick={() => updateStore({ hasOwnDelivery: false })} className="flex-1 py-2.5 rounded-xl text-sm font-bold" style={{ background: !myStore.hasOwnDelivery ? C.teal : "transparent", color: !myStore.hasOwnDelivery ? "#fff" : C.inkSoft, border: `1px solid ${!myStore.hasOwnDelivery ? C.teal : C.line}` }}>لا، اعتمد موصلي المنصة</button></div>
-            {myStore.hasOwnDelivery && (
-              <label className="text-xs block mb-2" style={{ color: C.inkSoft }}>رسوم توصيلك الخاص (دج)<input type="number" min="0" value={myStore.deliveryFee} onChange={(e) => updateStore({ deliveryFee: Number(e.target.value) })} className="w-full mt-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /></label>
-            )}
-            <div>
-              <p className="text-[11px] mb-1 font-bold" style={{ color: C.ink }}>نطاق توصيل المحل (الأحياء والبلديات التي يغطيها)</p>
-              <div className="flex gap-2 mb-2">
-                <span className="text-xs font-bold self-center px-2" style={{ color: C.inkSoft }}>الولاية:</span>
-                <select value={myStore.wilaya || ""} onChange={(e) => updateStore({ wilaya: e.target.value, deliveryCommunes: [] })} className="flex-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }}>
-                  {WILAYAS.map((w) => <option key={w} value={w}>{w}</option>)}
-                </select>
-                <span className="text-xs font-bold self-center px-2" style={{ color: C.inkSoft }}>البلدية الرئيسية:</span>
-                <select value={myStore.commune || ""} onChange={(e) => updateStore({ commune: e.target.value })} disabled={!myStore.wilaya} className="flex-1 px-3 py-2 rounded-xl text-sm outline-none disabled:opacity-50" style={{ border: `1px solid ${C.line}` }}>
-                  <option value="">—</option>
-                  {getCommunes(myStore.wilaya).map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div className="flex flex-wrap gap-1.5">{getCommunes(myStore.wilaya).map((c) => (<button key={c} onClick={() => toggleStoreDeliveryCommune(c)} className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: (myStore.deliveryCommunes || []).includes(c) ? C.teal : "transparent", color: (myStore.deliveryCommunes || []).includes(c) ? "#fff" : C.inkSoft, border: `1px solid ${(myStore.deliveryCommunes || []).includes(c) ? C.teal : C.line}` }}>{c}</button>))}</div>
-              <p className="text-[11px] mt-1.5" style={{ color: C.inkSoft }}>{(myStore.deliveryCommunes || []).length > 0 ? `المغطاة: ${myStore.deliveryCommunes.join("، ")}` : "لم تحدد بلديات بعد — يُعرض المحل للعملاء في الولاية بالكامل."}</p>
+            <div className="flex items-start justify-between gap-3 mb-3"><div><h3 className="font-black text-sm flex items-center gap-1.5" style={{ color: C.ink }}><Truck2 size={14} color={C.teal} /> مسارات التوصيل المتاحة</h3><p className="text-[11px] leading-5 mt-1" style={{ color: C.inkSoft }}>يمكن تفعيل توصيل المحل وتوصيل المنصة معاً؛ يختار العميل أحدهما عند الطلب، والاستلام الذاتي يبقى مستقلاً.</p></div></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+              <label className="p-3 rounded-xl cursor-pointer" style={{ border: `1px solid ${myStore.hasOwnDelivery ? C.teal : C.line}`, background: myStore.hasOwnDelivery ? C.teal + "0F" : "transparent" }}><span className="flex items-center gap-2 text-sm font-black" style={{ color: C.ink }}><input type="checkbox" checked={Boolean(myStore.hasOwnDelivery)} onChange={(event) => updateStore({ hasOwnDelivery: event.target.checked })} /> توصيل المحل</span><span className="block text-[11px] leading-5 mt-1" style={{ color: C.inkSoft }}>يظهر كخيار مستقل ولا يلغي خدمة المنصة.</span></label>
+              <label className="p-3 rounded-xl cursor-pointer" style={{ border: `1px solid ${myStore.platformDeliveryEnabled !== false ? C.teal : C.line}`, background: myStore.platformDeliveryEnabled !== false ? C.teal + "0F" : "transparent" }}><span className="flex items-center gap-2 text-sm font-black" style={{ color: C.ink }}><input type="checkbox" checked={myStore.platformDeliveryEnabled !== false} onChange={(event) => updateStore({ platformDeliveryEnabled: event.target.checked })} /> توصيل المنصة</span><span className="block text-[11px] leading-5 mt-1" style={{ color: C.inkSoft }}>تُحسب رسومه حسب المسافة والتسعير المركزي في لوحة الإدارة.</span></label>
+            </div>
+            {myStore.hasOwnDelivery && <label className="text-xs block mb-4" style={{ color: C.inkSoft }}>رسوم توصيل المحل (دج)<input type="number" min="0" value={myStore.deliveryFee} onChange={(event) => updateStore({ deliveryFee: Number(event.target.value) })} className="w-full mt-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /></label>}
+            <div className="space-y-3 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
+              <div><p className="text-xs font-black" style={{ color: C.ink }}>مناطق التغطية</p><p className="text-[11px] leading-5 mt-1" style={{ color: C.inkSoft }}>أضف ولاية، ثم بلديتها الرئيسة والبلديات المغطاة. يمكنك إضافة ولايات متجاورة دون استبدال المنطقة الأولى.</p></div>
+              {deliveryCoverageZones.map((zone, index) => <div key={`${index}-${zone.wilaya}-${zone.mainCommune}`} className="p-3 rounded-xl space-y-2" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
+                <div className="flex items-center justify-between gap-2"><span className="text-xs font-black" style={{ color: C.ink }}>منطقة {index + 1}</span><button type="button" onClick={() => removeDeliveryCoverageZone(index)} className="text-[11px] font-bold" style={{ color: deliveryCoverageZones.length === 1 ? C.inkSoft : C.rust }}>إزالة</button></div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2"><label className="text-[11px] font-bold" style={{ color: C.inkSoft }}>الولاية<select value={zone.wilaya} onChange={(event) => updateDeliveryCoverageZone(index, { wilaya: event.target.value, mainCommune: "", coveredCommunes: [] })} className="w-full mt-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }}><option value="">اختر الولاية</option>{WILAYAS.map((wilaya) => <option key={wilaya} value={wilaya}>{wilaya}</option>)}</select></label><label className="text-[11px] font-bold" style={{ color: C.inkSoft }}>البلدية الرئيسية<select value={zone.mainCommune} onChange={(event) => updateDeliveryCoverageZone(index, { mainCommune: event.target.value })} disabled={!zone.wilaya} className="w-full mt-1 px-3 py-2 rounded-xl text-sm outline-none disabled:opacity-50" style={{ border: `1px solid ${C.line}` }}><option value="">اختر البلدية</option>{getCommunes(zone.wilaya).map((commune) => <option key={commune} value={commune}>{commune}</option>)}</select></label></div>
+                <div><p className="text-[11px] font-bold mb-1.5" style={{ color: C.inkSoft }}>البلديات المغطاة إضافة إلى البلدية الرئيسة</p><div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">{getCommunes(zone.wilaya).filter((commune) => commune !== zone.mainCommune).map((commune) => <button type="button" key={commune} onClick={() => toggleDeliveryCoverageCommune(index, commune)} className="px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: zone.coveredCommunes.includes(commune) ? C.teal : "#fff", color: zone.coveredCommunes.includes(commune) ? "#fff" : C.inkSoft, border: `1px solid ${zone.coveredCommunes.includes(commune) ? C.teal : C.line}` }}>{commune}</button>)}</div></div>
+              </div>)}
+              <button type="button" onClick={addDeliveryCoverageZone} className="text-xs font-bold px-3 py-2 rounded-xl" style={{ border: `1px dashed ${C.teal}`, color: C.teal }}>+ إضافة منطقة أخرى</button>
+              <button type="button" onClick={saveDeliveryPreferences} disabled={savingDeliveryPreferences} className="w-full py-2.5 rounded-xl text-sm font-black disabled:opacity-50" style={{ background: C.teal, color: "#fff" }}>{savingDeliveryPreferences ? "جارٍ الحفظ…" : "حفظ إعدادات التوصيل"}</button>
             </div>
           </div>
 
@@ -2136,6 +2187,15 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
   }
 
   function updateCourier(patch) { setCouriers((prev) => prev.map((c) => (c.id === courierId ? { ...c, ...patch } : c))); }
+
+  useEffect(() => {
+    const handleBack = (event) => {
+      if (editingHours) { setEditingHours(false); event.preventDefault(); return; }
+      if (tab !== "available") { setTab("available"); event.preventDefault(); }
+    };
+    window.addEventListener("souq-jiran:back", handleBack);
+    return () => window.removeEventListener("souq-jiran:back", handleBack);
+  }, [editingHours, tab]);
 
   const hoursText = courier.customHours
     ? `من ${courier.customHours.from} إلى ${courier.customHours.to}`
@@ -2640,6 +2700,49 @@ export default function App() {
 
   const focusedOrder = useMemo(() => orders.find((order) => order.id === focusedOrderId) || null, [orders, focusedOrderId]);
 
+  function handleAppBack({ canGoBack = false, allowExit = false } = {}) {
+    // Global overlays always take precedence over navigation inside a role view.
+    if (focusedOrderId) { setFocusedOrderId(null); return true; }
+    if (showPhoneChange) { setShowPhoneChange(false); return true; }
+    if (showAuth) { setShowAuth(false); setAdminLoginRequested(false); return true; }
+    if (pendingProviderRegistration) { setPendingProviderRegistration(null); return true; }
+    if (showCourierForm) { setShowCourierForm(false); return true; }
+    if (showMerchantForm) { setShowMerchantForm(false); return true; }
+    if (showRoleGuide) { setShowRoleGuide(false); return true; }
+
+    const nestedBack = new Event("souq-jiran:back", { cancelable: true });
+    window.dispatchEvent(nestedBack);
+    if (nestedBack.defaultPrevented) return true;
+
+    if (canGoBack && window.history.length > 1) {
+      window.history.back();
+      return true;
+    }
+    if (allowExit) {
+      void CapacitorApp.exitApp();
+      return true;
+    }
+    notify(language === "fr" ? "Vous êtes déjà sur l’écran principal." : "أنت بالفعل في الصفحة الرئيسية.");
+    return false;
+  }
+
+  useEffect(() => {
+    let listenerHandle;
+    let active = true;
+    void CapacitorApp.addListener("backButton", ({ canGoBack }) => {
+      if (active) handleAppBack({ canGoBack, allowExit: !canGoBack });
+    }).then((handle) => {
+      if (active) listenerHandle = handle;
+      else void handle.remove();
+    }).catch(() => {
+      // The browser preview does not need a native back-button listener.
+    });
+    return () => {
+      active = false;
+      if (listenerHandle) void listenerHandle.remove();
+    };
+  }, [focusedOrderId, language, pendingProviderRegistration, showAuth, showCourierForm, showMerchantForm, showPhoneChange, showRoleGuide]);
+
   useEffect(() => {
     try { localStorage.setItem("souq-jiran:language", language); } catch { /* preference storage is optional */ }
     document.documentElement.lang = language;
@@ -2766,8 +2869,9 @@ export default function App() {
     const itemsByOrder = groupRowsBy(itemsResult.data || [], ({ order_id }) => order_id);
     setStores(merchantRows.map((merchant) => ({
       id: merchant.id, name: merchant.store_name, phone: merchant.phone || "", wilaya: merchant.wilaya || "", commune: merchant.commune || "", open: merchant.opening_hour ?? 8, close: merchant.closing_hour ?? 21,
+      latitude: merchant.latitude ?? null, longitude: merchant.longitude ?? null, addressLabel: merchant.address_label || "",
       status: merchant.status, deliveryCommunes: merchant.delivery_communes || [], approvedCourierIds: merchant.approved_courier_ids || [],
-      hasOwnDelivery: merchant.has_own_delivery ?? true, deliveryFee: merchant.delivery_fee || 0, minOrder: merchant.min_order || 0,
+      hasOwnDelivery: merchant.has_own_delivery ?? true, platformDeliveryEnabled: merchant.platform_delivery_enabled ?? true, deliveryFee: merchant.delivery_fee || 0, deliveryCoverageZones: merchant.delivery_coverage_zones || [], minOrder: merchant.min_order || 0,
       products: (productsByMerchant[merchant.id] || []).map((product) => ({ id: product.id, name: product.name, price: product.price, unit: product.unit, department: product.department, available: product.available })),
       logo: { text: merchant.store_name.slice(0, 2), color: C.teal }, reviews: [], commissionType: "percentage", commissionRate: 0, subscriptionFee: 0, duesPaid: 0,
     })));
@@ -3497,6 +3601,7 @@ export default function App() {
             <div><div className="font-black text-xl leading-none tracking-tight">{uiText(language, "appName")}</div><div className="text-[11px] mt-1 font-semibold" style={{ color: C.inkSoft }}>{role === "admin" ? uiText(language, "adminWorkspace") : uiText(language, "marketplaceCaption")}</div></div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <button data-testid="app-back-button" type="button" onClick={() => handleAppBack()} className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl font-bold text-sm" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}33` }} aria-label={language === "fr" ? "Retour" : "رجوع"}><ChevronRight size={16} /> {language === "fr" ? "Retour" : "رجوع"}</button>
             <div data-testid="app-language-switcher" className="flex items-center gap-1 p-1 rounded-xl" role="group" aria-label={uiText(language, "language")} style={{ background: C.paperDark, border: `1px solid ${C.line}` }}><Languages size={15} color={C.teal} className="mx-1" />{LANGUAGE_OPTIONS.map((option) => <button key={option.code} type="button" onClick={() => setLanguage(option.code)} aria-pressed={language === option.code} className="px-2.5 py-1.5 rounded-lg text-xs font-black transition" style={{ background: language === option.code ? C.teal : "transparent", color: language === option.code ? "#fff" : C.inkSoft }}>{option.shortLabel}</button>)}</div>
             {role === "admin" ? (
               <button onClick={signOut} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-sm" style={{ background: C.ink, color: "#fff" }}><LogOut size={15} /> {uiText(language, "signOutAdmin")}</button>
