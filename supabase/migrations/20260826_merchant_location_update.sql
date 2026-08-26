@@ -34,4 +34,8 @@ begin
 end;
 $$;
 
+revoke execute on function public.merchant_update_location(numeric, numeric) from public, anon;
 grant execute on function public.merchant_update_location(numeric, numeric) to authenticated;
+
+-- Make the new RPC visible immediately to PostgREST without waiting for a restart.
+notify pgrst, 'reload schema';

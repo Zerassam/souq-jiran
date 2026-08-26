@@ -1748,7 +1748,13 @@ function MerchantView({ stores, setStores, orders, messages, couriers, merchantO
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) { notify("إحداثيات الموقع غير صالحة."); return false; }
     updateStore({ lat: latitude, lng: longitude, latitude, longitude });
     const { error } = await supabase.rpc("merchant_update_location", { p_latitude: latitude, p_longitude: longitude });
-    if (error) { notify("تم تحديث الموقع محلياً، لكن تعذر مزامنته مع الحساب: " + error.message); return false; }
+    if (error) {
+      const missingRpc = error.code === "42883" || /merchant_update_location|schema cache/i.test(error.message || "");
+      notify(missingRpc
+        ? "تم تحديث الموقع محلياً، لكن دالة حفظ الموقع غير مفعّلة في Supabase. شغّل ترحيل merchant_location_update ثم أعد المحاولة."
+        : "تم تحديث الموقع محلياً، لكن تعذر مزامنته مع الحساب: " + error.message);
+      return false;
+    }
     notify("تم تحديث موقع المحل وحفظه بنجاح.");
     return true;
   }

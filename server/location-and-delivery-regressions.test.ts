@@ -22,7 +22,10 @@ describe("location and delivery regression guards", () => {
     const locationMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260826_merchant_location_update.sql"), "utf8");
     expect(locationMigration).toContain("create or replace function public.merchant_update_location");
     expect(locationMigration).toContain("where id = auth.uid()");
+    expect(locationMigration).toContain("revoke execute on function public.merchant_update_location(numeric, numeric) from public, anon");
     expect(locationMigration).toContain("grant execute on function public.merchant_update_location(numeric, numeric) to authenticated");
+    expect(locationMigration).toContain("notify pgrst, 'reload schema'");
+    expect(appSource).toContain("دالة حفظ الموقع غير مفعّلة في Supabase");
   });
 
   it("persists location and delivery ownership for every provider role", () => {
