@@ -25,6 +25,13 @@ describe("إعدادات إصدار Android الآمن", () => {
     expect(proguard).toContain("@android.webkit.JavascriptInterface <methods>");
     expect(proguard).toContain("-dontwarn com.facebook.login.LoginManager");
   });
+
+  it("يحتفظ بمسار FCM الذي يعالج حالة طلب التبرير في Android", () => {
+    const firebaseHelper = readProjectFile("client/src/lib/firebase.ts");
+
+    expect(firebaseHelper).toContain("shouldRequestNativeFcmPermission(current.receive)");
+    expect(firebaseHelper).toContain('id: "order_updates"');
+  });
 });
 
 describe("حماية مسار إشعارات الطلبات في Supabase", () => {

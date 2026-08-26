@@ -3,6 +3,7 @@ import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { FirebaseMessaging, Importance } from "@capacitor-firebase/messaging";
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getMessaging, isSupported, type Messaging } from "firebase/messaging";
+import { shouldRequestNativeFcmPermission } from "./firebase-permissions";
 
 const firebaseConfig = {
   apiKey: String(import.meta.env.VITE_FIREBASE_API_KEY || "").trim(),
@@ -76,7 +77,7 @@ export async function requestNativeFcmToken(): Promise<string | null> {
   if (!isNativeFirebaseRuntime()) return null;
 
   const current = await FirebaseMessaging.checkPermissions();
-  const permission = current.receive === "prompt"
+  const permission = shouldRequestNativeFcmPermission(current.receive)
     ? await FirebaseMessaging.requestPermissions()
     : current;
   if (permission.receive !== "granted") return null;
