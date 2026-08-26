@@ -805,7 +805,7 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain("isResolvingMerchantStore={isResolvingMerchantStore}");
     expect(merchantViewSource).toContain("isResolvingMerchantStore = false");
     expect(merchantViewSource).toContain('data-testid="merchant-store-hydration"');
-    expect(merchantViewSource.indexOf("if (isResolvingMerchantStore)")).toBeLessThan(merchantViewSource.indexOf("if (!myStore)"));
+    expect(merchantViewSource.indexOf("if (isResolvingMerchantStore)")).toBeLessThan(merchantViewSource.indexOf("لا يوجد محل مرتبط بهذا الحساب"));
     expect(appSource).toContain("setCart(loadedCart); setMyStoreId(null); setNotifications(loadedNotifications);");
   });
 

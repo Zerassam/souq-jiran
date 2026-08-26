@@ -18,6 +18,8 @@ create table if not exists public.merchants (
   wilaya text not null,
   commune text not null,
   phone text,
+  opening_hour smallint not null default 8 check (opening_hour between 0 and 23),
+  closing_hour smallint not null default 21 check (closing_hour between 0 and 23),
   delivery_communes text[] not null default '{}',
   status text not null default 'pending_review' check (status in ('pending_review', 'approved', 'suspended')),
   created_at timestamptz not null default now(),

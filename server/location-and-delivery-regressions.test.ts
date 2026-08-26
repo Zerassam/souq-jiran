@@ -5,8 +5,20 @@ import { resolve } from "node:path";
 const appSource = readFileSync(resolve(process.cwd(), "client/src/pages/SouqJiranApp.jsx"), "utf8");
 const migrationSource = readFileSync(resolve(process.cwd(), "supabase/migrations/20260906_profile_location_blacklist_guard.sql"), "utf8");
 const merchantLocationRepairSource = readFileSync(resolve(process.cwd(), "supabase/migrations/20260907_merchant_location_columns_repair.sql"), "utf8");
+const merchantBusinessHoursMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260908_merchant_business_hours.sql"), "utf8");
 
 describe("location and delivery regression guards", () => {
+  it("يحفظ ساعات العمل ويعيد تحميلها قبل إظهار وسم الفتح أو الإغلاق", () => {
+    expect(appSource).toContain("merchant.opening_hour ?? 8");
+    expect(appSource).toContain('supabase.rpc("merchant_update_business_hours"');
+    expect(appSource).toContain('data-testid="merchant-business-hours-tab"');
+    expect(appSource).toContain("isStoreOpenAtHour(s)");
+    expect(merchantBusinessHoursMigration).toContain("add column if not exists opening_hour");
+    expect(merchantBusinessHoursMigration).toContain("create or replace function public.merchant_update_business_hours");
+    expect(merchantBusinessHoursMigration).toContain("where id = auth.uid()");
+    expect(merchantBusinessHoursMigration).toContain("notify pgrst, 'reload schema'");
+  });
+
   it("keeps a real GPS picker for merchant and courier registration", () => {
     expect(appSource).toContain("تحديد موقع المحل بدقة عبر GPS");
     expect(appSource).toContain("تحديد الموقع عبر GPS");

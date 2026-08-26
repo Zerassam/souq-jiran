@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase";
 const loadFirebaseHelpers = () => import("@/lib/firebase");
 import { FULL_COMMUNES_BY_WILAYA } from "@/data/algeriaCommunes";
 import { MapView as GoogleMapView } from "@/components/Map";
+import { getStoreBusinessHours, isStoreOpenAtHour } from "@/lib/store-hours";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Store, ShoppingCart, ShoppingBag, ShoppingBasket, Search, MapPin, Clock,
@@ -1518,7 +1519,8 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
               <div className="flex items-end justify-between gap-3 flex-wrap"><div><h2 className="font-black" style={{ color: C.ink, fontFamily: "inherit" }}>{uiText(language, "suggestedStores", { area: discoveryAreaLabel })}</h2><p className="text-xs mt-1" style={{ color: C.inkSoft }}>{uiText(language, "suggestedStoresDescription")}</p></div><span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: C.teal + "12", color: C.teal }}>{uiText(language, "storesCount", { count: curatedStores.length, max: MAX_DISCOVERY_STORES })}</span></div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {curatedStores.map((s) => {
-                  const isOpen = new Date().getHours() >= s.open && new Date().getHours() < s.close;
+                  const isOpen = isStoreOpenAtHour(s);
+                  const { openingHour, closingHour } = getStoreBusinessHours(s);
                   const verifiedReviewCount = (s.reviews || []).filter((review) => review?.verified === true).length;
                   const category = getDiscoveryCategory(s);
                   return (
@@ -1526,6 +1528,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                       <div className="flex items-start justify-between mb-3"><StoreAvatar logo={s.logo} size={38} /><div className="flex flex-col items-end gap-1"><span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: isOpen ? C.sage + "22" : "#8883", color: isOpen ? C.sage : C.inkSoft }}>{isOpen ? uiText(language, "openNow") : uiText(language, "closed")}</span><span className="text-[10px] font-bold" style={{ color: C.teal }}>{category.label}</span></div></div>
                       <div className="font-black text-base" style={{ color: C.ink, fontFamily: "inherit" }}>{s.name}</div>
                       <div className="flex items-center gap-1 text-xs mt-1" style={{ color: C.inkSoft }}><MapPin size={12} /> {s.wilaya} · {s.commune}</div>
+                      <div className="flex items-center gap-1 text-[11px] mt-1" style={{ color: C.inkSoft }}><Clock size={11} /> {uiText(language, "storeHours", { from: openingHour, to: closingHour })}</div>
                       <div className="flex items-center justify-between mt-3"><span className="flex items-center gap-1 text-xs font-bold" style={{ color: C.ochre }}><Star size={13} fill={C.ochre} strokeWidth={0} /> {s.rating || uiText(language, "new")}{verifiedReviewCount > 0 && <span style={{ color: C.inkSoft, fontWeight: 500 }}>({verifiedReviewCount})</span>}</span><span className="text-xs font-bold flex items-center gap-1" style={{ color: C.teal }}>{uiText(language, "products")} <ChevronLeft size={14} /></span></div>
                     </button>
                   );
@@ -1740,6 +1743,8 @@ function MerchantView({ stores, setStores, orders, messages, couriers, merchantO
   const myStore = stores.find((s) => s.id === myStoreId);
   const [stage2, setStage2] = useState({ open: 8, close: 21, minOrder: 0, deliveryFee: 0, hasOwnDelivery: true, deliveryCommunes: [], logoText: "", logoColor: C.teal, ccp: "", idDocName: "" });
   const [tab, setTab] = useState("products");
+  const [businessHours, setBusinessHours] = useState({ openingHour: "8", closingHour: "21" });
+  const [savingBusinessHours, setSavingBusinessHours] = useState(false);
   const [newProduct, setNewProduct] = useState({ name: "", price: "", unit: "الوحدة", department: "pantry" });
   const [invoiceOrder, setInvoiceOrder] = useState(null);
   const [showBulkImport, setShowBulkImport] = useState(false);
@@ -1752,6 +1757,36 @@ function MerchantView({ stores, setStores, orders, messages, couriers, merchantO
   });
 
   function updateStore(patch) { setStores((prev) => prev.map((s) => (s.id === myStoreId ? { ...s, ...patch } : s))); }
+  useEffect(() => {
+    if (!myStore) return;
+    const { openingHour, closingHour } = getStoreBusinessHours(myStore);
+    setBusinessHours({ openingHour: String(openingHour), closingHour: String(closingHour) });
+  }, [myStore?.id, myStore?.open, myStore?.close]);
+
+  async function saveBusinessHours() {
+    const openingHour = Number(businessHours.openingHour);
+    const closingHour = Number(businessHours.closingHour);
+    if (!Number.isInteger(openingHour) || openingHour < 0 || openingHour > 23 || !Number.isInteger(closingHour) || closingHour < 0 || closingHour > 23) {
+      notify("أدخل ساعات صحيحة بين 00 و23.");
+      return;
+    }
+    if (openingHour === closingHour) {
+      notify("اختر ساعتين مختلفتين؛ يدعم التطبيق النطاق الذي يعبر منتصف الليل.");
+      return;
+    }
+    const previousHours = { open: myStore.open, close: myStore.close };
+    updateStore({ open: openingHour, close: closingHour });
+    setSavingBusinessHours(true);
+    const { error } = await supabase.rpc("merchant_update_business_hours", { p_opening_hour: openingHour, p_closing_hour: closingHour });
+    setSavingBusinessHours(false);
+    if (error) {
+      updateStore(previousHours);
+      const missingHoursRpc = error.code === "42883" || /merchant_update_business_hours|opening_hour|closing_hour|schema cache/i.test(error.message || "");
+      notify(missingHoursRpc ? "تعذر حفظ الساعات لأن ترحيل ساعات عمل المتاجر غير مفعّل في Supabase بعد." : `تعذر حفظ ساعات العمل: ${error.message}`);
+      return;
+    }
+    notify("تم حفظ ساعات عمل المحل. ستتحدث الحالة الظاهرة للعملاء تلقائياً.");
+  }
   async function updateStoreLocation({ latitude, longitude }) {
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) { notify("إحداثيات الموقع غير صالحة."); return false; }
     const previousLocation = {
@@ -1891,7 +1926,7 @@ function MerchantView({ stores, setStores, orders, messages, couriers, merchantO
     <div className="dashboard-shell space-y-5">
       <div className="p-4 rounded-2xl" style={{ background: C.paperDark }}>
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3"><StoreAvatar logo={myStore.logo} size={44} /><div><div className="font-black" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>{myStore.name}</div><div className="text-xs" style={{ color: C.inkSoft }}>{myStore.wilaya} · {myStore.commune} · {myStore.open}:00 - {myStore.close}:00</div><div className="flex items-center gap-1 mt-1"><StarRating value={Math.round(myStore.rating || 0)} size={11} /><span className="text-xs font-bold" style={{ color: C.inkSoft }}>{myStore.rating || "لا تقييمات بعد"}</span></div></div></div>
+          <div className="flex items-center gap-3"><StoreAvatar logo={myStore.logo} size={44} /><div><div className="font-black" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>{myStore.name}</div><div className="text-xs" style={{ color: C.inkSoft }}>{myStore.wilaya} · {myStore.commune} · {getStoreBusinessHours(myStore).openingHour}:00 - {getStoreBusinessHours(myStore).closingHour}:00</div><div className="flex items-center gap-1 mt-1"><StarRating value={Math.round(myStore.rating || 0)} size={11} /><span className="text-xs font-bold" style={{ color: C.inkSoft }}>{myStore.rating || "لا تقييمات بعد"}</span></div></div></div>
           <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end"><button data-testid="merchant-new-orders-counter" onClick={openNewMerchantOrders} className="flex items-center gap-1 text-xs font-black px-3 py-1.5 rounded-full" aria-label={`${newMerchantOrders.length} طلبات جديدة`} style={{ background: newMerchantOrders.length ? C.rust + "18" : C.sage + "22", color: newMerchantOrders.length ? C.rust : C.tealDark }}><Bell size={13} />{newMerchantOrders.length} طلبات جديدة</button><button data-testid="merchant-new-orders-link" onClick={openNewMerchantOrders} className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-full" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}><ArrowLeft size={12} /> عرض الطلبات الجديدة</button><span className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: C.sage + "30", color: C.tealDark }}>محل مفعّل</span></div>
         </div>
         <div className="flex items-center gap-3 text-xs mb-2 flex-wrap" style={{ color: C.inkSoft }}>
@@ -1908,6 +1943,7 @@ function MerchantView({ stores, setStores, orders, messages, couriers, merchantO
         <button onClick={() => setTab("products")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "products" ? C.teal : "transparent", color: tab === "products" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "products" ? C.teal : C.line}` }}>المنتجات</button>
         <button onClick={() => setTab("orders")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "orders" ? C.teal : "transparent", color: tab === "orders" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "orders" ? C.teal : C.line}` }}>الطلبات الواردة {newMerchantOrders.length > 0 && `(${newMerchantOrders.length})`}</button>
         <button onClick={() => setTab("delivery")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "delivery" ? C.teal : "transparent", color: tab === "delivery" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "delivery" ? C.teal : C.line}` }}>إعدادات التوصيل</button>
+        <button data-testid="merchant-business-hours-tab" onClick={() => setTab("hours")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "hours" ? C.teal : "transparent", color: tab === "hours" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "hours" ? C.teal : C.line}` }}>ساعات العمل</button>
         <button data-testid="merchant-offers-tab" onClick={() => setTab("offers")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "offers" ? C.teal : "transparent", color: tab === "offers" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "offers" ? C.teal : C.line}` }}>عروضي</button>
         <button data-testid="merchant-qr-tab" onClick={() => setTab("qr")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "qr" ? C.teal : "transparent", color: tab === "qr" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "qr" ? C.teal : C.line}` }}>QR المحل</button>
         <button data-testid="merchant-media-tab" onClick={() => setTab("media")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "media" ? C.teal : "transparent", color: tab === "media" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "media" ? C.teal : C.line}` }}>صور المتجر والوثائق</button>
@@ -1916,6 +1952,8 @@ function MerchantView({ stores, setStores, orders, messages, couriers, merchantO
 
       {tab === "qr" && <MerchantQrPoster store={myStore} notify={notify} />}
       {tab === "media" && <ProviderMediaManager providerId={myStore.id} providerRole="merchant" accent={C.rust} title="صور متجرك ووثائق النشاط" />}
+
+      {tab === "hours" && <div className="p-4 rounded-2xl space-y-4" style={{ background: "#fff", border: `1px solid ${C.line}` }} data-testid="merchant-business-hours-panel"><div><h3 className="font-black text-base" style={{ color: C.ink }}>ساعات عمل المحل</h3><p className="text-xs leading-5 mt-1" style={{ color: C.inkSoft }}>تُعرض هذه الساعات تلقائياً للعملاء. يمكنك أيضاً ضبط وقت إغلاق بعد منتصف الليل، مثل 19:00 إلى 02:00.</p></div><div className="grid grid-cols-2 gap-3"><label className="text-xs font-bold" style={{ color: C.inkSoft }}>وقت الفتح (00–23)<input aria-label="وقت فتح المحل" type="number" min="0" max="23" value={businessHours.openingHour} onChange={(event) => setBusinessHours((current) => ({ ...current, openingHour: event.target.value }))} className="w-full mt-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /></label><label className="text-xs font-bold" style={{ color: C.inkSoft }}>وقت الغلق (00–23)<input aria-label="وقت غلق المحل" type="number" min="0" max="23" value={businessHours.closingHour} onChange={(event) => setBusinessHours((current) => ({ ...current, closingHour: event.target.value }))} className="w-full mt-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /></label></div><button disabled={savingBusinessHours} onClick={saveBusinessHours} className="w-full py-2.5 rounded-xl text-sm font-black disabled:opacity-50" style={{ background: C.teal, color: "#fff" }}>{savingBusinessHours ? "جارٍ الحفظ…" : "حفظ ساعات العمل"}</button></div>}
 
       {tab === "products" && (
         <div className="space-y-4">
@@ -2727,7 +2765,7 @@ export default function App() {
     const storesById = Object.fromEntries(merchantRows.map((merchant) => [merchant.id, merchant]));
     const itemsByOrder = groupRowsBy(itemsResult.data || [], ({ order_id }) => order_id);
     setStores(merchantRows.map((merchant) => ({
-      id: merchant.id, name: merchant.store_name, phone: merchant.phone || "", wilaya: merchant.wilaya || "", commune: merchant.commune || "",
+      id: merchant.id, name: merchant.store_name, phone: merchant.phone || "", wilaya: merchant.wilaya || "", commune: merchant.commune || "", open: merchant.opening_hour ?? 8, close: merchant.closing_hour ?? 21,
       status: merchant.status, deliveryCommunes: merchant.delivery_communes || [], approvedCourierIds: merchant.approved_courier_ids || [],
       hasOwnDelivery: merchant.has_own_delivery ?? true, deliveryFee: merchant.delivery_fee || 0, minOrder: merchant.min_order || 0,
       products: (productsByMerchant[merchant.id] || []).map((product) => ({ id: product.id, name: product.name, price: product.price, unit: product.unit, department: product.department, available: product.available })),
@@ -3341,6 +3379,8 @@ export default function App() {
       delivery_communes: form.deliveryCommunes || [],
       nationwide_coverage: Boolean(form.nationwideCoverage),
       has_own_delivery: Boolean(form.hasOwnDelivery),
+      opening_hour: 8,
+      closing_hour: 21,
       address_label: form.addressLabel || null,
       latitude: Number.isFinite(form.latitude) ? form.latitude : null,
       longitude: Number.isFinite(form.longitude) ? form.longitude : null,
