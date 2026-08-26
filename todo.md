@@ -354,3 +354,4 @@
 - [x] إنشاء `.github/workflows/android-apk.yml` بخيارات Debug وRelease عبر `workflow_dispatch` دون تشغيل أوامر npm أو pnpm محلياً.
 - [x] إنشاء `.github/workflows/deploy-web.yml` لنشر الويب إلى GitHub Pages دون تشغيل أوامر npm أو pnpm محلياً.
 - [x] مراجعة YAML والفروقات ومزامنة ملفات سير العمل إلى GitHub دون تنفيذ بناء محلي.
+- [x] إصلاح سيرَي GitHub Actions بإضافة pnpm/action-setup@v3 قبل أوامر البناء، ثم دفع التحديث إلى github/main
