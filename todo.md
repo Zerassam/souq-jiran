@@ -350,3 +350,7 @@
 
 - [x] تدقيق اقتراح Bolt.new حول إزالة إضافة JSX-Loc وإضافة npm overrides دون تعديل الملفات أو الرفع إلى GitHub.
 - [x] تشغيل تحقق غير تعديلي لبيئة pnpm والاختبارات والبناء ثم توثيق الحكم والتوصية.
+
+- [x] إنشاء `.github/workflows/android-apk.yml` بخيارات Debug وRelease عبر `workflow_dispatch` دون تشغيل أوامر npm أو pnpm محلياً.
+- [x] إنشاء `.github/workflows/deploy-web.yml` لنشر الويب إلى GitHub Pages دون تشغيل أوامر npm أو pnpm محلياً.
+- [x] مراجعة YAML والفروقات ومزامنة ملفات سير العمل إلى GitHub دون تنفيذ بناء محلي.
