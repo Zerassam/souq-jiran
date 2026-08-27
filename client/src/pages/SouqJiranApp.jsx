@@ -2079,6 +2079,17 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
   const courier = (couriers || []).find((c) => c.id === courierId);
   const [editingHours, setEditingHours] = useState(false);
 
+  // يجب أن يُسجَّل هذا الـHook في كل عرض، بما في ذلك فترة تحميل ملف الموصل.
+  // فالعودة المبكرة قبل useEffect كانت تغيّر عدد Hooks عند وصول بيانات الموصل لاحقاً.
+  useEffect(() => {
+    const handleBack = (event) => {
+      if (editingHours) { setEditingHours(false); event.preventDefault(); return; }
+      if (tab !== "available") { setTab("available"); event.preventDefault(); }
+    };
+    window.addEventListener("souq-jiran:back", handleBack);
+    return () => window.removeEventListener("souq-jiran:back", handleBack);
+  }, [editingHours, tab]);
+
   if (!courier) {
     return (
       <div className="max-w-md mx-auto p-6 rounded-2xl text-center space-y-3" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
@@ -2125,15 +2136,6 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
   }
 
   function updateCourier(patch) { setCouriers((prev) => prev.map((c) => (c.id === courierId ? { ...c, ...patch } : c))); }
-
-  useEffect(() => {
-    const handleBack = (event) => {
-      if (editingHours) { setEditingHours(false); event.preventDefault(); return; }
-      if (tab !== "available") { setTab("available"); event.preventDefault(); }
-    };
-    window.addEventListener("souq-jiran:back", handleBack);
-    return () => window.removeEventListener("souq-jiran:back", handleBack);
-  }, [editingHours, tab]);
 
   const hoursText = courier.customHours
     ? `من ${courier.customHours.from} إلى ${courier.customHours.to}`

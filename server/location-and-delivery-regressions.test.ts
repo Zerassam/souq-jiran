@@ -134,6 +134,20 @@ it("keeps each cart private to an authenticated customer and blocks stale-sessio
   expect(appSource).toContain("const [, loadedNotifications] = await Promise.all([");
 });
 
+it("registers courier dashboard hooks before the temporary missing-profile return", () => {
+  const courierDashboardStart = appSource.indexOf("function CourierDashboard(");
+  const courierDashboardEnd = appSource.indexOf("function CourierHoursEditor(");
+  const courierDashboardSource = appSource.slice(courierDashboardStart, courierDashboardEnd);
+  const missingCourierReturn = courierDashboardSource.indexOf("if (!courier) {");
+  const backListenerHook = courierDashboardSource.indexOf('window.addEventListener("souq-jiran:back", handleBack)');
+
+  expect(courierDashboardStart).toBeGreaterThanOrEqual(0);
+  expect(courierDashboardEnd).toBeGreaterThan(courierDashboardStart);
+  expect(missingCourierReturn).toBeGreaterThanOrEqual(0);
+  expect(backListenerHook).toBeGreaterThanOrEqual(0);
+  expect(backListenerHook).toBeLessThan(missingCourierReturn);
+});
+
 it("uses the exact quote_delivery parameter contract", () => {
   expect(appSource).toContain('supabase.rpc("quote_delivery", { p_merchant_id: merchantId, p_destination_json: destination, p_weight_kg: weightKg })');
   expect(deliveryRpcRepairMigration).toContain("p_destination_json jsonb");
