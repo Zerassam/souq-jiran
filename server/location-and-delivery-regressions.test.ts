@@ -72,6 +72,13 @@ describe("location and delivery regression guards", () => {
     expect(immediateOrdersMigration).toContain("create table if not exists public.customer_blacklist");
     expect(immediateOrdersMigration).toContain("alter table public.customer_blacklist enable row level security;");
     expect(immediateOrdersMigration).toContain("create policy customer_blacklist_admin_read on public.customer_blacklist");
+    expect(immediateOrdersMigration).toContain("create table if not exists public.delivery_pricing_config");
+    expect(immediateOrdersMigration).toContain("insert into public.delivery_pricing_config (id) values (true) on conflict (id) do nothing;");
+    expect(immediateOrdersMigration).toContain("alter table public.delivery_pricing_config enable row level security;");
+    expect(immediateOrdersMigration).toContain("v_pricing record;");
+    expect(immediateOrdersMigration).not.toContain("v_pricing public.delivery_pricing_config;");
+    expect(immediateOrdersMigration).toContain("create table if not exists public.order_lifecycle_events");
+    expect(immediateOrdersMigration).toContain("create or replace function public.record_order_lifecycle_event(");
     expect(immediateOrdersMigration).toContain("create or replace function public.is_customer_blacklisted(p_customer_id uuid)");
     expect(immediateOrdersMigration).toContain("create or replace function public.quote_delivery(");
     expect(immediateOrdersMigration).toContain("create or replace function public.create_customer_order(");

@@ -8,8 +8,8 @@
 -- remain accepted solely so already-installed application builds do not fail.
 
 -- Some deployments applied the order functions but not the earlier lifecycle
--- table creation. Bootstrap only the missing blacklist prerequisite: this does
--- not alter, delete, or seed customer accounts, and preserves an existing table.
+-- tables. Bootstrap only missing prerequisites: this does not alter or delete
+-- customer accounts, stores, orders, coverage areas, or historical data.
 create table if not exists public.customer_blacklist (
   customer_id uuid primary key references public.profiles(id) on delete cascade,
   reason text not null check (char_length(trim(reason)) between 5 and 1000),
@@ -24,6 +24,70 @@ alter table public.customer_blacklist enable row level security;
 drop policy if exists customer_blacklist_admin_read on public.customer_blacklist;
 create policy customer_blacklist_admin_read on public.customer_blacklist
   for select to authenticated using (public.is_app_admin());
+
+-- Central distance pricing is an administrative configuration. Create its
+-- compatible table and a single default configuration only when the prior
+-- lifecycle migration was not applied; existing configuration is preserved.
+create table if not exists public.delivery_pricing_config (
+  id boolean primary key default true check (id),
+  base_fee integer not null default 120 check (base_fee >= 0),
+  fee_per_km numeric(10,2) not null default 18 check (fee_per_km >= 0),
+  fee_per_kg numeric(10,2) not null default 35 check (fee_per_kg >= 0),
+  interwilaya_surcharge integer not null default 600 check (interwilaya_surcharge >= 0),
+  minimum_fee integer not null default 120 check (minimum_fee >= 0),
+  average_speed_kmh numeric(6,2) not null default 45 check (average_speed_kmh > 0),
+  updated_at timestamptz not null default now(),
+  updated_by uuid references public.profiles(id) on delete set null
+);
+insert into public.delivery_pricing_config (id) values (true) on conflict (id) do nothing;
+alter table public.delivery_pricing_config enable row level security;
+drop policy if exists delivery_pricing_config_read on public.delivery_pricing_config;
+create policy delivery_pricing_config_read on public.delivery_pricing_config
+  for select to authenticated using (true);
+drop policy if exists delivery_pricing_config_admin_write on public.delivery_pricing_config;
+create policy delivery_pricing_config_admin_write on public.delivery_pricing_config
+  for all to authenticated using (public.is_app_admin()) with check (public.is_app_admin());
+
+-- Keep the lifecycle audit available for a successful checkout even where the
+-- older advanced-order migration was never run. No existing order is inserted
+-- or updated by this definition.
+create table if not exists public.order_lifecycle_events (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders(id) on delete cascade,
+  event_type text not null,
+  actor_id uuid references public.profiles(id) on delete set null,
+  actor_role text,
+  details jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists order_lifecycle_events_order_idx
+  on public.order_lifecycle_events(order_id, created_at);
+alter table public.order_lifecycle_events enable row level security;
+drop policy if exists order_lifecycle_events_participant_read on public.order_lifecycle_events;
+create policy order_lifecycle_events_participant_read on public.order_lifecycle_events
+  for select to authenticated using (
+    public.is_app_admin() or exists (
+      select 1 from public.orders o
+      where o.id = order_lifecycle_events.order_id
+        and (o.customer_id = auth.uid() or o.merchant_id = auth.uid() or o.courier_id = auth.uid())
+    )
+  );
+
+create or replace function public.record_order_lifecycle_event(
+  p_order_id uuid,
+  p_event_type text,
+  p_details jsonb default '{}'::jsonb
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.order_lifecycle_events(order_id, event_type, actor_id, actor_role, details)
+  values (p_order_id, p_event_type, auth.uid(), public.current_app_role(), coalesce(p_details, '{}'::jsonb));
+end;
+$$;
 
 create or replace function public.is_customer_blacklisted(p_customer_id uuid)
 returns boolean
@@ -59,7 +123,7 @@ set search_path = public
 as $$
 declare
   v_merchant public.merchants;
-  v_pricing public.delivery_pricing_config;
+  v_pricing record;
   v_distance numeric := 0;
   v_interwilaya boolean;
   v_is_precise boolean := false;
@@ -77,12 +141,12 @@ begin
     and nullif(p_destination ->> 'latitude', '') is not null
     and nullif(p_destination ->> 'longitude', '') is not null
   then
-    v_distance := public.haversine_km(
-      v_merchant.latitude,
-      v_merchant.longitude,
-      (p_destination ->> 'latitude')::numeric,
-      (p_destination ->> 'longitude')::numeric
-    );
+    v_distance := 6371 * 2 * asin(sqrt(
+      power(sin(radians(((p_destination ->> 'latitude')::numeric - v_merchant.latitude) / 2)), 2)
+      + cos(radians(v_merchant.latitude))
+        * cos(radians((p_destination ->> 'latitude')::numeric))
+        * power(sin(radians(((p_destination ->> 'longitude')::numeric - v_merchant.longitude) / 2)), 2)
+    ));
     v_is_precise := true;
   end if;
 

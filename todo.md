@@ -378,3 +378,4 @@
 - [x] إعداد ترحيل محافظ لاستعادة دالتي `public.is_customer_blacklisted(uuid)` و`public.quote_delivery(uuid, jsonb, numeric)` وعقد إنشاء الطلب الفوري المتوافق لتأكيد الطلب.
 - [ ] التحقق من إنشاء طلب فوري بعد تنفيذ الترحيل الجديد من دون إنشاء طلبات أو بيانات إنتاجية اصطناعية.
 - [x] تصحيح ترحيل الطلبات الفورية بعد فشل مرجع جدول `public.customer_blacklist` غير الموجود في Supabase الفعلية.
+- [x] تصحيح ترحيل الطلبات الفورية بعد فشل نوع `public.delivery_pricing_config` غير الموجود في Supabase الفعلية.

@@ -855,6 +855,11 @@ describe("Souq Jiran Supabase integration", () => {
     expect(immediateOrdersMigration).toContain("create or replace function public.create_customer_order(");
     expect(immediateOrdersMigration).toContain("create table if not exists public.customer_blacklist");
     expect(immediateOrdersMigration).toContain("alter table public.customer_blacklist enable row level security;");
+    expect(immediateOrdersMigration).toContain("create table if not exists public.delivery_pricing_config");
+    expect(immediateOrdersMigration).toContain("insert into public.delivery_pricing_config (id) values (true) on conflict (id) do nothing;");
+    expect(immediateOrdersMigration).toContain("v_pricing record;");
+    expect(immediateOrdersMigration).not.toContain("v_pricing public.delivery_pricing_config;");
+    expect(immediateOrdersMigration).toContain("create table if not exists public.order_lifecycle_events");
     expect(immediateOrdersMigration).toContain("security definer");
     expect(immediateOrdersMigration).toContain("p_delivery_choice not in ('pickup', 'store', 'courier')");
     expect(immediateOrdersMigration).toContain("p_delivery_choice = 'store' and not v_merchant.has_own_delivery");
