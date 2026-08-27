@@ -848,11 +848,11 @@ describe("Souq Jiran Supabase integration", () => {
   it("keeps checkout immediate and preserves protected delivery validation", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
     const immediateOrdersMigration = readFileSync(resolve(projectRoot, "supabase/migrations/20260910_immediate_orders_cart_compatibility.sql"), "utf8");
+    const singleImmediateOrderRpcMigration = readFileSync(resolve(projectRoot, "supabase/migrations/20260912_single_immediate_order_rpc.sql"), "utf8");
     const anonymousRoleGuard = readFileSync(resolve(projectRoot, "supabase/migrations/20260905_current_app_role_anonymous_guard.sql"), "utf8");
     const schema = readFileSync(resolve(projectRoot, "supabase/schema.sql"), "utf8");
     const customerView = appSource.match(/function CustomerView[\s\S]*?(?=function MerchantView)/)?.[0] ?? "";
 
-    expect(immediateOrdersMigration).toContain("create or replace function public.create_customer_order(");
     expect(immediateOrdersMigration).toContain("create table if not exists public.customer_blacklist");
     expect(immediateOrdersMigration).toContain("alter table public.customer_blacklist enable row level security;");
     expect(immediateOrdersMigration).toContain("create table if not exists public.delivery_pricing_config");
@@ -860,19 +860,28 @@ describe("Souq Jiran Supabase integration", () => {
     expect(immediateOrdersMigration).toContain("v_pricing record;");
     expect(immediateOrdersMigration).not.toContain("v_pricing public.delivery_pricing_config;");
     expect(immediateOrdersMigration).toContain("create table if not exists public.order_lifecycle_events");
-    expect(immediateOrdersMigration).toContain("security definer");
-    expect(immediateOrdersMigration).toContain("p_delivery_choice not in ('pickup', 'store', 'courier')");
-    expect(immediateOrdersMigration).toContain("p_delivery_choice = 'store' and not v_merchant.has_own_delivery");
-    expect(immediateOrdersMigration).toContain("p_delivery_choice = 'courier' and not v_merchant.platform_delivery_enabled");
-    expect(immediateOrdersMigration).toContain("'none', 'not_requested', null, null");
-    expect(immediateOrdersMigration).toContain("grant execute on function public.create_customer_order(uuid, jsonb, text, jsonb, integer, text, timestamptz, timestamptz) to authenticated;");
+    expect(singleImmediateOrderRpcMigration).toContain("drop function if exists public.create_customer_order(");
+    expect(singleImmediateOrderRpcMigration).toContain("uuid, jsonb, text, jsonb, integer, text, timestamptz, timestamptz");
+    expect(singleImmediateOrderRpcMigration).toContain("create or replace function public.create_customer_order(");
+    expect(singleImmediateOrderRpcMigration).toContain("security definer");
+    expect(singleImmediateOrderRpcMigration).toContain("p_delivery_choice not in ('pickup', 'store', 'courier')");
+    expect(singleImmediateOrderRpcMigration).toContain("p_delivery_choice = 'store' and not v_has_own_delivery");
+    expect(singleImmediateOrderRpcMigration).toContain("p_delivery_choice = 'courier' and not v_platform_delivery_enabled");
+    expect(singleImmediateOrderRpcMigration).toContain("case when p_delivery_choice = 'pickup' then 0 else v_quote.fee end");
+    expect(singleImmediateOrderRpcMigration).toContain("'none', 'not_requested', null, null");
+    expect(singleImmediateOrderRpcMigration).toContain("grant execute on function public.create_customer_order(uuid, jsonb, text, jsonb, integer) to authenticated;");
+    expect(singleImmediateOrderRpcMigration).not.toContain("grant execute on function public.create_customer_order(uuid, jsonb, text, jsonb, integer, text, timestamptz, timestamptz)");
     expect(anonymousRoleGuard).toContain("select coalesce((select role from public.profiles where id = auth.uid()), '');");
     expect(anonymousRoleGuard).toContain("revoke all on function public.current_app_role() from public;");
     expect(schema).toContain("select coalesce((select role from public.profiles where id = auth.uid()), '');");
 
     expect(appSource).toContain('p_delivery_choice: deliveryType');
+    expect(appSource).toContain('p_merchant_id: store.id');
+    expect(appSource).toContain('p_items: items.map((item) => ({ product_id: item.id, qty: item.qty }))');
+    expect(appSource).toContain('p_delivery_address: deliveryType === "pickup" ? {} : address');
+    expect(appSource).toContain('p_delivery_fee: Number(deliveryFee || 0)');
     expect(appSource).toContain('supabase.rpc("create_customer_order"');
-    expect(appSource).toContain("تم إرسال طلبك — الدفع نقداً عند الاستلام");
+    expect(appSource).toContain("تم تأكيد طلبك رقم #${String(createdOrder.id).slice(0, 8)} — الدفع نقداً عند الاستلام");
     expect(appSource).not.toContain("DeliverySchedulePicker");
     expect(appSource).not.toContain("MerchantDeliverySchedulePanel");
     expect(appSource).not.toContain("delivery_schedule_options");

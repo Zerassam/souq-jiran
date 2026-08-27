@@ -1323,12 +1323,10 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [reviewingOrder, setReviewingOrder] = useState(null);
   const [invoiceOrder, setInvoiceOrder] = useState(null);
-  const [deliveryChoice, setDeliveryChoice] = useState("pickup");
-  const [deliveryQuote, setDeliveryQuote] = useState(null);
+  const [activeDraftId, setActiveDraftId] = useState(null);
   const [quoteError, setQuoteError] = useState("");
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [rewardCouponInput, setRewardCouponInput] = useState("");
-  const [appliedReward, setAppliedReward] = useState(null);
 
   const approvedStores = stores.filter((s) => ["approved", "active", "open"].includes(String(s.status || "approved").toLowerCase()));
   const qrStore = publicStoreId ? approvedStores.find((store) => store.id === publicStoreId) : null;
@@ -1362,9 +1360,15 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   }, [couriers, curatedStores, filterWilaya, filterCommune]);
 
   const openStore = stores.find((s) => s.id === openStoreId);
-  const cartStore = stores.find((s) => s.id === cart.storeId);
-  const cartCount = cart.items.reduce((a, i) => a + i.qty, 0);
-  const cartSubtotal = cart.items.reduce((a, i) => a + i.qty * i.price, 0);
+  const drafts = Array.isArray(cart?.drafts) ? cart.drafts : [];
+  const activeDraft = drafts.find((draft) => draft.id === activeDraftId) || drafts[0] || null;
+  const activeItems = activeDraft?.items || [];
+  const cartStore = stores.find((s) => s.id === activeDraft?.storeId);
+  const cartCount = drafts.reduce((sum, draft) => sum + (draft.items || []).reduce((itemSum, item) => itemSum + item.qty, 0), 0);
+  const cartSubtotal = activeItems.reduce((a, i) => a + i.qty * i.price, 0);
+  const deliveryChoice = activeDraft?.deliveryChoice || "pickup";
+  const deliveryQuote = activeDraft?.deliveryQuote || null;
+  const appliedReward = activeDraft?.rewardCoupon || null;
   const rewardDiscountAmount = appliedReward ? Math.min(Number(appliedReward.amount || 0), cartSubtotal) : 0;
   const discountAmount = rewardDiscountAmount;
   // The administration-owned quote is the source of truth for both delivery
@@ -1373,16 +1377,16 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const deliveryFee = deliveryChoice === "pickup" ? 0 : Number(deliveryQuote?.fee || 0);
   const finalTotal = Math.max(0, cartSubtotal - discountAmount + deliveryFee);
   const belowMinOrder = cartStore && cartStore.minOrder && cartSubtotal < cartStore.minOrder;
-  const isInterwilaya = Boolean(deliveryQuote?.isInterwilaya || (cart.address?.wilaya && cartStore?.wilaya && cart.address.wilaya !== cartStore.wilaya));
+  const isInterwilaya = Boolean(deliveryQuote?.isInterwilaya || (activeDraft?.address?.wilaya && cartStore?.wilaya && activeDraft.address.wilaya !== cartStore.wilaya));
   const requiresVerifiedEmail = deliveryChoice === "courier" && (finalTotal >= 10000 || isInterwilaya);
   const emailVerified = Boolean(customerId);
-  const addressReady = Boolean(cart.address?.wilaya && cart.address?.commune && cart.address?.label?.trim());
+  const addressReady = Boolean(activeDraft?.address?.wilaya && activeDraft?.address?.commune && activeDraft?.address?.label?.trim());
   const needsDeliveryAddress = deliveryChoice !== "pickup";
   const needsDeliveryQuote = deliveryChoice !== "pickup";
   // Every order is immediate. GPS refines the address and quote, but must not
   // hard-block checkout once the required written delivery address is present.
-  const checkoutDisabled = cartCount === 0 || Boolean(belowMinOrder) || quoteLoading || (needsDeliveryAddress && !addressReady) || (needsDeliveryQuote && !deliveryQuote) || (requiresVerifiedEmail && !emailVerified);
-  const checkoutHint = cartCount === 0
+  const checkoutDisabled = activeItems.length === 0 || Boolean(belowMinOrder) || quoteLoading || (needsDeliveryAddress && !addressReady) || (needsDeliveryQuote && !deliveryQuote) || (requiresVerifiedEmail && !emailVerified);
+  const checkoutHint = activeItems.length === 0
     ? uiText(language, "cartEmpty")
     : belowMinOrder
       ? uiText(language, "orderMinimumNotice", { amount: money(cartStore?.minOrder) })
@@ -1401,19 +1405,30 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const storeDeliveryEnabled = Boolean(cartStore?.hasOwnDelivery || cartStore?.storeDeliveryEnabled);
 
   useEffect(() => {
+    if (drafts.length === 0 && activeDraftId !== null) setActiveDraftId(null);
+    else if (drafts.length > 0 && !drafts.some((draft) => draft.id === activeDraftId)) setActiveDraftId(drafts[0].id);
+  }, [activeDraftId, drafts]);
+
+  function updateActiveDraft(values) {
+    if (!activeDraft?.id) return;
+    setCart((prev) => ({ ...prev, drafts: (prev.drafts || []).map((draft) => draft.id === activeDraft.id ? { ...draft, ...values } : draft) }), customerId);
+  }
+
+  useEffect(() => {
     let cancelled = false;
-    if (deliveryChoice === "pickup" || !cartStore?.id || !cart.address?.wilaya || !cart.address?.commune) {
-      setDeliveryQuote(null); setQuoteError(""); setQuoteLoading(false); return undefined;
+    if (deliveryChoice === "pickup" || !cartStore?.id || !activeDraft?.address?.wilaya || !activeDraft?.address?.commune) {
+      if (activeDraft?.deliveryQuote) updateActiveDraft({ deliveryQuote: null });
+      setQuoteError(""); setQuoteLoading(false); return undefined;
     }
     setQuoteLoading(true); setQuoteError("");
-    quoteDelivery(cartStore.id, cart.address, cart.items.reduce((sum, item) => sum + item.qty, 0)).then((result) => {
+    quoteDelivery(cartStore.id, activeDraft.address, activeItems.reduce((sum, item) => sum + item.qty, 0)).then((result) => {
       if (cancelled) return;
-      if (!result?.ok) { setDeliveryQuote(null); setQuoteError(result?.message || "تعذر احتساب رسوم التوصيل."); }
-      else setDeliveryQuote(result.quote);
+      if (!result?.ok) { updateActiveDraft({ deliveryQuote: null }); setQuoteError(result?.message || "تعذر احتساب رسوم التوصيل."); }
+      else updateActiveDraft({ deliveryQuote: result.quote });
       setQuoteLoading(false);
     });
     return () => { cancelled = true; };
-  }, [deliveryChoice, cartStore?.id, cart.address?.wilaya, cart.address?.commune, cart.address?.label, cart.items, quoteDelivery]);
+  }, [activeDraft?.id, activeDraft?.address?.wilaya, activeDraft?.address?.commune, activeDraft?.address?.label, activeDraft?.address?.latitude, activeDraft?.address?.longitude, activeDraft?.address?.x, activeDraft?.address?.y, activeItems, cartStore?.id, deliveryChoice, quoteDelivery]);
 
   // Android back events are dispatched by the app shell. The customer view owns
   // its local navigation state, so it consumes the event before the shell can
@@ -1432,19 +1447,24 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   }, [invoiceOrder, openStoreId, reviewingOrder, showCart, showMapPicker, tab]);
 
   function addToCart(store, product) {
+    const targetDraft = activeDraft?.storeId === store.id ? activeDraft : drafts.find((draft) => draft.storeId === store.id && (draft.items || []).length > 0);
+    const targetDraftId = targetDraft?.id || createOrderDraft(store.id).id;
+    if (targetDraft?.id !== activeDraft?.id) setActiveDraftId(targetDraftId);
     setCart((prev) => {
-      const sameStore = prev.storeId === store.id || prev.items.length === 0;
-      const base = sameStore ? prev.items : [];
-      if (!sameStore) notify("تم تفريغ السلة السابقة لأن هذا منتج من محل مختلف");
-      const existing = base.find((i) => i.id === product.id);
-      const items = existing ? base.map((i) => (i.id === product.id ? { ...i, qty: i.qty + 1 } : i)) : [...base, { id: product.id, name: product.name, price: product.price, qty: 1 }];
-      return { ...prev, storeId: store.id, items };
+      const existingDraft = (prev.drafts || []).find((draft) => draft.id === targetDraftId);
+      const nextDraft = existingDraft || createOrderDraft(store.id, targetDraftId);
+      const existingItem = (nextDraft.items || []).find((item) => item.id === product.id);
+      const items = existingItem ? nextDraft.items.map((item) => item.id === product.id ? { ...item, qty: item.qty + 1 } : item) : [...(nextDraft.items || []), { id: product.id, name: product.name, price: product.price, qty: 1 }];
+      const updatedDraft = { ...nextDraft, items };
+      return { ...prev, drafts: existingDraft ? prev.drafts.map((draft) => draft.id === targetDraftId ? updatedDraft : draft) : [...(prev.drafts || []), updatedDraft] };
     }, customerId);
-    notify(`تمت إضافة «${product.name}» للسلة`);
+    notify(targetDraft ? `تمت إضافة «${product.name}» إلى الطلب المفتوح` : `تم إنشاء طلب مستقل وإضافة «${product.name}» إليه`);
   }
-  function changeQty(id, delta) { setCart((prev) => ({ ...prev, items: prev.items.map((i) => (i.id === id ? { ...i, qty: i.qty + delta } : i)).filter((i) => i.qty > 0) }), customerId); }
-  function applyRewardCoupon() { const coupon = rewardCoupons.find((item) => item.status === "available" && item.code.toUpperCase() === rewardCouponInput.trim().toUpperCase()); if (!coupon) { notify("قسيمة المكافأة غير متاحة أو غير صالحة."); return; } if (cartSubtotal < Number(coupon.minimumOrderTotal || 0)) { notify(`هذه القسيمة تتطلب طلباً بقيمة ${money(coupon.minimumOrderTotal)} على الأقل.`); return; } setAppliedReward(coupon); notify(`تم حجز خصم المكافأة بقيمة ${money(coupon.amount)} للطلب.`); }
-  function updateAddress(values) { setCart((prev) => ({ ...prev, address: { ...(prev.address || {}), ...values } }), customerId); }
+  function changeQty(id, delta) { if (!activeDraft?.id) return; setCart((prev) => ({ ...prev, drafts: (prev.drafts || []).map((draft) => draft.id === activeDraft.id ? { ...draft, items: (draft.items || []).map((item) => item.id === id ? { ...item, qty: item.qty + delta } : item).filter((item) => item.qty > 0) } : draft) }), customerId); }
+  function removeActiveDraft() { if (!activeDraft?.id) return; setCart((prev) => ({ ...prev, drafts: (prev.drafts || []).filter((draft) => draft.id !== activeDraft.id) }), customerId); setActiveDraftId(null); setRewardCouponInput(""); notify("تم حذف مسودة الطلب هذه فقط."); }
+  function startIndependentDraft() { if (!cartStore?.id) return; const draft = createOrderDraft(cartStore.id); setCart((prev) => ({ ...prev, drafts: [...(prev.drafts || []), draft] }), customerId); setActiveDraftId(draft.id); setShowCart(false); setTab("browse"); setOpenStoreId(cartStore.id); notify("أُنشئت مسودة مستقلة. أضف منتجاتها ثم حدّد عنوانها وطريقة التوصيل."); }
+  function applyRewardCoupon() { const coupon = rewardCoupons.find((item) => item.status === "available" && item.code.toUpperCase() === rewardCouponInput.trim().toUpperCase()); if (!coupon) { notify("قسيمة المكافأة غير متاحة أو غير صالحة."); return; } if (cartSubtotal < Number(coupon.minimumOrderTotal || 0)) { notify(`هذه القسيمة تتطلب طلباً بقيمة ${money(coupon.minimumOrderTotal)} على الأقل.`); return; } updateActiveDraft({ rewardCoupon: coupon }); notify(`تم حجز خصم المكافأة بقيمة ${money(coupon.amount)} لهذا الطلب المستقل.`); }
+  function updateAddress(values) { updateActiveDraft({ address: { ...(activeDraft?.address || {}), ...values }, deliveryQuote: null }); }
   function requestCurrentLocation() {
     if (!navigator.geolocation) { notify("لا يدعم متصفحك تحديد الموقع الجغرافي."); return; }
     navigator.geolocation.getCurrentPosition(
@@ -1553,6 +1573,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
           {myOrders.map((o) => (
             <div key={o.id} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
               <div className="flex items-center justify-between mb-2"><span className="font-bold text-sm" style={{ color: C.ink }}>{o.storeName}</span><StatusPill status={o.status} /></div>
+              <div className="text-[11px] mb-1" style={{ color: C.inkSoft }}>رقم الطلب: #{String(o.id).slice(0, 8)}</div>
               <div className="text-xs mb-1" style={{ color: C.inkSoft }}>{o.items.map((i) => `${i.name} ×${i.qty}`).join(" · ")}</div>
               <div className="text-xs mb-3 flex items-center gap-1" style={{ color: C.teal }}>{React.createElement(DELIVERY_LABELS[o.deliveryType]?.icon || Home, { size: 12 })} {DELIVERY_LABELS[o.deliveryType]?.label}{o.courier ? ` — ${o.courier.name}` : ""}</div>
               <OrderTracker status={o.status} language={language} />
@@ -1571,24 +1592,30 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
         <div className="fixed inset-0 z-40 flex justify-end" style={{ background: "rgba(35,32,27,0.45)" }} onClick={() => setShowCart(false)}>
           <div onClick={(e) => e.stopPropagation()} className="h-full w-full sm:w-96 p-5 overflow-y-auto" style={{ background: C.paper }}>
             <div className="flex items-center justify-between mb-4"><h3 className="font-black text-lg" style={{ fontFamily: "'Reem Kufi', sans-serif", color: C.ink }}>{uiText(language, "cartHeading")}</h3><button onClick={() => setShowCart(false)}><X size={20} color={C.inkSoft} /></button></div>
-            {cart.items.length === 0 ? <p className="text-sm text-center py-10" style={{ color: C.inkSoft }}>{uiText(language, "cartEmpty")}</p> : (
+            {drafts.length === 0 ? <p className="text-sm text-center py-10" style={{ color: C.inkSoft }}>لا توجد مسودات طلبات بانتظار التأكيد.</p> : activeDraft && (
               <>
-                <CheckoutProgress cartCount={cartCount} deliveryChoice={deliveryChoice} addressReady={addressReady} language={language} />
+                <div className="mb-4 p-3 rounded-xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}>
+                  <div className="flex items-center justify-between gap-2"><div><p className="text-xs font-black" style={{ color: C.ink }}>طلبات بانتظار التأكيد ({drafts.length})</p><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>كل مسودة تُرسل وحدها؛ لا تُدمج متاجر أو عناوين مختلفة في طلب واحد.</p></div><button onClick={startIndependentDraft} className="px-3 py-2 rounded-xl text-xs font-black" style={{ background: C.teal, color: "#fff" }}>طلب مستقل جديد</button></div>
+                  <div className="mt-3 space-y-2">{drafts.map((draft) => { const draftStore = stores.find((store) => store.id === draft.storeId); const selected = draft.id === activeDraft.id; return <button key={draft.id} onClick={() => { setActiveDraftId(draft.id); setQuoteError(""); }} className="w-full p-2.5 rounded-xl text-right flex items-center justify-between gap-3" style={{ background: selected ? C.teal + "12" : "#fff", border: `1px solid ${selected ? C.teal : C.line}` }}><span><span className="block text-xs font-black" style={{ color: C.ink }}>{draftStore?.name || "متجر"}</span><span className="block text-[11px] mt-0.5" style={{ color: C.inkSoft }}>{(draft.items || []).reduce((sum, item) => sum + item.qty, 0)} منتجات · {draft.deliveryChoice === "pickup" ? "استلام ذاتي" : draft.address?.label || "العنوان قيد الاستكمال"}</span></span>{selected && <CheckCircle2 size={16} color={C.teal} />}</button>; })}</div>
+                </div>
+                <CheckoutProgress cartCount={activeItems.reduce((sum, item) => sum + item.qty, 0)} deliveryChoice={deliveryChoice} addressReady={addressReady} language={language} />
                 <p className="text-xs mb-3 font-bold" style={{ color: C.teal }}>{uiText(language, "orderFrom", { store: cartStore?.name || "—" })}</p>
-                <div className="space-y-3 mb-5">{cart.items.map((i) => (<div key={i.id} className="flex items-center justify-between p-3 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div><div className="text-sm font-bold" style={{ color: C.ink }}>{i.name}</div><div className="text-xs" style={{ color: C.inkSoft }}>{money(i.price)} × {i.qty}</div></div><div className="flex items-center gap-2"><button onClick={() => changeQty(i.id, -1)} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: C.paperDark }}><Minus size={13} /></button><span className="text-sm font-bold w-4 text-center">{i.qty}</span><button onClick={() => changeQty(i.id, 1)} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: C.paperDark }}><Plus size={13} /></button></div></div>))}</div>
+                <div className="space-y-3 mb-3">{activeItems.map((i) => (<div key={i.id} className="flex items-center justify-between p-3 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div><div className="text-sm font-bold" style={{ color: C.ink }}>{i.name}</div><div className="text-xs" style={{ color: C.inkSoft }}>{money(i.price)} × {i.qty}</div></div><div className="flex items-center gap-2"><button onClick={() => changeQty(i.id, -1)} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: C.paperDark }}><Minus size={13} /></button><span className="text-sm font-bold w-4 text-center">{i.qty}</span><button onClick={() => changeQty(i.id, 1)} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: C.paperDark }}><Plus size={13} /></button></div></div>))}</div>
+                <button onClick={removeActiveDraft} className="text-xs font-bold mb-5" style={{ color: "#8B3A2A" }}>حذف هذه المسودة فقط</button>
 
                 <div className="mb-4">
                   <span className="text-xs font-bold flex items-center gap-1 mb-2" style={{ color: C.ink }}><Truck2 size={13} /> {uiText(language, "deliveryMethod")}</span>
-                  <div className="space-y-2">{deliveryOptions.map((opt) => (<button key={opt.id} disabled={opt.disabled} onClick={() => setDeliveryChoice(opt.id)} className="w-full flex items-center gap-2.5 p-2.5 rounded-xl text-right disabled:opacity-40" style={{ border: `1.5px solid ${deliveryChoice === opt.id ? C.teal : C.line}`, background: deliveryChoice === opt.id ? C.teal + "10" : "#fff" }}><opt.icon size={17} color={deliveryChoice === opt.id ? C.teal : C.inkSoft} /><div className="flex-1"><div className="text-xs font-bold" style={{ color: C.ink }}>{opt.label}</div><div className="text-[11px]" style={{ color: C.inkSoft }}>{opt.desc}</div></div>{deliveryChoice === opt.id && <CheckCircle2 size={16} color={C.teal} />}</button>))}</div>
+                  <div className="space-y-2">{deliveryOptions.map((opt) => (<button key={opt.id} disabled={opt.disabled} onClick={() => updateActiveDraft({ deliveryChoice: opt.id, deliveryQuote: null })} className="w-full flex items-center gap-2.5 p-2.5 rounded-xl text-right disabled:opacity-40" style={{ border: `1.5px solid ${deliveryChoice === opt.id ? C.teal : C.line}`, background: deliveryChoice === opt.id ? C.teal + "10" : "#fff" }}><opt.icon size={17} color={deliveryChoice === opt.id ? C.teal : C.inkSoft} /><div className="flex-1"><div className="text-xs font-bold" style={{ color: C.ink }}>{opt.label}</div><div className="text-[11px]" style={{ color: C.inkSoft }}>{opt.desc}</div></div>{deliveryChoice === opt.id && <CheckCircle2 size={16} color={C.teal} />}</button>))}</div>
                 </div>
 
                 {deliveryChoice !== "pickup" && <div className="mb-4 p-3 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
-                  <div className="flex items-center justify-between mb-2"><span className="text-xs font-bold flex items-center gap-1" style={{ color: C.ink }}><MapPin size={13} /> {uiText(language, "deliveryAddress")}</span><button onClick={() => setShowMapPicker(true)} className="text-xs font-bold" style={{ color: C.teal }}>{cart.address ? uiText(language, "setOnMap") : uiText(language, "openMap")}</button></div>
-                  <WilayaCommuneSelect wilaya={cart.address?.wilaya || ""} commune={cart.address?.commune || ""} onChange={({ wilaya, commune }) => updateAddress({ wilaya, commune })} />
-                  <input value={cart.address?.label || ""} onChange={(e) => updateAddress({ label: e.target.value })} placeholder={uiText(language, "addressHint")} className="w-full mt-2 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
+                  <div className="flex items-center justify-between mb-2"><span className="text-xs font-bold flex items-center gap-1" style={{ color: C.ink }}><MapPin size={13} /> {uiText(language, "deliveryAddress")}</span><button onClick={() => setShowMapPicker(true)} className="text-xs font-bold" style={{ color: C.teal }}>{activeDraft.address ? uiText(language, "setOnMap") : uiText(language, "openMap")}</button></div>
+                  <p className="text-[11px] leading-5 mb-2" style={{ color: C.inkSoft }}>الولاية والبلدية تحددان منطقة التوصيل، لكن وصف الحي أو الشارع أو المعلم مطلوب لتأكيد التوصيل. تحديد GPS اختياري لتحسين الدقة ولا يمنع إرسال الطلب.</p>
+                  <WilayaCommuneSelect wilaya={activeDraft.address?.wilaya || ""} commune={activeDraft.address?.commune || ""} onChange={({ wilaya, commune }) => updateAddress({ wilaya, commune })} />
+                  <input value={activeDraft.address?.label || ""} onChange={(e) => updateAddress({ label: e.target.value })} placeholder={uiText(language, "addressHint")} className="w-full mt-2 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
                   <button onClick={requestCurrentLocation} className="mt-2 flex items-center gap-1 text-xs font-bold" style={{ color: C.teal }}><Navigation size={13} /> {uiText(language, "useGps")}</button>
-                  {cart.address?.latitude && cart.address?.longitude ? <p className="mt-2 text-[11px] font-bold" style={{ color: C.sage }}>{uiText(language, "gpsSaved")}</p> : <p className="mt-2 text-[11px]" style={{ color: C.inkSoft }}>{uiText(language, "gpsHint")}</p>}
-                  {cart.address?.x !== undefined && <div className="mt-2"><MapPreview x={cart.address.x} y={cart.address.y} height={60} /></div>}
+                  {activeDraft.address?.latitude && activeDraft.address?.longitude ? <p className="mt-2 text-[11px] font-bold" style={{ color: C.sage }}>{uiText(language, "gpsSaved")}</p> : <p className="mt-2 text-[11px]" style={{ color: C.inkSoft }}>{uiText(language, "gpsHint")}</p>}
+                  {activeDraft.address?.x !== undefined && <div className="mt-2"><MapPreview x={activeDraft.address.x} y={activeDraft.address.y} height={60} /></div>}
                 </div>}
 
                 {deliveryChoice !== "pickup" && quoteLoading && <p className="text-xs mb-3" style={{ color: C.inkSoft }}>{uiText(language, "calculatingDelivery")}</p>}
@@ -1607,14 +1634,15 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                   <div className="flex items-center justify-between pt-1"><span className="font-bold text-sm" style={{ color: C.ink }}>{uiText(language, "cashOnDelivery")}</span><PriceTag amount={finalTotal} size="lg" /></div>
                 </div>
                 <p className="text-xs font-bold mb-3" style={{ color: checkoutDisabled ? C.inkSoft : C.sage }}>{checkoutHint}</p>
-                <button disabled={checkoutDisabled} onClick={async () => { const ok = await placeOrder(cartStore, null, discountAmount, cart.address, deliveryChoice, deliveryFee, appliedReward?.code); if (!ok) return; setAppliedReward(null); setRewardCouponInput(""); setShowCart(false); setTab("orders"); setDeliveryChoice("pickup"); setDeliveryQuote(null); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>{uiText(language, "confirmCashOrder")}</button>
+                <div className="mb-3 p-3 rounded-xl text-xs" style={{ background: C.paperDark, border: `1px solid ${C.line}`, color: C.ink }}><span className="font-black">ملخص التأكيد: </span>{cartStore?.name || "المحل"} · {deliveryChoice === "pickup" ? "استلام ذاتي" : `${activeDraft.address?.wilaya || "—"}، ${activeDraft.address?.commune || "—"}، ${activeDraft.address?.label || "وصف العنوان مطلوب"}`} · {deliveryChoice === "pickup" ? "دون رسوم توصيل" : `رسوم التوصيل ${deliveryQuote ? money(deliveryFee) : "قيد الاحتساب"}`}</div>
+                <button disabled={checkoutDisabled} onClick={async () => { const ok = await placeOrder(cartStore, activeItems, null, discountAmount, activeDraft.address, deliveryChoice, deliveryFee, appliedReward?.code); if (!ok) return; setCart((prev) => ({ ...prev, drafts: (prev.drafts || []).filter((draft) => draft.id !== activeDraft.id) }), customerId); setActiveDraftId(null); setRewardCouponInput(""); setShowCart(false); setTab("orders"); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>تأكيد هذا الطلب من {cartStore?.name || "المحل"} وإرساله الآن</button>
               </>
             )}
           </div>
         </div>
       )}
 
-      {showMapPicker && <MapPicker title="حدد عنوان التوصيل" initial={cart.address ? { x: cart.address.x, y: cart.address.y } : undefined} onConfirm={(pos) => updateAddress({ x: pos.x, y: pos.y })} onClose={() => setShowMapPicker(false)} />}
+      {showMapPicker && <MapPicker title="حدد عنوان التوصيل" initial={activeDraft?.address ? { x: activeDraft.address.x, y: activeDraft.address.y } : undefined} onConfirm={(pos) => updateAddress({ x: pos.x, y: pos.y })} onClose={() => setShowMapPicker(false)} />}
       {reviewingOrder && <ReviewModal order={reviewingOrder} onSubmit={(stars, comment) => submitReview(reviewingOrder, stars, comment)} onClose={() => setReviewingOrder(null)} />}
       {invoiceOrder && <InvoiceModal order={invoiceOrder} store={stores.find((s) => s.id === invoiceOrder.storeId)} onClose={() => setInvoiceOrder(null)} />}
     </div>
@@ -2523,7 +2551,15 @@ const STORAGE = {
   myStoreId: { key: "souq-jiran:my-store-id:v4", shared: false },
   notifications: { key: "souq-jiran:notifications:v4", shared: false },
 };
-const emptyCart = () => ({ storeId: null, items: [], address: null });
+const createOrderDraft = (storeId, id = `draft-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`}`) => ({ id, storeId, items: [], address: null, deliveryChoice: "pickup", deliveryQuote: null, rewardCoupon: null });
+const emptyCart = () => ({ drafts: [] });
+const normalizeCartDrafts = (savedCart) => {
+  if (Array.isArray(savedCart?.drafts)) return { drafts: savedCart.drafts.filter((draft) => draft?.id && draft?.storeId && Array.isArray(draft.items)).map((draft) => ({ ...createOrderDraft(draft.storeId, draft.id), ...draft, items: draft.items })) };
+  if (savedCart?.storeId && Array.isArray(savedCart.items) && savedCart.items.length > 0) {
+    return { drafts: [{ ...createOrderDraft(savedCart.storeId, `migrated-${savedCart.storeId}`), items: savedCart.items, address: savedCart.address || null }] };
+  }
+  return emptyCart();
+};
 const customerCartStorage = (customerId) => ({ key: `souq-jiran:cart:v5:${customerId}`, shared: false });
 async function loadKey({ key, shared }, fallback) {
   try {
@@ -2590,6 +2626,9 @@ function RoleBenefitsPage({ onBack, onMerchant, onCourier, language = "ar" }) {
 function OrderDetailsOverlay({ order, onClose }) {
   if (!order) return null;
   const status = STATUS_MAP[order.status] || { label: order.status, color: C.inkSoft };
+  const deliveryLocationText = typeof order.deliveryLocation === "string"
+    ? order.deliveryLocation
+    : [order.deliveryLocation?.label, order.deliveryLocation?.commune, order.deliveryLocation?.wilaya].filter(Boolean).join("، ");
   return (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-5" style={{ background: "rgba(23,32,51,.44)" }} onClick={onClose} data-testid="order-notification-details">
       <section className="w-full max-w-lg max-h-[88vh] overflow-y-auto rounded-t-[28px] sm:rounded-[28px] p-5 sm:p-6" style={{ background: "#fff", boxShadow: "0 24px 60px rgba(23,32,51,.24)" }} onClick={(event) => event.stopPropagation()} aria-label="تفاصيل الطلب من الإشعار">
@@ -2597,7 +2636,7 @@ function OrderDetailsOverlay({ order, onClose }) {
         <div className="mt-5 p-4 rounded-2xl" style={{ background: status.color + "10", border: `1px solid ${status.color}2A` }}><div className="font-black" style={{ color: status.color }}>{status.label}</div><p className="text-xs mt-1.5 leading-5" style={{ color: C.inkSoft }}>{order.estimatedDeliveryMinutes ? `الزمن التقديري للتسليم: ${order.estimatedDeliveryMinutes} دقيقة.` : "ستظهر تحديثات التوصيل الجديدة هنا فور وصولها."}</p></div>
         <div className="mt-5 space-y-2">{order.items.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 text-sm p-3 rounded-xl" style={{ background: C.paper }}><span className="font-bold" style={{ color: C.ink }}>{item.name} × {item.qty}</span><span style={{ color: C.inkSoft }}>{money(item.price * item.qty)}</span></div>)}</div>
         <div className="mt-5 grid grid-cols-2 gap-3 text-sm"><div className="p-3 rounded-xl" style={{ border: `1px solid ${C.line}` }}><div className="text-[11px] font-bold" style={{ color: C.inkSoft }}>الإجمالي</div><div className="font-black mt-1" style={{ color: C.ink }}>{money(order.total)}</div></div><div className="p-3 rounded-xl" style={{ border: `1px solid ${C.line}` }}><div className="text-[11px] font-bold" style={{ color: C.inkSoft }}>التوصيل</div><div className="font-black mt-1" style={{ color: C.ink }}>{money(order.deliveryFee)}</div></div></div>
-        {order.deliveryLocation && <div className="mt-4 flex items-start gap-2 text-xs leading-5 p-3 rounded-xl" style={{ background: C.paper, color: C.inkSoft }}><MapPin size={15} color={C.teal} className="shrink-0 mt-0.5" />{order.deliveryLocation}</div>}
+        {deliveryLocationText && <div className="mt-4 flex items-start gap-2 text-xs leading-5 p-3 rounded-xl" style={{ background: C.paper, color: C.inkSoft }}><MapPin size={15} color={C.teal} className="shrink-0 mt-0.5" />{deliveryLocationText}</div>}
       </section>
     </div>
   );
@@ -2629,7 +2668,7 @@ export default function App() {
   const [couriers, setCouriers] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [auth, setAuth] = useState(null);
-  const [cart, setCart] = useState({ storeId: null, items: [], address: null });
+  const [cart, setCart] = useState(() => emptyCart());
   const [myStoreId, setMyStoreId] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [toast, setToast] = useState("");
@@ -2799,7 +2838,7 @@ export default function App() {
     const nextAuth = await resolveSupabaseUser(session.user);
     if (hydrationId !== sessionHydrationRef.current) return;
     const isCustomer = nextAuth.type === "customer";
-    const nextCart = isCustomer ? await loadKey(customerCartStorage(nextAuth.id), emptyCart()) : emptyCart();
+    const nextCart = isCustomer ? normalizeCartDrafts(await loadKey(customerCartStorage(nextAuth.id), emptyCart())) : emptyCart();
     if (hydrationId !== sessionHydrationRef.current) return;
     if (isCustomer) {
       cartOwnerRef.current = nextAuth.id;
@@ -3067,30 +3106,35 @@ export default function App() {
   }
   function persistentSetMyStoreId(id) { setMyStoreId(id); saveKey(STORAGE.myStoreId, id); }
 
-  async function placeOrder(store, _promo, _discountAmount = 0, address = null, deliveryType = "pickup", deliveryFee = 0, rewardCouponCode = null) {
+  async function placeOrder(store, items, _promo, _discountAmount = 0, address = null, deliveryType = "pickup", deliveryFee = 0, rewardCouponCode = null) {
     if (!auth || auth.type !== "customer") { notify("سجّل الدخول كعميل لإرسال طلبك."); return false; }
-    if (!store || cart.items.length === 0) return false;
+    if (!store || !Array.isArray(items) || items.length === 0) return false;
 
-    const { error } = await supabase.rpc("create_customer_order", {
+    const { data, error } = await supabase.rpc("create_customer_order", {
       p_merchant_id: store.id,
-      p_items: cart.items.map((item) => ({ product_id: item.id, qty: item.qty })),
+      p_items: items.map((item) => ({ product_id: item.id, qty: item.qty })),
       p_delivery_choice: deliveryType,
-      p_delivery_address: address,
-      p_delivery_fee: deliveryFee,
+      p_delivery_address: deliveryType === "pickup" ? {} : address,
+      p_delivery_fee: Number(deliveryFee || 0),
     });
     if (error) { notify("تعذر إرسال الطلب: " + error.message); return false; }
+    const createdOrder = Array.isArray(data) ? data[0] : data;
+    if (!createdOrder?.id) { notify("تعذر تأكيد إنشاء الطلب. لم تُحذف المسودة، حاول مرة أخرى."); return false; }
+    const confirmedOrder = {
+      id: createdOrder.id, storeId: createdOrder.merchant_id || store.id, storeName: stores.find((candidate) => candidate.id === (createdOrder.merchant_id || store.id))?.name || store.name || "محل الحي", customerId: createdOrder.customer_id || auth.id, customer: "أنت",
+      items: items.map((item) => ({ ...item })), subtotal: Number(createdOrder.subtotal ?? items.reduce((sum, item) => sum + item.price * item.qty, 0)), deliveryFee: Number(createdOrder.delivery_fee ?? 0), total: Number(createdOrder.total ?? 0), status: createdOrder.status || "pending", deliveryLocation: createdOrder.delivery_address || address,
+      isInterwilaya: Boolean(createdOrder.is_interwilaya), deliveryDistanceKm: Number(createdOrder.delivery_distance_km || 0), estimatedDeliveryMinutes: createdOrder.estimated_delivery_minutes, requiresPhoneVerification: Boolean(createdOrder.requires_phone_verification), originWilaya: createdOrder.origin_wilaya, destinationWilaya: createdOrder.destination_wilaya, deliveryType: createdOrder.delivery_choice || deliveryType, courier: null, rated: false, confirmed: false,
+      createdAt: createdOrder.created_at ? new Date(createdOrder.created_at).toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" }) : "الآن",
+    };
+    persistentSetOrders((previousOrders) => [confirmedOrder, ...previousOrders.filter((order) => order.id !== confirmedOrder.id)]);
     if (rewardCouponCode) {
-      const createdOrder = await supabase.from("orders").select("id").eq("customer_id", auth.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
-      if (createdOrder.error || !createdOrder.data?.id) { notify("تم إنشاء الطلب، لكن تعذر ربط قسيمة المكافأة الآن."); }
-      else {
-        const { error: couponError } = await supabase.rpc("redeem_reward_coupon", { p_order_id: createdOrder.data.id, p_coupon_code: rewardCouponCode });
-        if (couponError) { notify("تم إنشاء الطلب، لكن لم تُطبّق القسيمة: " + couponError.message); }
-        else notify(`تم تطبيق قسيمة المكافأة ${rewardCouponCode} على طلبك.`);
-      }
+      const { error: couponError } = await supabase.rpc("redeem_reward_coupon", { p_order_id: createdOrder.id, p_coupon_code: rewardCouponCode });
+      if (couponError) notify("تم إنشاء الطلب، لكن لم تُطبّق القسيمة: " + couponError.message);
+      else notify(`تم تطبيق قسيمة المكافأة ${rewardCouponCode} على طلبك.`);
     }
-    persistentSetCart(emptyCart());
-    await refreshSupabaseData();
-    notify("تم إرسال طلبك — الدفع نقداً عند الاستلام");
+    try { await refreshSupabaseData("customer"); } catch (refreshError) { console.warn("تعذر تحديث الطلبات بعد الإنشاء:", refreshError); }
+    persistentSetOrders((previousOrders) => previousOrders.some((order) => order.id === confirmedOrder.id) ? previousOrders : [confirmedOrder, ...previousOrders]);
+    notify(`تم تأكيد طلبك رقم #${String(createdOrder.id).slice(0, 8)} — الدفع نقداً عند الاستلام`);
     return true;
   }
 

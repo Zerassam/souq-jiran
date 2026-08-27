@@ -8,6 +8,7 @@ const merchantBusinessHoursMigration = readFileSync(resolve(process.cwd(), "supa
 const parallelDeliveryMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260909_parallel_delivery_and_coverage_zones.sql"), "utf8");
 const immediateOrdersMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260910_immediate_orders_cart_compatibility.sql"), "utf8");
 const deliveryRpcRepairMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260911_delivery_rpc_contract_repair.sql"), "utf8");
+const singleImmediateOrderRpcMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260912_single_immediate_order_rpc.sql"), "utf8");
 
 describe("location and delivery regression guards", () => {
   it("يحفظ ساعات العمل ويعيد تحميلها قبل إظهار وسم الفتح أو الإغلاق", () => {
@@ -69,7 +70,7 @@ describe("location and delivery regression guards", () => {
     expect(appSource).toContain("longitude: Number.isFinite(form.longitude) ? form.longitude : null");
   });
 
-  it("defines the immediate-checkout RPCs with authenticated-only execution", () => {
+  it("defines the immediate-checkout RPCs with authenticated-only execution and one unambiguous checkout signature", () => {
     expect(immediateOrdersMigration).toContain("create table if not exists public.customer_blacklist");
     expect(immediateOrdersMigration).toContain("alter table public.customer_blacklist enable row level security;");
     expect(immediateOrdersMigration).toContain("create policy customer_blacklist_admin_read on public.customer_blacklist");
@@ -82,14 +83,24 @@ describe("location and delivery regression guards", () => {
     expect(immediateOrdersMigration).toContain("create or replace function public.record_order_lifecycle_event(");
     expect(immediateOrdersMigration).toContain("create or replace function public.is_customer_blacklisted(p_customer_id uuid)");
     expect(immediateOrdersMigration).toContain("create or replace function public.quote_delivery(");
-    expect(immediateOrdersMigration).toContain("create or replace function public.create_customer_order(");
     expect(immediateOrdersMigration).toContain("revoke all on function public.is_customer_blacklisted(uuid) from public, anon;");
     expect(immediateOrdersMigration).toContain("grant execute on function public.is_customer_blacklisted(uuid) to authenticated;");
     expect(immediateOrdersMigration).toContain("grant execute on function public.quote_delivery(uuid, jsonb, numeric) to authenticated;");
-    expect(immediateOrdersMigration).toContain("grant execute on function public.create_customer_order(uuid, jsonb, text, jsonb, integer, text, timestamptz, timestamptz) to authenticated;");
-    expect(immediateOrdersMigration).toContain("and not public.merchant_covers_delivery_destination(p_merchant_id, p_delivery_address)");
-    expect(immediateOrdersMigration).toContain("'none', 'not_requested', null, null");
-    expect(immediateOrdersMigration).toContain("notify pgrst, 'reload schema'");
+    expect(singleImmediateOrderRpcMigration).toContain("drop function if exists public.create_customer_order(");
+    expect(singleImmediateOrderRpcMigration).toContain("uuid, jsonb, text, jsonb, integer, text, timestamptz, timestamptz");
+    expect(singleImmediateOrderRpcMigration).toContain("create or replace function public.create_customer_order(");
+    expect(singleImmediateOrderRpcMigration).toContain("p_merchant_id uuid");
+    expect(singleImmediateOrderRpcMigration).toContain("p_items jsonb");
+    expect(singleImmediateOrderRpcMigration).toContain("p_delivery_choice text");
+    expect(singleImmediateOrderRpcMigration).toContain("p_delivery_address jsonb");
+    expect(singleImmediateOrderRpcMigration).toContain("p_delivery_fee integer");
+    expect(singleImmediateOrderRpcMigration).toContain("revoke all on function public.create_customer_order(uuid, jsonb, text, jsonb, integer) from public, anon;");
+    expect(singleImmediateOrderRpcMigration).toContain("grant execute on function public.create_customer_order(uuid, jsonb, text, jsonb, integer) to authenticated;");
+    expect(singleImmediateOrderRpcMigration).not.toContain("grant execute on function public.create_customer_order(uuid, jsonb, text, jsonb, integer, text, timestamptz, timestamptz)");
+    expect(singleImmediateOrderRpcMigration).toContain("case when p_delivery_choice = 'pickup' then 0 else v_quote.fee end");
+    expect(singleImmediateOrderRpcMigration).toContain("and not public.merchant_covers_delivery_destination(p_merchant_id, p_delivery_address)");
+    expect(singleImmediateOrderRpcMigration).toContain("'none', 'not_requested', null, null");
+    expect(singleImmediateOrderRpcMigration).toContain("notify pgrst, 'reload schema'");
   });
 });
 
@@ -102,8 +113,18 @@ it("removes delivery scheduling from customer checkout and merchant management",
   expect(appSource).not.toContain("p_delivery_schedule_mode:");
   expect(appSource).not.toContain("p_requested_delivery_window_start:");
   expect(appSource).not.toContain("requestedDeliveryWindowStart:");
-  expect(appSource).toContain("async function placeOrder(store, _promo, _discountAmount = 0, address = null, deliveryType = \"pickup\", deliveryFee = 0, rewardCouponCode = null)");
-  expect(appSource).toContain("notify(\"تم إرسال طلبك — الدفع نقداً عند الاستلام\")");
+  expect(appSource).toContain("async function placeOrder(store, items, _promo, _discountAmount = 0, address = null, deliveryType = \"pickup\", deliveryFee = 0, rewardCouponCode = null)");
+  expect(appSource).toContain("const { data, error } = await supabase.rpc(\"create_customer_order\"");
+  expect(appSource).toContain("const createdOrder = Array.isArray(data) ? data[0] : data;");
+  expect(appSource).toContain("تم تأكيد طلبك رقم #${String(createdOrder.id).slice(0, 8)} — الدفع نقداً عند الاستلام");
+});
+
+it("keeps the draft-cart state unified and safely renders JSON delivery addresses", () => {
+  expect(appSource).toContain("const [cart, setCart] = useState(() => emptyCart());");
+  expect(appSource).toContain("const deliveryLocationText = typeof order.deliveryLocation === \"string\"");
+  expect(appSource).toContain("[order.deliveryLocation?.label, order.deliveryLocation?.commune, order.deliveryLocation?.wilaya].filter(Boolean).join(\"، \")");
+  expect(appSource).toContain("{deliveryLocationText && <div");
+  expect(appSource).not.toContain("/> {order.deliveryLocation}</div>");
 });
 
 it("keeps each cart private to an authenticated customer and blocks stale-session writes", () => {
@@ -113,6 +134,11 @@ it("keeps each cart private to an authenticated customer and blocks stale-sessio
   expect(appSource).toContain("const cartHydratedRef = useRef(false)");
   expect(appSource).toContain("const cartStorageEpochRef = useRef(0)");
   expect(appSource).toContain("const cartStorageQueueRef = useRef(Promise.resolve())");
+  expect(appSource).toContain("const normalizeCartDrafts = (savedCart)");
+  expect(appSource).toContain("const emptyCart = () => ({ drafts: [] });");
+  expect(appSource).toContain("const activeDraft = drafts.find((draft) => draft.id === activeDraftId) || drafts[0] || null;");
+  expect(appSource).toContain("كل مسودة تُرسل وحدها؛ لا تُدمج متاجر أو عناوين مختلفة في طلب واحد.");
+  expect(appSource).toContain("تحديد GPS اختياري لتحسين الدقة ولا يمنع إرسال الطلب.");
   expect(appSource).toContain("function queueCartStorage(operation)");
   expect(appSource).toContain("function resetCartForSession()");
   expect(appSource).toContain("cartStorageEpochRef.current += 1;");
