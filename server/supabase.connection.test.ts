@@ -70,7 +70,7 @@ describe("Supabase configuration", () => {
     }
   }, 15_000);
 
-  it("treats anonymous scheduling callers as unassigned and denies delivery windows", async () => {
+  it("treats anonymous callers as unassigned", async () => {
     const roleResponse = await fetch(`${projectUrl}/rest/v1/rpc/current_app_role`, {
       method: "POST",
       headers: {
@@ -84,45 +84,19 @@ describe("Supabase configuration", () => {
     expect(roleResponse.ok).toBe(true);
     expect(await roleResponse.json()).toBe("");
 
-    const scheduleResponse = await fetch(`${projectUrl}/rest/v1/rpc/delivery_schedule_options`, {
-      method: "POST",
-      headers: {
-        apikey: publishableKey!,
-        Authorization: `Bearer ${publishableKey!}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        p_merchant_id: "00000000-0000-0000-0000-000000000000",
-        p_delivery_choice: "store",
-        p_delivery_address: { wilaya: "Alger", commune: "Alger Centre", label: "Test" },
-      }),
-    });
-
-    expect(scheduleResponse.ok).toBe(false);
-    expect(JSON.stringify(await scheduleResponse.json())).not.toContain("window_start");
   }, 15_000);
 
-  it("rejects every mutating scheduling RPC before it can change production data", async () => {
+  it("rejects anonymous order creation before it can change production data", async () => {
     const anonymousHeaders = {
       apikey: publishableKey!,
       Authorization: `Bearer ${publishableKey!}`,
       "Content-Type": "application/json",
     };
     const nonExistentId = "00000000-0000-0000-0000-000000000000";
-    const protectedCalls = [
-      {
-        name: "merchant_save_delivery_schedule",
-        body: { p_scheduling_enabled: true, p_preparation_minutes: 30, p_weekly_schedule: {}, p_blackout_windows: [] },
-      },
-      {
-        name: "merchant_respond_delivery_schedule",
-        body: { p_order_id: nonExistentId, p_confirm: true },
-      },
-      {
-        name: "create_customer_order",
-        body: { p_merchant_id: nonExistentId, p_items: [], p_delivery_choice: "pickup" },
-      },
-    ];
+    const protectedCalls = [{
+      name: "create_customer_order",
+      body: { p_merchant_id: nonExistentId, p_items: [], p_delivery_choice: "pickup" },
+    }];
 
     for (const rpc of protectedCalls) {
       const response = await fetch(`${projectUrl}/rest/v1/rpc/${rpc.name}`, {

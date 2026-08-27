@@ -3,10 +3,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const appSource = readFileSync(resolve(process.cwd(), "client/src/pages/SouqJiranApp.jsx"), "utf8");
-const migrationSource = readFileSync(resolve(process.cwd(), "supabase/migrations/20260906_profile_location_blacklist_guard.sql"), "utf8");
 const merchantLocationRepairSource = readFileSync(resolve(process.cwd(), "supabase/migrations/20260907_merchant_location_columns_repair.sql"), "utf8");
 const merchantBusinessHoursMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260908_merchant_business_hours.sql"), "utf8");
 const parallelDeliveryMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260909_parallel_delivery_and_coverage_zones.sql"), "utf8");
+const immediateOrdersMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260910_immediate_orders_cart_compatibility.sql"), "utf8");
 
 describe("location and delivery regression guards", () => {
   it("يحفظ ساعات العمل ويعيد تحميلها قبل إظهار وسم الفتح أو الإغلاق", () => {
@@ -68,24 +68,46 @@ describe("location and delivery regression guards", () => {
     expect(appSource).toContain("longitude: Number.isFinite(form.longitude) ? form.longitude : null");
   });
 
-  it("defines the production blacklist RPC with authenticated-only execution", () => {
-    expect(migrationSource).toContain("create or replace function public.is_customer_blacklisted(p_customer_id uuid)");
-    expect(migrationSource).toContain("revoke all on function public.is_customer_blacklisted(uuid) from public;");
-    expect(migrationSource).toContain("grant execute on function public.is_customer_blacklisted(uuid) to authenticated;");
+  it("defines the immediate-checkout RPCs with authenticated-only execution", () => {
+    expect(immediateOrdersMigration).toContain("create or replace function public.is_customer_blacklisted(p_customer_id uuid)");
+    expect(immediateOrdersMigration).toContain("create or replace function public.quote_delivery(");
+    expect(immediateOrdersMigration).toContain("create or replace function public.create_customer_order(");
+    expect(immediateOrdersMigration).toContain("revoke all on function public.is_customer_blacklisted(uuid) from public, anon;");
+    expect(immediateOrdersMigration).toContain("grant execute on function public.is_customer_blacklisted(uuid) to authenticated;");
+    expect(immediateOrdersMigration).toContain("grant execute on function public.quote_delivery(uuid, jsonb, numeric) to authenticated;");
+    expect(immediateOrdersMigration).toContain("grant execute on function public.create_customer_order(uuid, jsonb, text, jsonb, integer, text, timestamptz, timestamptz) to authenticated;");
+    expect(immediateOrdersMigration).toContain("and not public.merchant_covers_delivery_destination(p_merchant_id, p_delivery_address)");
+    expect(immediateOrdersMigration).toContain("'none', 'not_requested', null, null");
+    expect(immediateOrdersMigration).toContain("notify pgrst, 'reload schema'");
   });
 });
 
-it("does not make a delivery window mandatory for immediate delivery", () => {
-  expect(appSource).toContain('deliverySchedule?.mode || "none"');
-  expect(appSource).toContain('deliveryType !== "pickup" && scheduleMode !== "none"');
-  expect(appSource).toContain("تابع بالتوصيل الفوري");
+it("removes delivery scheduling from customer checkout and merchant management", () => {
+  expect(appSource).not.toContain("DeliverySchedulePicker");
+  expect(appSource).not.toContain("MerchantDeliverySchedulePanel");
+  expect(appSource).not.toContain("delivery_schedule_options");
+  expect(appSource).not.toContain("merchant_respond_delivery_schedule");
+  expect(appSource).not.toContain("merchant_save_delivery_schedule");
+  expect(appSource).not.toContain("p_delivery_schedule_mode:");
+  expect(appSource).not.toContain("p_requested_delivery_window_start:");
+  expect(appSource).not.toContain("requestedDeliveryWindowStart:");
+  expect(appSource).toContain("async function placeOrder(store, _promo, _discountAmount = 0, address = null, deliveryType = \"pickup\", deliveryFee = 0, rewardCouponCode = null)");
+  expect(appSource).toContain("notify(\"تم إرسال طلبك — الدفع نقداً عند الاستلام\")");
 });
 
-it("keeps the SQL migration for optional scheduling reviewable", () => {
-  const optionalMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260906_optional_delivery_schedule.sql"), "utf8");
-  expect(optionalMigration).toContain("p_delivery_schedule_mode text default 'none'");
-  expect(optionalMigration).toContain("DELIVERY_WINDOW_MUST_BE_90_MINUTES");
-  expect(optionalMigration).toContain("v_schedule_status text := 'not_requested'");
+it("keeps each cart private to an authenticated customer and clears it at logout", () => {
+  expect(appSource).toContain("const customerCartStorage = (customerId) => ({ key: `souq-jiran:cart:v5:${customerId}`, shared: false })");
+  expect(appSource).toContain("clearKey(STORAGE.legacyCart, emptyCart())");
+  expect(appSource).toContain("nextAuth.type === \"customer\"");
+  expect(appSource).toContain("await loadKey(customerCartStorage(nextAuth.id), emptyCart())");
+  expect(appSource).toContain("if (auth?.type === \"customer\" && auth.id) void saveKey(customerCartStorage(auth.id), next)");
+  expect(appSource).toContain("if (cartOwnerId) await clearKey(customerCartStorage(cartOwnerId), emptyCart())");
+  expect(appSource).toContain("setCart(emptyCart())");
+});
+
+it("uses the exact quote_delivery parameter contract", () => {
+  expect(appSource).toContain('supabase.rpc("quote_delivery", { p_merchant_id: merchantId, p_destination: destination, p_weight_kg: weightKg })');
+  expect(appSource).not.toContain("p_destination_json");
 });
 
 it("uses one safe back policy for Android and visible customer navigation", () => {

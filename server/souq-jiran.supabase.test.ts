@@ -76,8 +76,6 @@ describe("Souq Jiran Supabase integration", () => {
     expect(appSource).toContain("Attach the rotation listener before the initial getToken call");
     expect(appSource).toContain("await syncNativeFcmToken(profileId);");
     expect(appSource).not.toContain("requestNativeFcmToken()).catch(() => null");
-    expect(appSource).toContain("endMs - startMs !== 90 * 60 * 1000");
-    expect(appSource).toContain("selectedDeliverySlot.schedule_mode");
     expect(appSource).toContain('const loadFirebaseHelpers = () => import("@/lib/firebase")');
     expect(appSource).not.toContain('from "@/lib/firebase"');
     expect(firebaseSource).toContain("FirebaseMessaging.requestPermissions");
@@ -806,7 +804,7 @@ describe("Souq Jiran Supabase integration", () => {
     expect(merchantViewSource).toContain("isResolvingMerchantStore = false");
     expect(merchantViewSource).toContain('data-testid="merchant-store-hydration"');
     expect(merchantViewSource.indexOf("if (isResolvingMerchantStore)")).toBeLessThan(merchantViewSource.indexOf("لا يوجد محل مرتبط بهذا الحساب"));
-    expect(appSource).toContain("setCart(loadedCart); setMyStoreId(null); setNotifications(loadedNotifications);");
+    expect(appSource).toContain("setCart(emptyCart()); setMyStoreId(null); setNotifications(loadedNotifications);");
   });
 
   it("uses the public production domain for QR routes and keeps customer referral compatible with Email OTP", () => {
@@ -847,42 +845,31 @@ describe("Souq Jiran Supabase integration", () => {
     expect(localEnvironmentTemplate).not.toContain("SUPABASE_SERVICE_ROLE_KEY=");
   });
 
-  it("guards requested delivery scheduling with server validation and merchant confirmation", () => {
+  it("keeps checkout immediate and preserves protected delivery validation", () => {
     const appSource = readFileSync(resolve(projectRoot, "client/src/pages/SouqJiranApp.jsx"), "utf8");
-    const migration = readFileSync(resolve(projectRoot, "supabase/migrations/20260904_delivery_scheduling.sql"), "utf8");
+    const immediateOrdersMigration = readFileSync(resolve(projectRoot, "supabase/migrations/20260910_immediate_orders_cart_compatibility.sql"), "utf8");
     const anonymousRoleGuard = readFileSync(resolve(projectRoot, "supabase/migrations/20260905_current_app_role_anonymous_guard.sql"), "utf8");
     const schema = readFileSync(resolve(projectRoot, "supabase/schema.sql"), "utf8");
     const customerView = appSource.match(/function CustomerView[\s\S]*?(?=function MerchantView)/)?.[0] ?? "";
 
-    expect(migration).toContain("merchant_delivery_schedule_settings");
-    expect(migration).toContain("requested_delivery_window_end = requested_delivery_window_start + interval '90 minutes'");
-    expect(migration).toContain("create or replace function public.delivery_schedule_options");
-    expect(migration).toContain("v_first_available boolean := true");
-    expect(migration).toContain("case when v_first_available then 'next_available' else 'selected_window' end");
-    expect(migration).toContain("create or replace function public.is_requested_delivery_window_available");
-    expect(migration).toContain("PICKUP_CANNOT_BE_SCHEDULED");
-    expect(migration).toContain("DELIVERY_SCHEDULE_REQUIRED");
-    expect(migration).toContain("DELIVERY_WINDOW_UNAVAILABLE");
-    expect(migration).toContain("v_schedule_status := 'requested'");
-    expect(migration).toContain("merchant_respond_delivery_schedule");
-    expect(migration).toContain("case when p_confirm then 'confirmed' else 'declined' end");
-    expect(migration).toContain("Email OTP verification is the only live account verification");
-    expect(migration).toContain("no phone-OTP gate is introduced here");
+    expect(immediateOrdersMigration).toContain("create or replace function public.create_customer_order(");
+    expect(immediateOrdersMigration).toContain("security definer");
+    expect(immediateOrdersMigration).toContain("p_delivery_choice not in ('pickup', 'store', 'courier')");
+    expect(immediateOrdersMigration).toContain("p_delivery_choice = 'store' and not v_merchant.has_own_delivery");
+    expect(immediateOrdersMigration).toContain("p_delivery_choice = 'courier' and not v_merchant.platform_delivery_enabled");
+    expect(immediateOrdersMigration).toContain("'none', 'not_requested', null, null");
+    expect(immediateOrdersMigration).toContain("grant execute on function public.create_customer_order(uuid, jsonb, text, jsonb, integer, text, timestamptz, timestamptz) to authenticated;");
     expect(anonymousRoleGuard).toContain("select coalesce((select role from public.profiles where id = auth.uid()), '');");
     expect(anonymousRoleGuard).toContain("revoke all on function public.current_app_role() from public;");
     expect(schema).toContain("select coalesce((select role from public.profiles where id = auth.uid()), '');");
 
-    expect(customerView).toContain('supabase.rpc("delivery_schedule_options"');
-    expect(customerView).toContain('slot?.schedule_mode');
-    expect(customerView).toContain('p_delivery_choice: deliveryChoice');
-    expect(customerView).toContain('data-testid="delivery-schedule-options"');
-    expect(customerView).toContain('uiText(language, "scheduleRequested")');
-    expect(appSource).toContain("تم إرسال طلب الموعد — بانتظار تأكيد التاجر.");
-    expect(customerView).toContain("deliveryChoice !== \"pickup\"");
-    expect(appSource).toContain("function MerchantDeliverySchedulePanel");
-    expect(appSource).toContain('data-testid="merchant-delivery-schedule-panel"');
-    expect(appSource).toContain('supabase.rpc("merchant_save_delivery_schedule"');
-    expect(appSource).toContain('supabase.rpc("merchant_respond_delivery_schedule"');
-    expect(appSource).toContain("تأكيد الموعد");
+    expect(appSource).toContain('p_delivery_choice: deliveryType');
+    expect(appSource).toContain('supabase.rpc("create_customer_order"');
+    expect(appSource).toContain("تم إرسال طلبك — الدفع نقداً عند الاستلام");
+    expect(appSource).not.toContain("DeliverySchedulePicker");
+    expect(appSource).not.toContain("MerchantDeliverySchedulePanel");
+    expect(appSource).not.toContain("delivery_schedule_options");
+    expect(appSource).not.toContain("merchant_save_delivery_schedule");
+    expect(appSource).not.toContain("merchant_respond_delivery_schedule");
   });
 });

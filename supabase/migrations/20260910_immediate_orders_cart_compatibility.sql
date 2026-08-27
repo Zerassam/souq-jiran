@@ -1,0 +1,221 @@
+-- Run ONCE in the Supabase SQL Editor as the database owner, after
+-- 20260909_parallel_delivery_and_coverage_zones.sql.
+--
+-- This compatibility migration does not change or delete production accounts,
+-- stores, addresses, products, orders, coverage zones, or historical schedule
+-- data. It restores the RPC contracts required by immediate checkout and makes
+-- every newly-created order immediate. The three legacy schedule parameters
+-- remain accepted solely so already-installed application builds do not fail.
+
+create or replace function public.is_customer_blacklisted(p_customer_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.customer_blacklist b
+    where b.customer_id = p_customer_id
+      and b.revoked_at is null
+      and (b.expires_at is null or b.expires_at > now())
+  );
+$$;
+
+create or replace function public.quote_delivery(
+  p_merchant_id uuid,
+  p_destination jsonb,
+  p_weight_kg numeric default 0.25
+)
+returns table(
+  distance_km numeric,
+  fee integer,
+  eta_minutes integer,
+  is_interwilaya boolean,
+  is_precise boolean
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_merchant public.merchants;
+  v_pricing public.delivery_pricing_config;
+  v_distance numeric := 0;
+  v_interwilaya boolean;
+  v_is_precise boolean := false;
+begin
+  select * into v_merchant
+  from public.merchants
+  where id = p_merchant_id and status = 'approved';
+  if not found then raise exception 'MERCHANT_NOT_AVAILABLE'; end if;
+
+  select * into v_pricing from public.delivery_pricing_config where id = true;
+  if not found then raise exception 'DELIVERY_PRICING_NOT_CONFIGURED'; end if;
+
+  v_interwilaya := coalesce(v_merchant.wilaya <> nullif(p_destination ->> 'wilaya', ''), false);
+  if v_merchant.latitude is not null and v_merchant.longitude is not null
+    and nullif(p_destination ->> 'latitude', '') is not null
+    and nullif(p_destination ->> 'longitude', '') is not null
+  then
+    v_distance := public.haversine_km(
+      v_merchant.latitude,
+      v_merchant.longitude,
+      (p_destination ->> 'latitude')::numeric,
+      (p_destination ->> 'longitude')::numeric
+    );
+    v_is_precise := true;
+  end if;
+
+  return query
+  select
+    round(v_distance, 2),
+    greatest(
+      v_pricing.minimum_fee,
+      round(
+        v_pricing.base_fee
+        + v_distance * v_pricing.fee_per_km
+        + greatest(coalesce(p_weight_kg, 0.25), 0.05) * v_pricing.fee_per_kg
+        + case when v_interwilaya then v_pricing.interwilaya_surcharge else 0 end
+      )::integer
+    ),
+    greatest(20, ceil((v_distance / v_pricing.average_speed_kmh) * 60 + 25)::integer),
+    v_interwilaya,
+    v_is_precise;
+end;
+$$;
+
+create or replace function public.create_customer_order(
+  p_merchant_id uuid,
+  p_items jsonb,
+  p_delivery_choice text default 'pickup',
+  p_delivery_address jsonb default null,
+  p_delivery_fee integer default 0,
+  p_delivery_schedule_mode text default 'none',
+  p_requested_delivery_window_start timestamptz default null,
+  p_requested_delivery_window_end timestamptz default null
+)
+returns public.orders
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_items jsonb;
+  v_subtotal integer;
+  v_weight numeric;
+  v_order public.orders;
+  v_quote record;
+  v_requires_email_verification boolean;
+  v_email_verified boolean;
+  v_merchant public.merchants;
+begin
+  if auth.uid() is null or public.current_app_role() <> 'customer' then
+    raise exception 'CUSTOMER_ROLE_REQUIRED';
+  end if;
+  if public.is_customer_blacklisted(auth.uid()) then
+    raise exception 'CUSTOMER_ACCOUNT_BLOCKED';
+  end if;
+  if jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception 'An order needs at least one product';
+  end if;
+  if p_delivery_choice not in ('pickup', 'store', 'courier') then
+    raise exception 'Invalid delivery options';
+  end if;
+
+  select * into v_merchant
+  from public.merchants
+  where id = p_merchant_id and status = 'approved';
+  if not found then raise exception 'MERCHANT_NOT_AVAILABLE'; end if;
+  if p_delivery_choice = 'store' and not v_merchant.has_own_delivery then
+    raise exception 'STORE_DELIVERY_DISABLED';
+  end if;
+  if p_delivery_choice = 'courier' and not v_merchant.platform_delivery_enabled then
+    raise exception 'PLATFORM_DELIVERY_DISABLED';
+  end if;
+  if p_delivery_choice <> 'pickup' and (
+    p_delivery_address is null
+    or nullif(p_delivery_address ->> 'wilaya', '') is null
+    or nullif(p_delivery_address ->> 'commune', '') is null
+    or nullif(p_delivery_address ->> 'label', '') is null
+  ) then
+    raise exception 'PRECISE_DELIVERY_ADDRESS_REQUIRED';
+  end if;
+  if p_delivery_choice <> 'pickup'
+    and not public.merchant_covers_delivery_destination(p_merchant_id, p_delivery_address)
+  then
+    raise exception 'DELIVERY_ADDRESS_OUTSIDE_COVERAGE';
+  end if;
+
+  select
+    coalesce(jsonb_agg(jsonb_build_object(
+      'id', p.id, 'name', p.name, 'price', p.price, 'unit', p.unit,
+      'department', p.department, 'qty', line.qty, 'weight_kg', p.weight_kg
+    ) order by p.name), '[]'::jsonb),
+    coalesce(sum(p.price * line.qty), 0),
+    coalesce(sum(p.weight_kg * line.qty), 0)
+  into v_items, v_subtotal, v_weight
+  from jsonb_to_recordset(p_items) line(product_id uuid, qty integer)
+  join public.products p on p.id = line.product_id
+  where p.merchant_id = p_merchant_id and p.available and line.qty between 1 and 100;
+  if jsonb_array_length(v_items) <> jsonb_array_length(p_items) then
+    raise exception 'One or more selected products are unavailable';
+  end if;
+
+  select * into v_quote
+  from public.quote_delivery(p_merchant_id, coalesce(p_delivery_address, '{}'::jsonb), v_weight);
+  v_requires_email_verification := p_delivery_choice = 'courier'
+    and (v_subtotal >= 10000 or v_quote.is_interwilaya);
+  select exists (
+    select 1 from auth.users where id = auth.uid() and email_confirmed_at is not null
+  ) into v_email_verified;
+  if v_requires_email_verification and not v_email_verified then
+    raise exception 'EMAIL_OTP_VERIFICATION_REQUIRED';
+  end if;
+
+  insert into public.orders(
+    customer_id, merchant_id, status, items, delivery_address, delivery_choice,
+    subtotal, delivery_fee, total, requires_phone_verification, is_interwilaya,
+    total_weight_kg, delivery_distance_km, estimated_delivery_minutes,
+    origin_wilaya, origin_commune, destination_wilaya, destination_commune,
+    delivery_schedule_mode, delivery_schedule_status,
+    requested_delivery_window_start, requested_delivery_window_end
+  ) values (
+    auth.uid(), p_merchant_id, 'pending', v_items, p_delivery_address, p_delivery_choice,
+    v_subtotal,
+    case when p_delivery_choice = 'pickup' then 0 else v_quote.fee end,
+    v_subtotal + case when p_delivery_choice = 'pickup' then 0 else v_quote.fee end,
+    false, v_quote.is_interwilaya, v_weight, v_quote.distance_km, v_quote.eta_minutes,
+    v_merchant.wilaya, v_merchant.commune,
+    p_delivery_address ->> 'wilaya', p_delivery_address ->> 'commune',
+    'none', 'not_requested', null, null
+  ) returning * into v_order;
+
+  insert into public.order_items(order_id, product_id, product_name, unit, unit_price, quantity)
+  select v_order.id, p.id, p.name, p.unit, p.price, line.qty
+  from jsonb_to_recordset(p_items) line(product_id uuid, qty integer)
+  join public.products p on p.id = line.product_id;
+
+  perform public.record_order_lifecycle_event(
+    v_order.id,
+    'customer_order_confirmed',
+    jsonb_build_object(
+      'verification_required', v_requires_email_verification,
+      'delivery_fee', v_order.delivery_fee,
+      'immediate_order', true
+    )
+  );
+  perform public.record_admin_order_notification(v_order.id, 'order_created');
+  return v_order;
+end;
+$$;
+
+revoke all on function public.is_customer_blacklisted(uuid) from public, anon;
+grant execute on function public.is_customer_blacklisted(uuid) to authenticated;
+revoke all on function public.quote_delivery(uuid, jsonb, numeric) from public, anon;
+grant execute on function public.quote_delivery(uuid, jsonb, numeric) to authenticated;
+revoke all on function public.create_customer_order(uuid, jsonb, text, jsonb, integer, text, timestamptz, timestamptz) from public, anon;
+grant execute on function public.create_customer_order(uuid, jsonb, text, jsonb, integer, text, timestamptz, timestamptz) to authenticated;
+
+notify pgrst, 'reload schema';

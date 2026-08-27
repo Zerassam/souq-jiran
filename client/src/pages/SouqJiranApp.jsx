@@ -61,10 +61,8 @@ const UI_COPY = {
   },
 };
 Object.assign(UI_COPY.ar, {
-  deliverySchedule: "موعد التوصيل المطلوب", nextAvailable: "أقرب وقت متاح", chooseDeliveryWindow: "اختر نافذة مدتها 90 دقيقة لليوم أو الغد.", loadingDeliveryWindows: "جارٍ البحث عن المواعيد المتاحة…", noDeliveryWindows: "لا توجد مواعيد توصيل متاحة ضمن النطاق حالياً. اختر الاستلام من المحل أو أعد المحاولة لاحقاً.", checkoutNeedsSchedule: "اختر موعد توصيل متاحاً للمتابعة.", scheduleRequested: "طلب موعد — بانتظار تأكيد التاجر", scheduleConfirmed: "موعد مؤكد", scheduleDeclined: "تعذر تأكيد الموعد",
 });
 Object.assign(UI_COPY.fr, {
-  deliverySchedule: "Créneau de livraison demandé", nextAvailable: "Premier créneau disponible", chooseDeliveryWindow: "Choisissez un créneau de 90 minutes aujourd’hui ou demain.", loadingDeliveryWindows: "Recherche des créneaux disponibles…", noDeliveryWindows: "Aucun créneau disponible dans cette zone. Choisissez le retrait en magasin ou réessayez plus tard.", checkoutNeedsSchedule: "Choisissez un créneau disponible pour continuer.", scheduleRequested: "Créneau demandé — en attente de validation du commerce", scheduleConfirmed: "Créneau confirmé", scheduleDeclined: "Créneau non confirmé",
 });
 function uiText(language, key, values = {}) {
   const value = UI_COPY[language]?.[key] ?? UI_COPY.ar[key] ?? key;
@@ -1329,10 +1327,6 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const [deliveryQuote, setDeliveryQuote] = useState(null);
   const [quoteError, setQuoteError] = useState("");
   const [quoteLoading, setQuoteLoading] = useState(false);
-  const [deliveryScheduleSlots, setDeliveryScheduleSlots] = useState([]);
-  const [selectedDeliverySlot, setSelectedDeliverySlot] = useState(null);
-  const [scheduleLoading, setScheduleLoading] = useState(false);
-  const [scheduleError, setScheduleError] = useState("");
   const [rewardCouponInput, setRewardCouponInput] = useState("");
   const [appliedReward, setAppliedReward] = useState(null);
 
@@ -1385,8 +1379,8 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
   const addressReady = Boolean(cart.address?.wilaya && cart.address?.commune && cart.address?.label?.trim());
   const needsDeliveryAddress = deliveryChoice !== "pickup";
   const needsDeliveryQuote = deliveryChoice !== "pickup";
-  // Delivery can be confirmed immediately; a 90-minute window is optional.
-  // GPS refines the address and quote, but must not hard-block checkout.
+  // Every order is immediate. GPS refines the address and quote, but must not
+  // hard-block checkout once the required written delivery address is present.
   const checkoutDisabled = cartCount === 0 || Boolean(belowMinOrder) || quoteLoading || (needsDeliveryAddress && !addressReady) || (needsDeliveryQuote && !deliveryQuote) || (requiresVerifiedEmail && !emailVerified);
   const checkoutHint = cartCount === 0
     ? uiText(language, "cartEmpty")
@@ -1420,38 +1414,6 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
     });
     return () => { cancelled = true; };
   }, [deliveryChoice, cartStore?.id, cart.address?.wilaya, cart.address?.commune, cart.address?.label, cart.items, quoteDelivery]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (deliveryChoice === "pickup" || !cartStore?.id || !addressReady) {
-      setDeliveryScheduleSlots([]); setSelectedDeliverySlot(null); setScheduleError(""); setScheduleLoading(false); return undefined;
-    }
-    setSelectedDeliverySlot(null); setScheduleLoading(true); setScheduleError("");
-    supabase.rpc("delivery_schedule_options", { p_merchant_id: cartStore.id, p_delivery_choice: deliveryChoice, p_delivery_address: cart.address }).then(({ data, error }) => {
-      if (cancelled) return;
-      if (error) {
-        setDeliveryScheduleSlots([]);
-        const message = String(error.message || "");
-        setScheduleError(error.code === "42883"
-          ? "يلزم تشغيل ترحيل جدولة التوصيل أولاً."
-          : message.includes("CUSTOMER_ROLE_REQUIRED")
-            ? "يلزم تسجيل الدخول بحساب عميل لاختيار موعد التوصيل."
-            : uiText(language, "noDeliveryWindows"));
-      } else {
-        // Keep only server-issued, 90-minute windows. Never invent a fallback
-        // slot on the client because availability belongs to Supabase.
-        const validSlots = (Array.isArray(data) ? data : []).filter((slot) => {
-          const start = Date.parse(slot?.window_start || "");
-          const end = Date.parse(slot?.window_end || "");
-          return Number.isFinite(start) && Number.isFinite(end) && end - start === 90 * 60 * 1000 && ["next_available", "selected_window"].includes(slot?.schedule_mode);
-        });
-        setDeliveryScheduleSlots(validSlots);
-        if (validSlots.length === 0) setScheduleError(uiText(language, "noDeliveryWindows"));
-      }
-      setScheduleLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, [deliveryChoice, cartStore?.id, cart.address?.wilaya, cart.address?.commune, cart.address?.label, language]);
 
   // Android back events are dispatched by the app shell. The customer view owns
   // its local navigation state, so it consumes the event before the shell can
@@ -1593,7 +1555,6 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
               <div className="flex items-center justify-between mb-2"><span className="font-bold text-sm" style={{ color: C.ink }}>{o.storeName}</span><StatusPill status={o.status} /></div>
               <div className="text-xs mb-1" style={{ color: C.inkSoft }}>{o.items.map((i) => `${i.name} ×${i.qty}`).join(" · ")}</div>
               <div className="text-xs mb-3 flex items-center gap-1" style={{ color: C.teal }}>{React.createElement(DELIVERY_LABELS[o.deliveryType]?.icon || Home, { size: 12 })} {DELIVERY_LABELS[o.deliveryType]?.label}{o.courier ? ` — ${o.courier.name}` : ""}</div>
-              {o.requestedDeliveryWindowStart && <p className="text-[11px] font-bold mb-2" style={{ color: o.deliveryScheduleStatus === "confirmed" ? C.sage : C.ochre }}><CalendarClock size={12} className="inline ms-1" /> {new Date(o.requestedDeliveryWindowStart).toLocaleString(localeFor(language), { weekday: "short", hour: "2-digit", minute: "2-digit" })} — {o.deliveryScheduleStatus === "confirmed" ? uiText(language, "scheduleConfirmed") : o.deliveryScheduleStatus === "declined" ? uiText(language, "scheduleDeclined") : uiText(language, "scheduleRequested")}</p>}
               <OrderTracker status={o.status} language={language} />
               <div className="flex items-center gap-2 mt-3 pt-3 flex-wrap" style={{ borderTop: `1px solid ${C.line}` }}>
                 <button onClick={() => setInvoiceOrder(o)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}><Printer size={12} /> {uiText(language, "invoice")}</button>
@@ -1618,7 +1579,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
 
                 <div className="mb-4">
                   <span className="text-xs font-bold flex items-center gap-1 mb-2" style={{ color: C.ink }}><Truck2 size={13} /> {uiText(language, "deliveryMethod")}</span>
-                  <div className="space-y-2">{deliveryOptions.map((opt) => (<button key={opt.id} disabled={opt.disabled} onClick={() => { setDeliveryChoice(opt.id); setSelectedDeliverySlot(null); }} className="w-full flex items-center gap-2.5 p-2.5 rounded-xl text-right disabled:opacity-40" style={{ border: `1.5px solid ${deliveryChoice === opt.id ? C.teal : C.line}`, background: deliveryChoice === opt.id ? C.teal + "10" : "#fff" }}><opt.icon size={17} color={deliveryChoice === opt.id ? C.teal : C.inkSoft} /><div className="flex-1"><div className="text-xs font-bold" style={{ color: C.ink }}>{opt.label}</div><div className="text-[11px]" style={{ color: C.inkSoft }}>{opt.desc}</div></div>{deliveryChoice === opt.id && <CheckCircle2 size={16} color={C.teal} />}</button>))}</div>
+                  <div className="space-y-2">{deliveryOptions.map((opt) => (<button key={opt.id} disabled={opt.disabled} onClick={() => setDeliveryChoice(opt.id)} className="w-full flex items-center gap-2.5 p-2.5 rounded-xl text-right disabled:opacity-40" style={{ border: `1.5px solid ${deliveryChoice === opt.id ? C.teal : C.line}`, background: deliveryChoice === opt.id ? C.teal + "10" : "#fff" }}><opt.icon size={17} color={deliveryChoice === opt.id ? C.teal : C.inkSoft} /><div className="flex-1"><div className="text-xs font-bold" style={{ color: C.ink }}>{opt.label}</div><div className="text-[11px]" style={{ color: C.inkSoft }}>{opt.desc}</div></div>{deliveryChoice === opt.id && <CheckCircle2 size={16} color={C.teal} />}</button>))}</div>
                 </div>
 
                 {deliveryChoice !== "pickup" && <div className="mb-4 p-3 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
@@ -1633,7 +1594,6 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                 {deliveryChoice === "courier" && quoteLoading && <p className="text-xs mb-3" style={{ color: C.inkSoft }}>{uiText(language, "calculatingDelivery")}</p>}
                 {deliveryChoice === "courier" && deliveryQuote && <div className="mb-3 p-3 rounded-xl text-xs" style={{ background: C.teal + "0F", border: `1px solid ${C.teal}30`, color: C.ink }}><div className="font-bold" style={{ color: C.teal }}>{uiText(language, "serverQuote")}</div><div className="mt-1">{uiText(language, "distanceEta", { distance: Number(deliveryQuote.distanceKm || 0).toFixed(1), eta: deliveryQuote.etaMinutes || "—" })}{deliveryQuote.isInterwilaya ? ` · ${uiText(language, "interwilaya")}` : ""}</div></div>}
                 {deliveryChoice === "courier" && quoteError && <p className="text-xs font-bold mb-3" style={{ color: "#8B3A2A" }}>{quoteError}</p>}
-                {deliveryChoice !== "pickup" && addressReady && <div data-testid="delivery-schedule-options" className="mb-3 p-3 rounded-xl" style={{ background: C.paperDark, border: `1px solid ${C.line}` }}><div className="text-xs font-black flex items-center gap-1" style={{ color: C.ink }}><CalendarClock size={14} color={C.teal} /> {uiText(language, "deliverySchedule")}</div><p className="text-[11px] mt-1" style={{ color: C.inkSoft }}>{uiText(language, "chooseDeliveryWindow")}</p>{scheduleLoading && <p className="text-xs mt-2" style={{ color: C.inkSoft }}>{uiText(language, "loadingDeliveryWindows")}</p>}{!scheduleLoading && (scheduleError || deliveryScheduleSlots.length === 0) && <p className="text-xs mt-2" style={{ color: C.inkSoft }}>{scheduleError ? `${scheduleError} — يمكنك متابعة الطلب دون موعد.` : "لا توجد نافذة متاحة حالياً؛ يمكنك تأكيد التوصيل الفوري أو المحاولة لاحقاً."}</p>}{deliveryScheduleSlots.length > 0 && <div className="mt-2 grid gap-2">{deliveryScheduleSlots.map((slot, index) => { const selected = selectedDeliverySlot?.window_start === slot.window_start; return <button key={slot.window_start} onClick={() => setSelectedDeliverySlot(slot)} className="text-right px-3 py-2 rounded-xl text-xs font-bold" style={{ background: selected ? C.teal : "#fff", color: selected ? "#fff" : C.ink, border: `1px solid ${selected ? C.teal : C.line}` }}>{index === 0 && <span className="ms-1" style={{ color: selected ? "#fff" : C.teal }}>{uiText(language, "nextAvailable")} · </span>}{new Date(slot.window_start).toLocaleString(localeFor(language), { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} – {new Date(slot.window_end).toLocaleTimeString(localeFor(language), { hour: "2-digit", minute: "2-digit" })}</button>; })}</div>}</div>}
                 {requiresVerifiedEmail && <div className="mb-3 p-3 rounded-xl" style={{ background: C.teal + "12", border: `1px solid ${C.teal}35` }}><div className="text-xs font-black" style={{ color: C.teal }}>{uiText(language, "emailConfirmation")}</div><p className="text-[11px] mt-1 leading-5" style={{ color: C.inkSoft }}>{emailVerified ? uiText(language, "emailVerifiedCopy") : uiText(language, "emailRequiredCopy")}</p></div>}
 
                 <div className="flex gap-2 mb-3"><input value={rewardCouponInput} onChange={(e) => setRewardCouponInput(e.target.value.toUpperCase())} placeholder={uiText(language, "rewardCoupon")} dir="ltr" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /><button onClick={applyRewardCoupon} className="px-4 py-2 rounded-xl text-xs font-bold" style={{ background: C.teal, color: "#fff" }}>{uiText(language, "applyCoupon")}</button></div>
@@ -1648,7 +1608,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                   <div className="flex items-center justify-between pt-1"><span className="font-bold text-sm" style={{ color: C.ink }}>{uiText(language, "cashOnDelivery")}</span><PriceTag amount={finalTotal} size="lg" /></div>
                 </div>
                 <p className="text-xs font-bold mb-3" style={{ color: checkoutDisabled ? C.inkSoft : C.sage }}>{checkoutHint}</p>
-                <button disabled={checkoutDisabled} onClick={async () => { const ok = await placeOrder(cartStore, null, discountAmount, cart.address, deliveryChoice, deliveryFee, appliedReward?.code, selectedDeliverySlot ? { mode: selectedDeliverySlot.schedule_mode, start: selectedDeliverySlot.window_start, end: selectedDeliverySlot.window_end } : null); if (!ok) return; setAppliedReward(null); setRewardCouponInput(""); setShowCart(false); setTab("orders"); setDeliveryChoice("pickup"); setDeliveryQuote(null); setSelectedDeliverySlot(null); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>{uiText(language, "confirmCashOrder")}</button>
+                <button disabled={checkoutDisabled} onClick={async () => { const ok = await placeOrder(cartStore, null, discountAmount, cart.address, deliveryChoice, deliveryFee, appliedReward?.code); if (!ok) return; setAppliedReward(null); setRewardCouponInput(""); setShowCart(false); setTab("orders"); setDeliveryChoice("pickup"); setDeliveryQuote(null); }} className="w-full py-3 rounded-xl font-black disabled:opacity-40" style={{ background: C.rust, color: "#fff" }}>{uiText(language, "confirmCashOrder")}</button>
               </>
             )}
           </div>
@@ -1731,34 +1691,6 @@ function MerchantQrPoster({ store, notify }) {
       <div className="space-y-3"><label className="block text-xs font-bold" style={{ color: C.ink }}>الرابط العميق للمشاركة<input aria-label="رابط المتجر" readOnly value={deepLink} dir="ltr" className="w-full mt-1.5 px-3 py-2.5 rounded-xl text-xs bg-white outline-none" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }} /></label><div className="flex flex-wrap gap-2"><button data-testid="merchant-copy-deep-link" onClick={copyDeepLink} className="px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-1.5" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}55` }}><Copy size={15} /> نسخ الرابط</button><button data-testid="merchant-download-qr-pdf" onClick={downloadPoster} className="px-4 py-2.5 rounded-xl text-sm font-black flex items-center gap-1.5" style={{ background: C.teal, color: "#fff" }}><Download size={15} /> تنزيل ملصق PDF</button></div><p className="text-[11px] leading-5" style={{ color: C.inkSoft }}>اطبع الملصق بحجم A4 وضعه قرب صندوق الدفع أو عند مدخل المحل.</p></div>
     </div>
   </section>;
-}
-
-function MerchantDeliverySchedulePanel({ merchantId, notify }) {
-  const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-  const [settings, setSettings] = useState({ scheduling_enabled: false, preparation_minutes: 30, weekly_schedule: {}, blackout_windows: [] });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    supabase.from("merchant_delivery_schedule_settings").select("scheduling_enabled,preparation_minutes,weekly_schedule,blackout_windows").eq("merchant_id", merchantId).maybeSingle().then(({ data, error: queryError }) => {
-      if (!active) return;
-      if (queryError) setError("يلزم تشغيل ترحيل جدولة التوصيل أولاً.");
-      else if (data) setSettings({ ...data, weekly_schedule: data.weekly_schedule || {}, blackout_windows: data.blackout_windows || [] });
-      setLoading(false);
-    });
-    return () => { active = false; };
-  }, [merchantId]);
-  const updateDay = (day, field, value) => setSettings((current) => ({ ...current, weekly_schedule: { ...current.weekly_schedule, [day]: [{ start: field === "start" ? value : current.weekly_schedule?.[day]?.[0]?.start || "09:00", end: field === "end" ? value : current.weekly_schedule?.[day]?.[0]?.end || "18:00" }] } }));
-  async function saveSchedule() {
-    setSaving(true); setError("");
-    const { error: rpcError } = await supabase.rpc("merchant_save_delivery_schedule", { p_scheduling_enabled: settings.scheduling_enabled, p_preparation_minutes: Number(settings.preparation_minutes), p_weekly_schedule: settings.weekly_schedule, p_blackout_windows: settings.blackout_windows });
-    setSaving(false);
-    if (rpcError) { setError(rpcError.message || "تعذر حفظ جدول الحجز."); return; }
-    notify("تم حفظ إعدادات جدولة التوصيل.");
-  }
-  return <div className="p-4 rounded-2xl space-y-3" style={{ background: "#fff", border: `1px solid ${C.line}` }} data-testid="merchant-delivery-schedule-panel"><div className="flex items-start justify-between gap-3"><div><h3 className="font-black text-sm flex items-center gap-1" style={{ color: C.ink }}><CalendarClock size={15} color={C.teal} /> الحجوزات المسبقة الاختيارية</h3><p className="text-[11px] mt-1 leading-5" style={{ color: C.inkSoft }}>تظهر نوافذ من 90 دقيقة للعميل الذي يختار موعداً مسبقاً. الطلب الفوري لا يتأثر بهذا الجدول.</p></div><button onClick={() => setSettings((current) => ({ ...current, scheduling_enabled: !current.scheduling_enabled }))} className="px-3 py-1.5 rounded-full text-xs font-black shrink-0" style={{ background: settings.scheduling_enabled ? C.teal : C.paperDark, color: settings.scheduling_enabled ? "#fff" : C.inkSoft }}>{settings.scheduling_enabled ? "الحجوزات مفعلة" : "الحجوزات متوقفة"}</button></div>{loading ? <p className="text-xs" style={{ color: C.inkSoft }}>جارٍ تحميل إعدادات الحجز…</p> : <><label className="text-xs font-bold block" style={{ color: C.inkSoft }}>مدة تجهيز الطلب (بالدقائق)<input type="number" min="0" max="720" value={settings.preparation_minutes} onChange={(event) => setSettings((current) => ({ ...current, preparation_minutes: event.target.value }))} className="w-full mt-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /></label><div className="space-y-2">{dayNames.map((dayName, day) => { const range = settings.weekly_schedule?.[day]?.[0] || {}; return <div key={day} className="grid grid-cols-[72px_1fr_1fr] gap-2 items-center"><span className="text-xs font-bold" style={{ color: C.ink }}>{dayName}</span><input aria-label={`بداية ${dayName}`} type="time" value={range.start || ""} onChange={(event) => updateDay(String(day), "start", event.target.value)} className="px-2 py-1.5 rounded-lg text-xs outline-none" style={{ border: `1px solid ${C.line}` }} /><input aria-label={`نهاية ${dayName}`} type="time" value={range.end || ""} onChange={(event) => updateDay(String(day), "end", event.target.value)} className="px-2 py-1.5 rounded-lg text-xs outline-none" style={{ border: `1px solid ${C.line}` }} /></div>; })}</div><p className="text-[11px] leading-5" style={{ color: C.inkSoft }}>عطّل هذا الخيار إن لم تعرض حجوزات مسبقة؛ تظل الطلبات الفورية مستقلة ومتاحة وفق حالة المتجر.</p>{error && <p className="text-xs font-bold" style={{ color: C.rust }}>{error}</p>}<button disabled={saving} onClick={saveSchedule} className="w-full py-2.5 rounded-xl text-sm font-black disabled:opacity-50" style={{ background: C.rust, color: "#fff" }}>{saving ? "جارٍ الحفظ…" : "حفظ إعدادات الحجوزات"}</button></>}</div>;
 }
 
 function MerchantView({ stores, setStores, orders, messages, couriers, merchantOffers = [], myStoreId, setMyStoreId, notify, onStartMerchantRegistration, createProduct, createBulkProducts, removeProductRemote, setProductAvailability, setMerchantOrderStatus, merchantConfirmSettlement, reportCustomerAccount, archiveOrder, archiveMessage, submitMerchantOffer, pauseMerchantOffer, userId, isResolvingMerchantStore = false }) {
@@ -2047,13 +1979,20 @@ function MerchantView({ stores, setStores, orders, messages, couriers, merchantO
       {tab === "orders" && (
         <div id="merchant-new-orders" tabIndex={-1} className="space-y-3 outline-none">
           {myOrders.length === 0 && <p className="text-center text-sm py-10" style={{ color: C.inkSoft }}>لا توجد طلبات واردة حالياً.</p>}
-          {myOrders.map((o) => (<div key={o.id} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="flex items-center justify-between mb-2"><span className="font-bold text-sm" style={{ color: C.ink }}>{o.customer} · {o.createdAt}</span><StatusPill status={o.status} /></div><div className="text-xs mb-1" style={{ color: C.inkSoft }}>{o.items.map((i) => `${i.name} ×${i.qty}`).join(" · ")}</div><div className="text-xs mb-3 flex items-center gap-1" style={{ color: C.teal }}>{React.createElement(DELIVERY_LABELS[o.deliveryType]?.icon || Home, { size: 12 })} {DELIVERY_LABELS[o.deliveryType]?.label}{o.courier ? ` — ${o.courier.name}` : ""}</div>{o.requestedDeliveryWindowStart && <p className="text-[11px] font-bold mb-3" style={{ color: o.deliveryScheduleStatus === "confirmed" ? C.sage : C.ochre }}><CalendarClock size={12} className="inline ms-1" /> {new Date(o.requestedDeliveryWindowStart).toLocaleString("ar-DZ", { weekday: "short", hour: "2-digit", minute: "2-digit" })} · {o.deliveryScheduleStatus === "confirmed" ? "الموعد مؤكد" : o.deliveryScheduleStatus === "declined" ? "الموعد مرفوض" : "طلب موعد بانتظار تأكيدك"}</p>}{o.isInterwilaya && <p className="text-[11px] font-bold mb-3" style={{ color: C.purple }}>توصيل بين الولايات · {Number(o.deliveryDistanceKm || 0).toFixed(1)} كم · {o.estimatedDeliveryMinutes || "—"} دقيقة</p>}<div className="flex items-center justify-between flex-wrap gap-2"><PriceTag amount={o.total} /><div className="flex gap-2 flex-wrap"><button onClick={() => setInvoiceOrder(o)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}><Printer size={12} /> الفاتورة</button>{o.deliveryScheduleStatus === "requested" && <><button onClick={async () => { const { error } = await supabase.rpc("merchant_respond_delivery_schedule", { p_order_id: o.id, p_confirm: false }); notify(error ? `تعذر رفض الموعد: ${error.message}` : "تم رفض الموعد المطلوب."); }} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A20", color: C.rust }}>رفض الموعد</button><button onClick={async () => { const { error } = await supabase.rpc("merchant_respond_delivery_schedule", { p_order_id: o.id, p_confirm: true }); notify(error ? `تعذر تأكيد الموعد: ${error.message}` : "تم تأكيد الموعد."); }} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.sage, color: "#fff" }}>تأكيد الموعد</button></>}{o.customerId && <button onClick={() => { const reason = window.prompt("سبب البلاغ (5 أحرف على الأقل)"); if (reason) reportCustomerAccount(o.customerId, reason, o.id); }} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.rust}55`, color: C.rust }}>إبلاغ عن الحساب</button>}<button onClick={() => archiveOrder(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A" }}><Trash2 size={12} /> حذف من قائمتي</button>{o.status === "pending" && (<><button onClick={() => setOrderStatus(o.id, "declined")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A20", color: "#8B3A2A" }}><X size={13} /> رفض</button><button onClick={() => setOrderStatus(o.id, "accepted")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.teal, color: "#fff" }}><Check size={13} /> قبول</button></>)}{nextStatus[o.status] && <button onClick={() => setOrderStatus(o.id, nextStatus[o.status])} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.rust, color: "#fff" }}>تحديث إلى «{STATUS_MAP[nextStatus[o.status]].label}»</button>}{o.status === "remittance_confirmed" && <button onClick={() => merchantConfirmSettlement(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.sage, color: "#fff" }}><Wallet size={12} /> تأكيد استلام المستحقات</button>}</div></div></div>))}
+          {myOrders.map((o) => (
+            <div key={o.id} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+              <div className="flex items-center justify-between mb-2"><span className="font-bold text-sm" style={{ color: C.ink }}>{o.customer} · {o.createdAt}</span><StatusPill status={o.status} /></div>
+              <div className="text-xs mb-1" style={{ color: C.inkSoft }}>{o.items.map((i) => `${i.name} ×${i.qty}`).join(" · ")}</div>
+              <div className="text-xs mb-3 flex items-center gap-1" style={{ color: C.teal }}>{React.createElement(DELIVERY_LABELS[o.deliveryType]?.icon || Home, { size: 12 })} {DELIVERY_LABELS[o.deliveryType]?.label}{o.courier ? ` — ${o.courier.name}` : ""}</div>
+              {o.isInterwilaya && <p className="text-[11px] font-bold mb-3" style={{ color: C.purple }}>توصيل بين الولايات · {Number(o.deliveryDistanceKm || 0).toFixed(1)} كم · {o.estimatedDeliveryMinutes || "—"} دقيقة</p>}
+              <div className="flex items-center justify-between flex-wrap gap-2"><PriceTag amount={o.total} /><div className="flex gap-2 flex-wrap"><button onClick={() => setInvoiceOrder(o)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.line}`, color: C.inkSoft }}><Printer size={12} /> الفاتورة</button>{o.customerId && <button onClick={() => { const reason = window.prompt("سبب البلاغ (5 أحرف على الأقل)"); if (reason) reportCustomerAccount(o.customerId, reason, o.id); }} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ border: `1px solid ${C.rust}55`, color: C.rust }}>إبلاغ عن الحساب</button>}<button onClick={() => archiveOrder(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A18", color: "#8B3A2A" }}><Trash2 size={12} /> حذف من قائمتي</button>{o.status === "pending" && (<><button onClick={() => setOrderStatus(o.id, "declined")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A20", color: "#8B3A2A" }}><X size={13} /> رفض</button><button onClick={() => setOrderStatus(o.id, "accepted")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.teal, color: "#fff" }}><Check size={13} /> قبول</button></>)}{nextStatus[o.status] && <button onClick={() => setOrderStatus(o.id, nextStatus[o.status])} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.rust, color: "#fff" }}>تحديث إلى «{STATUS_MAP[nextStatus[o.status]].label}»</button>}{o.status === "remittance_confirmed" && <button onClick={() => merchantConfirmSettlement(o.id)} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.sage, color: "#fff" }}><Wallet size={12} /> تأكيد استلام المستحقات</button>}</div></div>
+            </div>
+          ))}
         </div>
       )}
 
       {tab === "delivery" && (
         <div className="space-y-5">
-          <MerchantDeliverySchedulePanel merchantId={myStoreId} notify={notify} />
           <div className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
             <div className="flex items-start justify-between gap-3 mb-3"><div><h3 className="font-black text-sm flex items-center gap-1.5" style={{ color: C.ink }}><Truck2 size={14} color={C.teal} /> مسارات التوصيل المتاحة</h3><p className="text-[11px] leading-5 mt-1" style={{ color: C.inkSoft }}>يمكن تفعيل توصيل المحل وتوصيل المنصة معاً؛ يختار العميل أحدهما عند الطلب، والاستلام الذاتي يبقى مستقلاً.</p></div></div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
@@ -2579,10 +2518,12 @@ const STORAGE = {
   stores: { key: "souq-jiran:stores:v4", shared: true },
   orders: { key: "souq-jiran:orders:v4", shared: true },
   couriers: { key: "souq-jiran:couriers:v4", shared: true },
-  cart: { key: "souq-jiran:cart:v4", shared: false },
+  legacyCart: { key: "souq-jiran:cart:v4", shared: false },
   myStoreId: { key: "souq-jiran:my-store-id:v4", shared: false },
   notifications: { key: "souq-jiran:notifications:v4", shared: false },
 };
+const emptyCart = () => ({ storeId: null, items: [], address: null });
+const customerCartStorage = (customerId) => ({ key: `souq-jiran:cart:v5:${customerId}`, shared: false });
 async function loadKey({ key, shared }, fallback) {
   try {
     if (window.storage?.get) {
@@ -2598,6 +2539,13 @@ async function saveKey({ key, shared }, value) {
     if (window.storage?.set) await window.storage.set(key, JSON.stringify(value), shared);
     else window.localStorage.setItem(key, JSON.stringify(value));
   } catch (e) { console.error("تعذّر حفظ البيانات:", e); }
+}
+async function clearKey(storageKey, replacement) {
+  try {
+    if (window.storage?.delete) await window.storage.delete(storageKey.key, storageKey.shared);
+    else if (window.storage?.set) await window.storage.set(storageKey.key, JSON.stringify(replacement), storageKey.shared);
+    else window.localStorage.removeItem(storageKey.key);
+  } catch (e) { console.error("تعذّر مسح البيانات:", e); }
 }
 
 /* ===========================================================
@@ -2757,15 +2705,15 @@ export default function App() {
     // لا نطلب إذن FCM قبل وجود جلسة Supabase؛ الرمز لا يجوز ربطه بحساب
     // مجهول، كما أن Android قد يرفض الطلب المبكر داخل WebView.
     (async () => {
-      const [loadedCart, loadedMyStoreId, loadedNotifications] = await Promise.all([
-        loadKey(STORAGE.cart, { storeId: null, items: [], address: null }), loadKey(STORAGE.myStoreId, null), loadKey(STORAGE.notifications, []),
+      const [loadedMyStoreId, loadedNotifications] = await Promise.all([
+        clearKey(STORAGE.legacyCart, emptyCart()), loadKey(STORAGE.myStoreId, null), loadKey(STORAGE.notifications, []),
       ]);
       if (cancelled) return;
       setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]);
       setAccounts([]); setAuth(null); setReferralCode(""); setRewardCoupons([]); setMerchantOffers([]); setReferralAnalytics({ totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0, redeemedValue: 0 });
       // معرّف المتجر يُشتق دائماً من جلسة Supabase الحالية. لا نعيد استعمال قيمة
       // محلية قديمة كي لا تُعرض لوحة تاجر قبل التأكد من الحساب الحالي.
-      setCart(loadedCart); setMyStoreId(null); setNotifications(loadedNotifications);
+      setCart(emptyCart()); setMyStoreId(null); setNotifications(loadedNotifications);
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -2798,6 +2746,7 @@ export default function App() {
     if (!session?.user) {
       setIsResolvingMerchantStore(false);
       setAuth(null);
+      setCart(emptyCart());
       setMyStoreId(null);
       setRole("customer");
       setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]); setReferralCode(""); setRewardCoupons([]); setMerchantOffers([]); setReferralAnalytics({ totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0 });
@@ -2809,8 +2758,13 @@ export default function App() {
     setIsResolvingMerchantStore(true);
     const nextAuth = await resolveSupabaseUser(session.user);
     if (hydrationId !== sessionHydrationRef.current) return;
+    const nextCart = nextAuth.type === "customer"
+      ? await loadKey(customerCartStorage(nextAuth.id), emptyCart())
+      : emptyCart();
+    if (hydrationId !== sessionHydrationRef.current) return;
     setAuth(nextAuth);
     setRole(nextAuth.type);
+    setCart(nextCart);
     if (nextAuth.type === "merchant") setMyStoreId(nextAuth.id);
     else setMyStoreId(null);
     await refreshSupabaseData(nextAuth.type);
@@ -2903,7 +2857,7 @@ export default function App() {
       items: (itemsByOrder[order.id] || []).map((item) => ({ id: item.product_id || item.id, name: item.product_name, price: item.unit_price, unit: item.unit, qty: item.quantity })),
       subtotal: order.subtotal, deliveryFee: order.delivery_fee, total: order.total, status: order.status, deliveryLocation: order.delivery_address,
       isInterwilaya: order.is_interwilaya || false, deliveryDistanceKm: Number(order.delivery_distance_km || 0), estimatedDeliveryMinutes: order.estimated_delivery_minutes,
-      requiresPhoneVerification: order.requires_phone_verification || false, originWilaya: order.origin_wilaya, destinationWilaya: order.destination_wilaya, deliveryScheduleMode: order.delivery_schedule_mode, deliveryScheduleStatus: order.delivery_schedule_status, requestedDeliveryWindowStart: order.requested_delivery_window_start, requestedDeliveryWindowEnd: order.requested_delivery_window_end,
+      requiresPhoneVerification: order.requires_phone_verification || false, originWilaya: order.origin_wilaya, destinationWilaya: order.destination_wilaya,
       deliveryType: order.delivery_choice, courier: order.courier_id ? { id: order.courier_id, name: "موصل" } : null, rated: false, confirmed: false,
       createdAt: new Date(order.created_at).toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" }),
     })));
@@ -3056,28 +3010,18 @@ export default function App() {
   function persistentSetStores(updater) { setStores((prev) => { const next = typeof updater === "function" ? updater(prev) : updater; saveKey(STORAGE.stores, next); return next; }); }
   function persistentSetOrders(updater) { setOrders((prev) => { const next = typeof updater === "function" ? updater(prev) : updater; saveKey(STORAGE.orders, next); return next; }); }
   function persistentSetCouriers(updater) { setCouriers((prev) => { const next = typeof updater === "function" ? updater(prev) : updater; saveKey(STORAGE.couriers, next); return next; }); }
-  function persistentSetCart(updater) { setCart((prev) => { const next = typeof updater === "function" ? updater(prev) : updater; saveKey(STORAGE.cart, next); return next; }); }
+  function persistentSetCart(updater) {
+    setCart((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      if (auth?.type === "customer" && auth.id) void saveKey(customerCartStorage(auth.id), next);
+      return next;
+    });
+  }
   function persistentSetMyStoreId(id) { setMyStoreId(id); saveKey(STORAGE.myStoreId, id); }
 
-  async function placeOrder(store, _promo, _discountAmount = 0, address = null, deliveryType = "pickup", deliveryFee = 0, rewardCouponCode = null, deliverySchedule = null) {
+  async function placeOrder(store, _promo, _discountAmount = 0, address = null, deliveryType = "pickup", deliveryFee = 0, rewardCouponCode = null) {
     if (!auth || auth.type !== "customer") { notify("سجّل الدخول كعميل لإرسال طلبك."); return false; }
     if (!store || cart.items.length === 0) return false;
-
-    const scheduleMode = deliveryType === "pickup" ? "none" : (deliverySchedule?.mode || "none");
-    const scheduleStart = deliverySchedule?.start || null;
-    const scheduleEnd = deliverySchedule?.end || null;
-    // Scheduling is optional; validate the strict window only when a slot is selected.
-    if (deliveryType !== "pickup" && scheduleMode !== "none") {
-      const startMs = Date.parse(scheduleStart || "");
-      const endMs = Date.parse(scheduleEnd || "");
-      if (![
-        "next_available",
-        "selected_window",
-      ].includes(scheduleMode) || !Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs - startMs !== 90 * 60 * 1000) {
-        notify("نافذة الموعد غير صالحة؛ اختر نافذة أخرى أو تابع بالتوصيل الفوري.");
-        return false;
-      }
-    }
 
     const { error } = await supabase.rpc("create_customer_order", {
       p_merchant_id: store.id,
@@ -3085,9 +3029,6 @@ export default function App() {
       p_delivery_choice: deliveryType,
       p_delivery_address: address,
       p_delivery_fee: deliveryFee,
-      p_delivery_schedule_mode: scheduleMode,
-      p_requested_delivery_window_start: scheduleStart,
-      p_requested_delivery_window_end: scheduleEnd,
     });
     if (error) { notify("تعذر إرسال الطلب: " + error.message); return false; }
     if (rewardCouponCode) {
@@ -3099,9 +3040,9 @@ export default function App() {
         else notify(`تم تطبيق قسيمة المكافأة ${rewardCouponCode} على طلبك.`);
       }
     }
-    persistentSetCart({ storeId: null, items: [], address: null });
+    persistentSetCart(emptyCart());
     await refreshSupabaseData();
-    notify(deliverySchedule ? "تم إرسال طلب الموعد — بانتظار تأكيد التاجر." : "تم إرسال طلبك — الدفع نقداً عند الاستلام");
+    notify("تم إرسال طلبك — الدفع نقداً عند الاستلام");
     return true;
   }
 
@@ -3223,7 +3164,7 @@ export default function App() {
   async function merchantConfirmSettlement(orderId) { return runLifecycleAction(orderId, "merchant_confirm_settlement", "تم تأكيد استلام المستحقات وإغلاق الطلب."); }
 
   async function quoteDelivery(merchantId, destination, weightKg = 0) {
-    const { data, error } = await supabase.rpc("quote_delivery", { p_merchant_id: merchantId, p_destination_json: destination, p_weight_kg: weightKg });
+    const { data, error } = await supabase.rpc("quote_delivery", { p_merchant_id: merchantId, p_destination: destination, p_weight_kg: weightKg });
     if (error) return { ok: false, message: error.message };
     const quote = Array.isArray(data) ? data[0] : data;
     return { ok: Boolean(quote), quote: quote ? { fee: Number(quote.fee || 0), distanceKm: Number(quote.distance_km || 0), etaMinutes: quote.eta_minutes, isInterwilaya: Boolean(quote.is_interwilaya) } : null };
@@ -3561,6 +3502,9 @@ export default function App() {
     // have the companion RPC while the user must still be able to sign out.
     const { error: tokenError } = await supabase.rpc("clear_my_fcm_token");
     if (tokenError && tokenError.code !== "42883") console.warn("تعذر إبطال رمز FCM عند الخروج:", tokenError.message);
+    const cartOwnerId = auth?.type === "customer" ? auth.id : null;
+    setCart(emptyCart());
+    if (cartOwnerId) await clearKey(customerCartStorage(cartOwnerId), emptyCart());
     await supabase.auth.signOut();
     setAuth(null);
     setMyStoreId(null); persistentSetMyStoreId(null);
