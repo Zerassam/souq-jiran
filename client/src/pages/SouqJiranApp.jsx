@@ -1439,12 +1439,12 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
       const existing = base.find((i) => i.id === product.id);
       const items = existing ? base.map((i) => (i.id === product.id ? { ...i, qty: i.qty + 1 } : i)) : [...base, { id: product.id, name: product.name, price: product.price, qty: 1 }];
       return { ...prev, storeId: store.id, items };
-    });
+    }, customerId);
     notify(`تمت إضافة «${product.name}» للسلة`);
   }
-  function changeQty(id, delta) { setCart((prev) => ({ ...prev, items: prev.items.map((i) => (i.id === id ? { ...i, qty: i.qty + delta } : i)).filter((i) => i.qty > 0) })); }
+  function changeQty(id, delta) { setCart((prev) => ({ ...prev, items: prev.items.map((i) => (i.id === id ? { ...i, qty: i.qty + delta } : i)).filter((i) => i.qty > 0) }), customerId); }
   function applyRewardCoupon() { const coupon = rewardCoupons.find((item) => item.status === "available" && item.code.toUpperCase() === rewardCouponInput.trim().toUpperCase()); if (!coupon) { notify("قسيمة المكافأة غير متاحة أو غير صالحة."); return; } if (cartSubtotal < Number(coupon.minimumOrderTotal || 0)) { notify(`هذه القسيمة تتطلب طلباً بقيمة ${money(coupon.minimumOrderTotal)} على الأقل.`); return; } setAppliedReward(coupon); notify(`تم حجز خصم المكافأة بقيمة ${money(coupon.amount)} للطلب.`); }
-  function updateAddress(values) { setCart((prev) => ({ ...prev, address: { ...(prev.address || {}), ...values } })); }
+  function updateAddress(values) { setCart((prev) => ({ ...prev, address: { ...(prev.address || {}), ...values } }), customerId); }
   function requestCurrentLocation() {
     if (!navigator.geolocation) { notify("لا يدعم متصفحك تحديد الموقع الجغرافي."); return; }
     navigator.geolocation.getCurrentPosition(
@@ -1591,9 +1591,9 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                   {cart.address?.x !== undefined && <div className="mt-2"><MapPreview x={cart.address.x} y={cart.address.y} height={60} /></div>}
                 </div>}
 
-                {deliveryChoice === "courier" && quoteLoading && <p className="text-xs mb-3" style={{ color: C.inkSoft }}>{uiText(language, "calculatingDelivery")}</p>}
-                {deliveryChoice === "courier" && deliveryQuote && <div className="mb-3 p-3 rounded-xl text-xs" style={{ background: C.teal + "0F", border: `1px solid ${C.teal}30`, color: C.ink }}><div className="font-bold" style={{ color: C.teal }}>{uiText(language, "serverQuote")}</div><div className="mt-1">{uiText(language, "distanceEta", { distance: Number(deliveryQuote.distanceKm || 0).toFixed(1), eta: deliveryQuote.etaMinutes || "—" })}{deliveryQuote.isInterwilaya ? ` · ${uiText(language, "interwilaya")}` : ""}</div></div>}
-                {deliveryChoice === "courier" && quoteError && <p className="text-xs font-bold mb-3" style={{ color: "#8B3A2A" }}>{quoteError}</p>}
+                {deliveryChoice !== "pickup" && quoteLoading && <p className="text-xs mb-3" style={{ color: C.inkSoft }}>{uiText(language, "calculatingDelivery")}</p>}
+                {deliveryChoice !== "pickup" && deliveryQuote && <div className="mb-3 p-3 rounded-xl text-xs" style={{ background: C.teal + "0F", border: `1px solid ${C.teal}30`, color: C.ink }}><div className="font-bold" style={{ color: C.teal }}>{uiText(language, "serverQuote")}</div><div className="mt-1">{uiText(language, "distanceEta", { distance: Number(deliveryQuote.distanceKm || 0).toFixed(1), eta: deliveryQuote.etaMinutes || "—" })}{deliveryQuote.isInterwilaya ? ` · ${uiText(language, "interwilaya")}` : ""}</div></div>}
+                {deliveryChoice !== "pickup" && quoteError && <p className="text-xs font-bold mb-3" style={{ color: "#8B3A2A" }}>{quoteError}</p>}
                 {requiresVerifiedEmail && <div className="mb-3 p-3 rounded-xl" style={{ background: C.teal + "12", border: `1px solid ${C.teal}35` }}><div className="text-xs font-black" style={{ color: C.teal }}>{uiText(language, "emailConfirmation")}</div><p className="text-[11px] mt-1 leading-5" style={{ color: C.inkSoft }}>{emailVerified ? uiText(language, "emailVerifiedCopy") : uiText(language, "emailRequiredCopy")}</p></div>}
 
                 <div className="flex gap-2 mb-3"><input value={rewardCouponInput} onChange={(e) => setRewardCouponInput(e.target.value.toUpperCase())} placeholder={uiText(language, "rewardCoupon")} dir="ltr" className="flex-1 px-3 py-2 rounded-xl text-sm outline-none" style={{ border: `1px solid ${C.line}` }} /><button onClick={applyRewardCoupon} className="px-4 py-2 rounded-xl text-xs font-bold" style={{ background: C.teal, color: "#fff" }}>{uiText(language, "applyCoupon")}</button></div>
@@ -1602,8 +1602,7 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
                 <StripeDivider />
                 <div className="my-4 space-y-1.5">
                   <div className="flex items-center justify-between text-xs" style={{ color: C.inkSoft }}><span>{uiText(language, "subtotal")}</span><span>{money(cartSubtotal)}</span></div>
-                  {deliveryChoice === "courier" && <div className="flex items-center justify-between text-xs" style={{ color: C.inkSoft }}><span>{uiText(language, "deliveryFee", { computed: deliveryQuote ? "✓" : "" })}</span><span>{quoteLoading ? "…" : money(deliveryFee)}</span></div>}
-                  {deliveryChoice === "store" && deliveryFee > 0 && <div className="flex items-center justify-between text-xs" style={{ color: C.inkSoft }}><span>{uiText(language, "storeDeliveryFee")}</span><span>{money(deliveryFee)}</span></div>}
+                  {deliveryChoice !== "pickup" && <div className="flex items-center justify-between text-xs" style={{ color: C.inkSoft }}><span>{deliveryChoice === "store" ? uiText(language, "storeDeliveryFee") : uiText(language, "deliveryFee", { computed: deliveryQuote ? "✓" : "" })}</span><span>{quoteLoading ? "…" : deliveryQuote ? money(deliveryFee) : "—"}</span></div>}
                   {discountAmount > 0 && <div className="flex items-center justify-between text-xs" style={{ color: C.sage }}><span>{uiText(language, "discount")}</span><span>- {money(discountAmount)}</span></div>}
                   <div className="flex items-center justify-between pt-1"><span className="font-bold text-sm" style={{ color: C.ink }}>{uiText(language, "cashOnDelivery")}</span><PriceTag amount={finalTotal} size="lg" /></div>
                 </div>
@@ -2645,6 +2644,10 @@ export default function App() {
   const [isResolvingMerchantStore, setIsResolvingMerchantStore] = useState(false);
   const prevOrdersRef = useRef(null);
   const sessionHydrationRef = useRef(0);
+  const cartOwnerRef = useRef(null);
+  const cartHydratedRef = useRef(false);
+  const cartStorageEpochRef = useRef(0);
+  const cartStorageQueueRef = useRef(Promise.resolve());
 
   const focusedOrder = useMemo(() => orders.find((order) => order.id === focusedOrderId) || null, [orders, focusedOrderId]);
 
@@ -2705,8 +2708,8 @@ export default function App() {
     // لا نطلب إذن FCM قبل وجود جلسة Supabase؛ الرمز لا يجوز ربطه بحساب
     // مجهول، كما أن Android قد يرفض الطلب المبكر داخل WebView.
     (async () => {
-      const [loadedMyStoreId, loadedNotifications] = await Promise.all([
-        clearKey(STORAGE.legacyCart, emptyCart()), loadKey(STORAGE.myStoreId, null), loadKey(STORAGE.notifications, []),
+      const [, loadedNotifications] = await Promise.all([
+        clearKey(STORAGE.legacyCart, emptyCart()), loadKey(STORAGE.notifications, []),
       ]);
       if (cancelled) return;
       setStores([]); setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]);
@@ -2741,12 +2744,42 @@ export default function App() {
     };
   }
 
+  function queueCartStorage(operation) {
+    const queuedOperation = cartStorageQueueRef.current
+      .catch(() => undefined)
+      .then(operation);
+    cartStorageQueueRef.current = queuedOperation;
+    return queuedOperation;
+  }
+
+  function resetCartForSession() {
+    // This must be synchronous: do not render the preceding user's cart while
+    // Supabase, window.storage, or profile resolution is still in flight.
+    // The next generation invalidates every queued write made by the old owner.
+    cartStorageEpochRef.current += 1;
+    cartOwnerRef.current = null;
+    cartHydratedRef.current = false;
+    setCart(emptyCart());
+  }
+
+  async function clearCartForSession(ownerId = cartOwnerRef.current) {
+    resetCartForSession();
+    const targets = [STORAGE.legacyCart];
+    if (ownerId) targets.push(customerCartStorage(ownerId));
+    await queueCartStorage(() => Promise.all(targets.map((target) => clearKey(target, emptyCart()))));
+  }
+
   async function applySupabaseSession(session) {
     const hydrationId = ++sessionHydrationRef.current;
+    const incomingUserId = session?.user?.id || null;
+    const previousCartOwnerId = cartOwnerRef.current;
+    // Every auth event starts from an empty, unowned cart. This invalidates any
+    // delayed load/write belonging to the prior session before the first await.
+    if (cartOwnerRef.current !== incomingUserId || !cartHydratedRef.current) resetCartForSession();
     if (!session?.user) {
+      if (previousCartOwnerId) void clearCartForSession(previousCartOwnerId);
       setIsResolvingMerchantStore(false);
       setAuth(null);
-      setCart(emptyCart());
       setMyStoreId(null);
       setRole("customer");
       setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]); setReferralCode(""); setRewardCoupons([]); setMerchantOffers([]); setReferralAnalytics({ totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0 });
@@ -2755,13 +2788,21 @@ export default function App() {
       await refreshSupabaseData("public");
       return;
     }
+    if (previousCartOwnerId && previousCartOwnerId !== incomingUserId) {
+      // Handles a direct Supabase session replacement that bypasses signOut().
+      // The queued clear runs after any old write already in progress.
+      void clearCartForSession(previousCartOwnerId);
+    }
     setIsResolvingMerchantStore(true);
     const nextAuth = await resolveSupabaseUser(session.user);
     if (hydrationId !== sessionHydrationRef.current) return;
-    const nextCart = nextAuth.type === "customer"
-      ? await loadKey(customerCartStorage(nextAuth.id), emptyCart())
-      : emptyCart();
+    const isCustomer = nextAuth.type === "customer";
+    const nextCart = isCustomer ? await loadKey(customerCartStorage(nextAuth.id), emptyCart()) : emptyCart();
     if (hydrationId !== sessionHydrationRef.current) return;
+    if (isCustomer) {
+      cartOwnerRef.current = nextAuth.id;
+      cartHydratedRef.current = true;
+    }
     setAuth(nextAuth);
     setRole(nextAuth.type);
     setCart(nextCart);
@@ -3010,10 +3051,15 @@ export default function App() {
   function persistentSetStores(updater) { setStores((prev) => { const next = typeof updater === "function" ? updater(prev) : updater; saveKey(STORAGE.stores, next); return next; }); }
   function persistentSetOrders(updater) { setOrders((prev) => { const next = typeof updater === "function" ? updater(prev) : updater; saveKey(STORAGE.orders, next); return next; }); }
   function persistentSetCouriers(updater) { setCouriers((prev) => { const next = typeof updater === "function" ? updater(prev) : updater; saveKey(STORAGE.couriers, next); return next; }); }
-  function persistentSetCart(updater) {
+  function persistentSetCart(updater, expectedOwnerId = cartOwnerRef.current) {
     setCart((prev) => {
+      if (!expectedOwnerId || !cartHydratedRef.current || cartOwnerRef.current !== expectedOwnerId) return prev;
       const next = typeof updater === "function" ? updater(prev) : updater;
-      if (auth?.type === "customer" && auth.id) void saveKey(customerCartStorage(auth.id), next);
+      const writeEpoch = cartStorageEpochRef.current;
+      void queueCartStorage(async () => {
+        if (writeEpoch !== cartStorageEpochRef.current || !cartHydratedRef.current || cartOwnerRef.current !== expectedOwnerId) return;
+        await saveKey(customerCartStorage(expectedOwnerId), next);
+      });
       return next;
     });
   }
@@ -3164,7 +3210,7 @@ export default function App() {
   async function merchantConfirmSettlement(orderId) { return runLifecycleAction(orderId, "merchant_confirm_settlement", "تم تأكيد استلام المستحقات وإغلاق الطلب."); }
 
   async function quoteDelivery(merchantId, destination, weightKg = 0) {
-    const { data, error } = await supabase.rpc("quote_delivery", { p_merchant_id: merchantId, p_destination: destination, p_weight_kg: weightKg });
+    const { data, error } = await supabase.rpc("quote_delivery", { p_merchant_id: merchantId, p_destination_json: destination, p_weight_kg: weightKg });
     if (error) return { ok: false, message: error.message };
     const quote = Array.isArray(data) ? data[0] : data;
     return { ok: Boolean(quote), quote: quote ? { fee: Number(quote.fee || 0), distanceKm: Number(quote.distance_km || 0), etaMinutes: quote.eta_minutes, isInterwilaya: Boolean(quote.is_interwilaya) } : null };
@@ -3354,6 +3400,7 @@ export default function App() {
       const accountPhone = normalizedPhone || credential.phone || "";
       const signedIn = await resolveSupabaseUser(verifiedSession.user);
       if (signedIn.type && signedIn.type !== type) {
+        await clearCartForSession(signedIn.type === "customer" ? signedIn.id : cartOwnerRef.current);
         await supabase.auth.signOut();
         return { error: "هذا البريد مرتبط بدور مختلف. اختر بوابة الحساب الصحيحة أو استخدم بريداً جديداً." };
       }
@@ -3371,6 +3418,7 @@ export default function App() {
     }
     const signedIn = await resolveSupabaseUser(verifiedSession.user);
     if (signedIn.type !== type) {
+      await clearCartForSession(signedIn.type === "customer" ? signedIn.id : cartOwnerRef.current);
       await supabase.auth.signOut();
       return { error: "نوع الحساب لا يطابق البوابة المحددة. اختر بوابة حسابك الصحيحة." };
     }
@@ -3502,9 +3550,8 @@ export default function App() {
     // have the companion RPC while the user must still be able to sign out.
     const { error: tokenError } = await supabase.rpc("clear_my_fcm_token");
     if (tokenError && tokenError.code !== "42883") console.warn("تعذر إبطال رمز FCM عند الخروج:", tokenError.message);
-    const cartOwnerId = auth?.type === "customer" ? auth.id : null;
-    setCart(emptyCart());
-    if (cartOwnerId) await clearKey(customerCartStorage(cartOwnerId), emptyCart());
+    const cartOwnerId = cartOwnerRef.current;
+    await clearCartForSession(cartOwnerId);
     await supabase.auth.signOut();
     setAuth(null);
     setMyStoreId(null); persistentSetMyStoreId(null);

@@ -7,6 +7,7 @@ const merchantLocationRepairSource = readFileSync(resolve(process.cwd(), "supaba
 const merchantBusinessHoursMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260908_merchant_business_hours.sql"), "utf8");
 const parallelDeliveryMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260909_parallel_delivery_and_coverage_zones.sql"), "utf8");
 const immediateOrdersMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260910_immediate_orders_cart_compatibility.sql"), "utf8");
+const deliveryRpcRepairMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260911_delivery_rpc_contract_repair.sql"), "utf8");
 
 describe("location and delivery regression guards", () => {
   it("يحفظ ساعات العمل ويعيد تحميلها قبل إظهار وسم الفتح أو الإغلاق", () => {
@@ -105,19 +106,39 @@ it("removes delivery scheduling from customer checkout and merchant management",
   expect(appSource).toContain("notify(\"تم إرسال طلبك — الدفع نقداً عند الاستلام\")");
 });
 
-it("keeps each cart private to an authenticated customer and clears it at logout", () => {
+it("keeps each cart private to an authenticated customer and blocks stale-session writes", () => {
   expect(appSource).toContain("const customerCartStorage = (customerId) => ({ key: `souq-jiran:cart:v5:${customerId}`, shared: false })");
   expect(appSource).toContain("clearKey(STORAGE.legacyCart, emptyCart())");
+  expect(appSource).toContain("const cartOwnerRef = useRef(null)");
+  expect(appSource).toContain("const cartHydratedRef = useRef(false)");
+  expect(appSource).toContain("const cartStorageEpochRef = useRef(0)");
+  expect(appSource).toContain("const cartStorageQueueRef = useRef(Promise.resolve())");
+  expect(appSource).toContain("function queueCartStorage(operation)");
+  expect(appSource).toContain("function resetCartForSession()");
+  expect(appSource).toContain("cartStorageEpochRef.current += 1;");
+  expect(appSource).toContain("function persistentSetCart(updater, expectedOwnerId = cartOwnerRef.current)");
+  expect(appSource).toContain("if (!expectedOwnerId || !cartHydratedRef.current || cartOwnerRef.current !== expectedOwnerId) return prev;");
+  expect(appSource).toContain("const writeEpoch = cartStorageEpochRef.current;");
+  expect(appSource).toContain("if (writeEpoch !== cartStorageEpochRef.current || !cartHydratedRef.current || cartOwnerRef.current !== expectedOwnerId) return;");
+  expect(appSource).toContain("await queueCartStorage(() => Promise.all(targets.map((target) => clearKey(target, emptyCart()))));");
+  expect(appSource).toContain("const previousCartOwnerId = cartOwnerRef.current;");
+  expect(appSource).toContain("void clearCartForSession(previousCartOwnerId);");
+  expect(appSource).toContain("cartOwnerRef.current = nextAuth.id;");
+  expect(appSource).toContain("cartHydratedRef.current = true;");
+  expect(appSource).toContain("setCart((prev) => {");
+  expect(appSource).toContain("}, customerId);");
   expect(appSource).toContain("nextAuth.type === \"customer\"");
   expect(appSource).toContain("await loadKey(customerCartStorage(nextAuth.id), emptyCart())");
-  expect(appSource).toContain("if (auth?.type === \"customer\" && auth.id) void saveKey(customerCartStorage(auth.id), next)");
-  expect(appSource).toContain("if (cartOwnerId) await clearKey(customerCartStorage(cartOwnerId), emptyCart())");
-  expect(appSource).toContain("setCart(emptyCart())");
+  expect(appSource).toContain("await clearCartForSession(cartOwnerId);");
+  expect(appSource).toContain("await clearCartForSession(signedIn.type === \"customer\" ? signedIn.id : cartOwnerRef.current);");
+  expect(appSource).toContain("const [, loadedNotifications] = await Promise.all([");
 });
 
 it("uses the exact quote_delivery parameter contract", () => {
-  expect(appSource).toContain('supabase.rpc("quote_delivery", { p_merchant_id: merchantId, p_destination: destination, p_weight_kg: weightKg })');
-  expect(appSource).not.toContain("p_destination_json");
+  expect(appSource).toContain('supabase.rpc("quote_delivery", { p_merchant_id: merchantId, p_destination_json: destination, p_weight_kg: weightKg })');
+  expect(deliveryRpcRepairMigration).toContain("p_destination_json jsonb");
+  expect(deliveryRpcRepairMigration).toContain("drop function if exists public.quote_delivery(uuid, jsonb, numeric);");
+  expect(deliveryRpcRepairMigration).toContain("notify pgrst, 'reload schema';");
 });
 
 it("uses one safe back policy for Android and visible customer navigation", () => {
@@ -135,12 +156,28 @@ it("keeps store delivery and platform delivery independently selectable", () => 
   expect(appSource).toContain("const storeDeliveryEnabled = Boolean(cartStore?.hasOwnDelivery || cartStore?.storeDeliveryEnabled)");
   expect(appSource).toContain('const deliveryFee = deliveryChoice === "pickup" ? 0 : Number(deliveryQuote?.fee || 0)');
   expect(appSource).toContain('const needsDeliveryQuote = deliveryChoice !== "pickup"');
+  expect(appSource).toContain('deliveryChoice !== "pickup" && quoteLoading');
+  expect(appSource).toContain('deliveryChoice !== "pickup" && deliveryQuote');
+  expect(appSource).toContain('deliveryChoice !== "pickup" && quoteError');
+  expect(appSource).toContain('deliveryChoice !== "pickup" && <div className="flex items-center justify-between text-xs"');
   expect(appSource).toContain('storeDeliveryEnabled && { id: "store", label: "توصيل المحل"');
   expect(appSource).toContain('{ id: "courier", label: "موصل معتمد من المنصة"');
   expect(appSource).toContain("يمكن تفعيل توصيل المحل وتوصيل المنصة معاً");
   expect(appSource).toContain('supabase.rpc("merchant_save_delivery_preferences"');
   expect(parallelDeliveryMigration).toContain("case when p_delivery_choice='pickup' then 0 else v_quote.fee end");
   expect(parallelDeliveryMigration).not.toContain("when p_delivery_choice='store' then v_merchant.delivery_fee");
+});
+
+it("repairs missing merchant delivery columns without modifying production merchant rows", () => {
+  expect(deliveryRpcRepairMigration).toContain("add column if not exists has_own_delivery boolean not null default true");
+  expect(deliveryRpcRepairMigration).toContain("add column if not exists platform_delivery_enabled boolean not null default true");
+  expect(deliveryRpcRepairMigration).toContain("add column if not exists delivery_coverage_zones jsonb not null default '[]'::jsonb");
+  expect(deliveryRpcRepairMigration).toContain("create or replace function public.merchant_covers_delivery_destination(");
+  expect(deliveryRpcRepairMigration).toContain("v_has_own_delivery boolean;");
+  expect(deliveryRpcRepairMigration).toContain("v_platform_delivery_enabled boolean;");
+  expect(deliveryRpcRepairMigration).not.toContain("v_merchant public.merchants;");
+  expect(deliveryRpcRepairMigration).not.toContain("update public.merchants\nset");
+  expect(deliveryRpcRepairMigration).toContain("if to_regprocedure('public.record_admin_order_notification(uuid,text)') is not null then");
 });
 
 it("keeps multi-zone coverage and a non-destructive Supabase migration reviewable", () => {
