@@ -7,6 +7,24 @@
 -- every newly-created order immediate. The three legacy schedule parameters
 -- remain accepted solely so already-installed application builds do not fail.
 
+-- Some deployments applied the order functions but not the earlier lifecycle
+-- table creation. Bootstrap only the missing blacklist prerequisite: this does
+-- not alter, delete, or seed customer accounts, and preserves an existing table.
+create table if not exists public.customer_blacklist (
+  customer_id uuid primary key references public.profiles(id) on delete cascade,
+  reason text not null check (char_length(trim(reason)) between 5 and 1000),
+  created_by uuid not null references public.profiles(id) on delete restrict,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz,
+  revoked_at timestamptz,
+  revoked_by uuid references public.profiles(id) on delete set null
+);
+
+alter table public.customer_blacklist enable row level security;
+drop policy if exists customer_blacklist_admin_read on public.customer_blacklist;
+create policy customer_blacklist_admin_read on public.customer_blacklist
+  for select to authenticated using (public.is_app_admin());
+
 create or replace function public.is_customer_blacklisted(p_customer_id uuid)
 returns boolean
 language sql

@@ -69,6 +69,9 @@ describe("location and delivery regression guards", () => {
   });
 
   it("defines the immediate-checkout RPCs with authenticated-only execution", () => {
+    expect(immediateOrdersMigration).toContain("create table if not exists public.customer_blacklist");
+    expect(immediateOrdersMigration).toContain("alter table public.customer_blacklist enable row level security;");
+    expect(immediateOrdersMigration).toContain("create policy customer_blacklist_admin_read on public.customer_blacklist");
     expect(immediateOrdersMigration).toContain("create or replace function public.is_customer_blacklisted(p_customer_id uuid)");
     expect(immediateOrdersMigration).toContain("create or replace function public.quote_delivery(");
     expect(immediateOrdersMigration).toContain("create or replace function public.create_customer_order(");

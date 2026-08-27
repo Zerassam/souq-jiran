@@ -853,6 +853,8 @@ describe("Souq Jiran Supabase integration", () => {
     const customerView = appSource.match(/function CustomerView[\s\S]*?(?=function MerchantView)/)?.[0] ?? "";
 
     expect(immediateOrdersMigration).toContain("create or replace function public.create_customer_order(");
+    expect(immediateOrdersMigration).toContain("create table if not exists public.customer_blacklist");
+    expect(immediateOrdersMigration).toContain("alter table public.customer_blacklist enable row level security;");
     expect(immediateOrdersMigration).toContain("security definer");
     expect(immediateOrdersMigration).toContain("p_delivery_choice not in ('pickup', 'store', 'courier')");
     expect(immediateOrdersMigration).toContain("p_delivery_choice = 'store' and not v_merchant.has_own_delivery");
