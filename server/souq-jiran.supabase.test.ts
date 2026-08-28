@@ -862,6 +862,10 @@ describe("Souq Jiran Supabase integration", () => {
     expect(immediateOrdersMigration).toContain("create table if not exists public.order_lifecycle_events");
     expect(singleImmediateOrderRpcMigration).toContain("drop function if exists public.create_customer_order(");
     expect(singleImmediateOrderRpcMigration).toContain("uuid, jsonb, text, jsonb, integer, text, timestamptz, timestamptz");
+    expect(singleImmediateOrderRpcMigration).toContain("uuid, jsonb, text, jsonb, integer\n);");
+    expect(singleImmediateOrderRpcMigration.indexOf("uuid, jsonb, text, jsonb, integer\n);")).toBeLessThan(
+      singleImmediateOrderRpcMigration.indexOf("create or replace function public.create_customer_order(")
+    );
     expect(singleImmediateOrderRpcMigration).toContain("create or replace function public.create_customer_order(");
     expect(singleImmediateOrderRpcMigration).toContain("security definer");
     expect(singleImmediateOrderRpcMigration).toContain("p_delivery_choice not in ('pickup', 'store', 'courier')");

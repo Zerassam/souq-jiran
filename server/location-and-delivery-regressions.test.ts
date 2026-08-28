@@ -88,6 +88,10 @@ describe("location and delivery regression guards", () => {
     expect(immediateOrdersMigration).toContain("grant execute on function public.quote_delivery(uuid, jsonb, numeric) to authenticated;");
     expect(singleImmediateOrderRpcMigration).toContain("drop function if exists public.create_customer_order(");
     expect(singleImmediateOrderRpcMigration).toContain("uuid, jsonb, text, jsonb, integer, text, timestamptz, timestamptz");
+    expect(singleImmediateOrderRpcMigration).toContain("uuid, jsonb, text, jsonb, integer\n);");
+    expect(singleImmediateOrderRpcMigration.indexOf("uuid, jsonb, text, jsonb, integer\n);")).toBeLessThan(
+      singleImmediateOrderRpcMigration.indexOf("create or replace function public.create_customer_order(")
+    );
     expect(singleImmediateOrderRpcMigration).toContain("create or replace function public.create_customer_order(");
     expect(singleImmediateOrderRpcMigration).toContain("p_merchant_id uuid");
     expect(singleImmediateOrderRpcMigration).toContain("p_items jsonb");

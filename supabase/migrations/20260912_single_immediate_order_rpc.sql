@@ -9,9 +9,14 @@
 -- The Android evidence showed two candidates for the same immediate request:
 -- a five-parameter function and a legacy eight-parameter scheduling function
 -- with three default arguments. PostgREST cannot choose reliably between them.
--- Scheduling is retired, so remove the old typed signature entirely.
+-- Scheduling is retired, so remove the old typed signature entirely. The
+-- five-parameter signature is also dropped first: PostgreSQL does not allow
+-- CREATE OR REPLACE to remove defaults that a previous version may carry.
 drop function if exists public.create_customer_order(
   uuid, jsonb, text, jsonb, integer, text, timestamptz, timestamptz
+);
+drop function if exists public.create_customer_order(
+  uuid, jsonb, text, jsonb, integer
 );
 
 -- Keep exactly one public checkout contract. The application always submits
