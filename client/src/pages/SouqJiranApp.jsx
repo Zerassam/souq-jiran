@@ -2681,6 +2681,7 @@ export default function App() {
   const [showPhoneChange, setShowPhoneChange] = useState(false);
   const [adminLoginRequested, setAdminLoginRequested] = useState(false);
   const [showRoleGuide, setShowRoleGuide] = useState(false);
+  const [isAppGateway, setIsAppGateway] = useState(true);
   const [focusedOrderId, setFocusedOrderId] = useState(null);
   const [isResolvingMerchantStore, setIsResolvingMerchantStore] = useState(false);
   const prevOrdersRef = useRef(null);
@@ -2691,6 +2692,19 @@ export default function App() {
   const cartStorageQueueRef = useRef(Promise.resolve());
 
   const focusedOrder = useMemo(() => orders.find((order) => order.id === focusedOrderId) || null, [orders, focusedOrderId]);
+
+  function openAppGateway() {
+    setFocusedOrderId(null);
+    setShowPhoneChange(false);
+    setShowAuth(false);
+    setAdminLoginRequested(false);
+    setPendingProviderRegistration(null);
+    setShowCourierForm(false);
+    setShowMerchantForm(false);
+    setShowRoleGuide(false);
+    setRole("customer");
+    setIsAppGateway(true);
+  }
 
   function handleAppBack({ canGoBack = false, allowExit = false } = {}) {
     // Global overlays always take precedence over navigation inside a role view.
@@ -2705,6 +2719,11 @@ export default function App() {
     const nestedBack = new Event("souq-jiran:back", { cancelable: true });
     window.dispatchEvent(nestedBack);
     if (nestedBack.defaultPrevented) return true;
+
+    if (!isAppGateway) {
+      openAppGateway();
+      return true;
+    }
 
     if (canGoBack && window.history.length > 1) {
       window.history.back();
@@ -2722,7 +2741,7 @@ export default function App() {
     let listenerHandle;
     let active = true;
     void CapacitorApp.addListener("backButton", ({ canGoBack }) => {
-      if (active) handleAppBack({ canGoBack, allowExit: !canGoBack });
+      if (active) handleAppBack({ canGoBack, allowExit: !canGoBack && isAppGateway });
     }).then((handle) => {
       if (active) listenerHandle = handle;
       else void handle.remove();
@@ -2733,7 +2752,7 @@ export default function App() {
       active = false;
       if (listenerHandle) void listenerHandle.remove();
     };
-  }, [focusedOrderId, language, pendingProviderRegistration, showAuth, showCourierForm, showMerchantForm, showPhoneChange, showRoleGuide]);
+  }, [focusedOrderId, isAppGateway, language, pendingProviderRegistration, showAuth, showCourierForm, showMerchantForm, showPhoneChange, showRoleGuide]);
 
   useEffect(() => {
     try { localStorage.setItem("souq-jiran:language", language); } catch { /* preference storage is optional */ }
@@ -2823,6 +2842,7 @@ export default function App() {
       setAuth(null);
       setMyStoreId(null);
       setRole("customer");
+      setIsAppGateway(true);
       setOrders([]); setMessages([]); setArchiveAuditLogs([]); setArchiveNotifications([]); setAdminOrderNotifications([]); setTestAccountCandidates([]); setTestAccountReviewAuditLogs([]); setCustomerReports([]); setCustomerBlacklist([]); setDeliveryPricing(null); setCouriers([]); setReferralCode(""); setRewardCoupons([]); setMerchantOffers([]); setReferralAnalytics({ totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0 });
       // تبقى الصفحة الرئيسية متاحة للزائر: سياسة RLS تسمح بقراءة المحلات المعتمدة
       // فقط، لذا لا ينبغي لمسح القائمة عند عدم وجود جلسة تسجيل دخول.
@@ -2846,6 +2866,7 @@ export default function App() {
     }
     setAuth(nextAuth);
     setRole(nextAuth.type);
+    setIsAppGateway(false);
     setCart(nextCart);
     if (nextAuth.type === "merchant") setMyStoreId(nextAuth.id);
     else setMyStoreId(null);
@@ -3602,6 +3623,7 @@ export default function App() {
     setAuth(null);
     setMyStoreId(null); persistentSetMyStoreId(null);
     setRole("customer");
+    setIsAppGateway(true);
     notify("تم تسجيل الخروج بنجاح");
   }
 
@@ -3633,12 +3655,12 @@ export default function App() {
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 sm:py-7">
         <header className="app-header flex items-center justify-between mb-3 gap-3 flex-wrap p-3 sm:p-4 rounded-[22px]" style={{ background: "rgba(255,255,255,.78)", border: `1px solid ${C.line}`, boxShadow: "0 12px 30px rgba(51, 59, 120, .07)" }}>
-          <div className="flex items-center gap-2.5">
+          <button data-testid="app-gateway-home-link" type="button" onClick={openAppGateway} className="flex items-center gap-2.5 text-right rounded-2xl" aria-label={language === "fr" ? "Ouvrir le portail Souq Jiran" : "فتح بوابة سوق الجيران"}>
             <span className="flex items-center justify-center rounded-2xl" style={{ width: 44, height: 44, background: `linear-gradient(145deg, ${C.teal}, ${C.purple})`, color: "#fff", boxShadow: `0 10px 20px ${C.teal}35` }}><ShoppingBag size={21} /></span>
-            <div><div className="font-black text-xl leading-none tracking-tight">{uiText(language, "appName")}</div><div className="text-[11px] mt-1 font-semibold" style={{ color: C.inkSoft }}>{role === "admin" ? uiText(language, "adminWorkspace") : uiText(language, "marketplaceCaption")}</div></div>
-          </div>
+            <span><span className="block font-black text-xl leading-none tracking-tight">{uiText(language, "appName")}</span><span className="block text-[11px] mt-1 font-semibold" style={{ color: C.inkSoft }}>{uiText(language, "marketplaceCaption")}</span></span>
+          </button>
           <div className="flex items-center gap-2 flex-wrap">
-            <button data-testid="app-back-button" type="button" onClick={() => handleAppBack()} className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl font-bold text-sm" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}33` }} aria-label={language === "fr" ? "Retour" : "رجوع"}><ChevronRight size={16} /> {language === "fr" ? "Retour" : "رجوع"}</button>
+            {!isAppGateway && <button data-testid="app-back-button" type="button" onClick={() => handleAppBack()} className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl font-bold text-sm" style={{ background: "#fff", color: C.teal, border: `1px solid ${C.teal}33` }} aria-label={language === "fr" ? "Retour" : "رجوع"}><ChevronRight size={16} /> {language === "fr" ? "Retour" : "رجوع"}</button>}
             <div data-testid="app-language-switcher" className="flex items-center gap-1 p-1 rounded-xl" role="group" aria-label={uiText(language, "language")} style={{ background: C.paperDark, border: `1px solid ${C.line}` }}><Languages size={15} color={C.teal} className="mx-1" />{LANGUAGE_OPTIONS.map((option) => <button key={option.code} type="button" onClick={() => setLanguage(option.code)} aria-pressed={language === option.code} className="px-2.5 py-1.5 rounded-lg text-xs font-black transition" style={{ background: language === option.code ? C.teal : "transparent", color: language === option.code ? "#fff" : C.inkSoft }}>{option.shortLabel}</button>)}</div>
             {role === "admin" ? (
               <button onClick={signOut} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-sm" style={{ background: C.ink, color: "#fff" }}><LogOut size={15} /> {uiText(language, "signOutAdmin")}</button>
@@ -3662,11 +3684,11 @@ export default function App() {
             <div data-testid="provider-role-switches" className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <article data-testid="merchant-role-button" className="role-join-card group text-right p-5 rounded-[22px]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(51,59,120,.06)", "--role-accent": C.rust }}>
                 <span className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ background: C.rust + "16", color: C.rust }}><Store size={22} /></span><h3 className="font-black mt-4" style={{ color: C.ink }}>{uiText(language, "merchant")}</h3><p className="text-xs leading-5 mt-1.5" style={{ color: C.inkSoft }}>{uiText(language, "merchantDescription")}</p>
-                <div className="mt-4 grid grid-cols-2 gap-2"><button onClick={() => (auth?.type === "merchant" ? (setRole("merchant"), persistentSetMyStoreId(auth.id)) : setShowMerchantForm(true))} className="py-2.5 rounded-xl text-xs font-black" style={{ background: C.rust, color: "#fff" }}>{uiText(language, "createAccount")}</button><button onClick={() => { setAdminLoginRequested(false); setAuthEntry({ type: "merchant", mode: "login" }); setShowAuth(true); }} className="py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1" style={{ border: `1px solid ${C.rust}44`, color: C.rust }}><LogIn size={13} /> {uiText(language, "signIn")}</button></div>
+                <div className="mt-4 grid grid-cols-2 gap-2"><button onClick={() => (auth?.type === "merchant" ? (setRole("merchant"), setIsAppGateway(false), persistentSetMyStoreId(auth.id)) : setShowMerchantForm(true))} className="py-2.5 rounded-xl text-xs font-black" style={{ background: C.rust, color: "#fff" }}>{uiText(language, "createAccount")}</button><button onClick={() => { setAdminLoginRequested(false); setAuthEntry({ type: "merchant", mode: "login" }); setShowAuth(true); }} className="py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1" style={{ border: `1px solid ${C.rust}44`, color: C.rust }}><LogIn size={13} /> {uiText(language, "signIn")}</button></div>
               </article>
               <article data-testid="courier-role-button" className="role-join-card group text-right p-5 rounded-[22px]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(51,59,120,.06)", "--role-accent": C.teal }}>
                 <span className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ background: C.teal + "16", color: C.teal }}><Bike size={22} /></span><h3 className="font-black mt-4" style={{ color: C.ink }}>{uiText(language, "courier")}</h3><p className="text-xs leading-5 mt-1.5" style={{ color: C.inkSoft }}>{uiText(language, "courierDescription")}</p>
-                <div className="mt-4 grid grid-cols-2 gap-2"><button onClick={() => (auth?.type === "courier" ? setRole("courier") : setShowCourierForm(true))} className="py-2.5 rounded-xl text-xs font-black" style={{ background: C.teal, color: "#fff" }}>{uiText(language, "createAccount")}</button><button data-testid="courier-login-button" onClick={() => { setAdminLoginRequested(false); setAuthEntry({ type: "courier", mode: "login" }); setShowAuth(true); }} className="py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1" style={{ border: `1px solid ${C.teal}44`, color: C.teal }}><LogIn size={13} /> {uiText(language, "accountLogin")}</button></div>
+                <div className="mt-4 grid grid-cols-2 gap-2"><button onClick={() => (auth?.type === "courier" ? (setRole("courier"), setIsAppGateway(false)) : setShowCourierForm(true))} className="py-2.5 rounded-xl text-xs font-black" style={{ background: C.teal, color: "#fff" }}>{uiText(language, "createAccount")}</button><button data-testid="courier-login-button" onClick={() => { setAdminLoginRequested(false); setAuthEntry({ type: "courier", mode: "login" }); setShowAuth(true); }} className="py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1" style={{ border: `1px solid ${C.teal}44`, color: C.teal }}><LogIn size={13} /> {uiText(language, "accountLogin")}</button></div>
               </article>
               <article data-testid="customer-role-button" className="role-join-card group text-right p-5 rounded-[22px]" style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: "0 8px 22px rgba(51,59,120,.06)", "--role-accent": C.ochre }}>
                 <span className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110" style={{ background: C.ochre + "16", color: C.ochre }}><User size={22} /></span><h3 className="font-black mt-4" style={{ color: C.ink }}>{uiText(language, "customer")}</h3><p className="text-xs leading-5 mt-1.5" style={{ color: C.inkSoft }}>{uiText(language, "customerDescription")}</p>

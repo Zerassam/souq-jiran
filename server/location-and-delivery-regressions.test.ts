@@ -9,6 +9,7 @@ const parallelDeliveryMigration = readFileSync(resolve(process.cwd(), "supabase/
 const immediateOrdersMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260910_immediate_orders_cart_compatibility.sql"), "utf8");
 const deliveryRpcRepairMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260911_delivery_rpc_contract_repair.sql"), "utf8");
 const singleImmediateOrderRpcMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260912_single_immediate_order_rpc.sql"), "utf8");
+const productWeightCompatibilityMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260913_product_weight_checkout_compatibility.sql"), "utf8");
 
 describe("location and delivery regression guards", () => {
   it("يحفظ ساعات العمل ويعيد تحميلها قبل إظهار وسم الفتح أو الإغلاق", () => {
@@ -192,7 +193,20 @@ it("uses one safe back policy for Android and visible customer navigation", () =
   expect(appSource).toContain('window.addEventListener("souq-jiran:back", handleBack)');
   expect(appSource).toContain('if (showCart) { setShowCart(false); event.preventDefault(); return; }');
   expect(appSource).toContain('if (openStoreId) { setOpenStoreId(null); setActiveDept("all"); event.preventDefault(); return; }');
-  expect(appSource).toContain('data-testid="app-back-button"');
+  expect(appSource).toContain('function openAppGateway()');
+  expect(appSource).toContain('data-testid="app-gateway-home-link"');
+  expect(appSource).toContain('setIsAppGateway(true);');
+  expect(appSource).toContain('setIsAppGateway(false);');
+  expect(appSource).toContain('{!isAppGateway && <button data-testid="app-back-button"');
+  expect(appSource).toContain('allowExit: !canGoBack && isAppGateway');
+});
+
+it("adds a conservative product weight column without mutating production rows", () => {
+  expect(productWeightCompatibilityMigration).toContain("add column if not exists weight_kg numeric(8,3) not null default 0.250");
+  expect(productWeightCompatibilityMigration).toContain("check (weight_kg > 0 and weight_kg <= 100)");
+  expect(productWeightCompatibilityMigration).toContain("Legacy products use the conservative 0.250 kg default.");
+  expect(productWeightCompatibilityMigration).not.toMatch(/\b(update|insert\s+into|delete\s+from)\s+public\.products\b/i);
+  expect(productWeightCompatibilityMigration).toContain("notify pgrst, 'reload schema'");
 });
 
 it("keeps store delivery and platform delivery independently selectable", () => {
