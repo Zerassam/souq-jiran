@@ -2204,7 +2204,7 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
             <div key={o.id} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
               <div className="flex items-center justify-between mb-2"><span className="font-bold text-sm" style={{ color: C.ink }}>{o.storeName}</span><StatusPill status={o.status} /></div>
               <div className="text-xs mb-1" style={{ color: C.inkSoft }}>{o.items.map((i) => `${i.name} ×${i.qty}`).join(" · ")}</div>
-              <div className="text-xs mb-3" style={{ color: C.inkSoft }}>العميل: {o.customer} · {o.createdAt}</div>
+              <div className="text-xs mb-3" style={{ color: C.inkSoft }}>العميل: {o.customer}{o.customerPhone ? ` · ${o.customerPhone}` : ""} · {o.createdAt}</div>
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <PriceTag amount={o.total} />
                 <div className="flex gap-2">
@@ -2887,7 +2887,7 @@ export default function App() {
   }
 
   async function refreshSupabaseData(activeRole = auth?.type) {
-    const [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult, messagesResult, auditResult, archiveNotificationsResult, orderNotificationsResult, alertSettingsResult, customerReportsResult, customerBlacklistResult, pricingResult, referralCodeResult, rewardCouponsResult, adminReferralsResult, adminRewardCouponsResult, merchantOffersResult] = await Promise.all([
+    const [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult, messagesResult, auditResult, archiveNotificationsResult, orderNotificationsResult, alertSettingsResult, customerReportsResult, customerBlacklistResult, pricingResult, referralCodeResult, rewardCouponsResult, adminReferralsResult, adminRewardCouponsResult, merchantOffersResult, orderContactsResult] = await Promise.all([
       supabase.from("merchants").select("*").order("created_at", { ascending: false }),
       supabase.from("products").select("*").order("created_at", { ascending: false }),
       supabase.from("couriers").select("*").order("created_at", { ascending: false }),
@@ -2906,6 +2906,8 @@ export default function App() {
       activeRole === "admin" ? supabase.from("customer_referrals").select("status") : Promise.resolve({ data: [] }),
       activeRole === "admin" ? supabase.from("reward_coupons").select("status, amount") : Promise.resolve({ data: [] }),
       supabase.from("merchant_store_offers").select("*").order("created_at", { ascending: false }),
+      // اسم وهاتف الزبون الحقيقيان — فقط للتاجر/الموصل/المشرف، ومحصورة بطلباتهم فعلياً عبر RLS داخل الدالة نفسها.
+      activeRole === "customer" ? Promise.resolve({ data: [] }) : supabase.rpc("get_my_order_contacts"),
     ]);
     const migrationMissing = [merchantsResult, productsResult, couriersResult, ordersResult, itemsResult].some((result) => result.error?.code === "42P01");
     if (migrationMissing) {
@@ -2924,6 +2926,7 @@ export default function App() {
     const productsByMerchant = groupRowsBy(productRows, ({ merchant_id }) => merchant_id);
     const storesById = Object.fromEntries(merchantRows.map((merchant) => [merchant.id, merchant]));
     const itemsByOrder = groupRowsBy(itemsResult.data || [], ({ order_id }) => order_id);
+    const contactsByOrder = Object.fromEntries((orderContactsResult?.data || []).map((c) => [c.order_id, c]));
     setStores(merchantRows.map((merchant) => ({
       id: merchant.id, name: merchant.store_name, phone: merchant.phone || "", wilaya: merchant.wilaya || "", commune: merchant.commune || "", open: merchant.opening_hour ?? 8, close: merchant.closing_hour ?? 21,
       latitude: merchant.latitude ?? null, longitude: merchant.longitude ?? null, addressLabel: merchant.address_label || "",
@@ -2956,7 +2959,9 @@ export default function App() {
       availability: courier.availability || [], storeMode: courier.store_mode || "all", selectedStoreIds: courier.selected_store_ids || [], status: courier.status,
     })));
     setOrders((ordersResult.data || []).map((order) => ({
-      id: order.id, storeId: order.merchant_id, storeName: storesById[order.merchant_id]?.store_name || "محل الحي", customerId: order.customer_id, customer: order.customer_id === auth?.id ? "أنت" : "عميل",
+      id: order.id, storeId: order.merchant_id, storeName: storesById[order.merchant_id]?.store_name || "محل الحي", customerId: order.customer_id,
+      customer: order.customer_id === auth?.id ? "أنت" : (contactsByOrder[order.id]?.name || "عميل"),
+      customerPhone: contactsByOrder[order.id]?.phone || "",
       items: (itemsByOrder[order.id] || []).map((item) => ({ id: item.product_id || item.id, name: item.product_name, price: item.unit_price, unit: item.unit, qty: item.quantity })),
       subtotal: order.subtotal, deliveryFee: order.delivery_fee, total: order.total, status: order.status, deliveryLocation: order.delivery_address,
       isInterwilaya: order.is_interwilaya || false, deliveryDistanceKm: Number(order.delivery_distance_km || 0), estimatedDeliveryMinutes: order.estimated_delivery_minutes,
