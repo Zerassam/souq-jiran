@@ -50,11 +50,18 @@ jobs:
 
       - name: Build static web bundle
         env:
+          NODE_ENV: production
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
         run: pnpm exec vite build --outDir dist-pages --base "$VITE_BASE_PATH"
 
+      - name: Add SPA fallback for GitHub Pages
+        run: cp client/dist-pages/index.html client/dist-pages/404.html
+
       - name: Verify static web bundle
-        run: test -f client/dist-pages/index.html
+        run: |
+          test -f client/dist-pages/index.html
+          test -f client/dist-pages/404.html
+          grep -q "/${{ github.event.repository.name }}/assets/" client/dist-pages/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
