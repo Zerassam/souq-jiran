@@ -1503,9 +1503,27 @@ function CustomerView({ stores, setStores, cart, setCart, orders, setOrders, cou
 
       {tab === "browse" && !openStore && (
         <>
+          <section className="relative overflow-hidden rounded-[28px] p-5 sm:p-7" style={{ background: "linear-gradient(135deg, #0F172A 0%, #123B35 58%, #047857 100%)", color: "#fff", boxShadow: "0 18px 40px rgba(15,23,42,.16)" }}>
+            <div className="absolute -left-10 -top-16 h-44 w-44 rounded-full" style={{ background: "rgba(16,185,129,.18)" }} />
+            <div className="relative z-10 max-w-2xl">
+              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-black" style={{ background: "rgba(255,255,255,.12)", color: "#A7F3D0" }}><MapPin size={12} /> توصيل موثوق من محلات حيك</span>
+              <h1 className="mt-3 text-2xl sm:text-3xl font-black tracking-tight">ماذا تريد أن تطلب اليوم؟</h1>
+              <p className="mt-2 max-w-xl text-sm leading-6" style={{ color: "rgba(255,255,255,.74)" }}>اكتشف المحلات القريبة، قارن العروض، وتابع طلبك خطوة بخطوة من نفس المكان.</p>
+              <div className="mt-5 grid grid-cols-3 gap-2 max-w-md text-center">
+                <div className="rounded-2xl px-2 py-2.5" style={{ background: "rgba(255,255,255,.1)" }}><div className="text-lg font-black">{curatedStores.length}</div><div className="text-[10px]" style={{ color: "rgba(255,255,255,.7)" }}>محلات مقترحة</div></div>
+                <div className="rounded-2xl px-2 py-2.5" style={{ background: "rgba(255,255,255,.1)" }}><div className="text-lg font-black">{publicCouriers.length}</div><div className="text-[10px]" style={{ color: "rgba(255,255,255,.7)" }}>موصلون متاحون</div></div>
+                <div className="rounded-2xl px-2 py-2.5" style={{ background: "rgba(255,255,255,.1)" }}><div className="text-lg font-black">24/7</div><div className="text-[10px]" style={{ color: "rgba(255,255,255,.7)" }}>تحديثات الطلب</div></div>
+              </div>
+            </div>
+          </section>
           {publicStoreId && !qrStore && <div data-testid="qr-store-route-unavailable" className="p-4 rounded-2xl text-sm font-bold" style={{ background: "#FFF7E7", color: C.ink, border: `1px solid ${C.ochre}55` }}>{uiText(language, "storeUnavailable")}</div>}
           {publicCourierId && <div data-testid="qr-courier-route" className="p-4 rounded-2xl" style={{ background: C.teal + "10", border: `1px solid ${C.teal}33` }}><div className="font-black text-sm" style={{ color: C.ink }}>{qrCourier ? `${uiText(language, "courierService")} ${qrCourier.name || uiText(language, "approvedCourier")}` : uiText(language, "courierService")}</div><p className="text-xs leading-5 mt-1" style={{ color: C.inkSoft }}>{qrCourier ? uiText(language, "coverage", { area: qrCourier.wilaya || "—" }) : uiText(language, "profileUnavailable")}</p></div>}
           <OfferMarquee offers={merchantOffers} language={language} onOpenStore={(storeId) => { setOpenStoreId(storeId); setActiveDept("all"); }} />
+          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar" aria-label="فئات الاكتشاف">
+            {[{ label: "كل المحلات", icon: Store, value: "" }, { label: "مواد غذائية", icon: ShoppingBasket, value: "بقالة" }, { label: "مطاعم", icon: ShoppingBag, value: "مطعم" }, { label: "عروض اليوم", icon: Tag, value: "عرض" }].map(({ label, icon: Icon, value }) => (
+              <button key={label} onClick={() => setQuery(value)} className="shrink-0 flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-black" style={{ background: query === value ? C.teal : "#fff", color: query === value ? "#fff" : C.inkSoft, border: `1px solid ${query === value ? C.teal : C.line}`, boxShadow: query === value ? "0 8px 18px rgba(16,185,129,.18)" : "none" }}><Icon size={15} /> {label}</button>
+            ))}
+          </div>
           <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
             <Search size={17} color={C.inkSoft} />
             <input value={query} onChange={(e) => setQuery(e.target.value)} type="search" lang={language} dir="auto" inputMode="search" enterKeyHint="search" placeholder={uiText(language, "searchStores")} className="flex-1 outline-none text-sm bg-transparent" style={{ color: C.ink, fontFamily: "inherit" }} />
@@ -1954,6 +1972,12 @@ function MerchantView({ stores, setStores, orders, messages, couriers, merchantO
       </div>
       {showMapPicker && <MapPicker title="تعديل موقع المحل" initial={Number.isFinite(myStore.latitude ?? myStore.lat) && Number.isFinite(myStore.longitude ?? myStore.lng) ? { latitude: Number(myStore.latitude ?? myStore.lat), longitude: Number(myStore.longitude ?? myStore.lng) } : undefined} onConfirm={(pos) => updateStoreLocation({ latitude: pos.latitude, longitude: pos.longitude })} onClose={() => setShowMapPicker(false)} />}
 
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[{ label: "طلبات جديدة", value: newMerchantOrders.length, icon: Bell, color: C.rust }, { label: "قيد التنفيذ", value: orders.filter((o) => o.storeId === myStore.id && ["accepted", "preparing", "ready"].includes(o.status)).length, icon: Package, color: C.teal }, { label: "منتجات نشطة", value: myStore.products.filter((p) => p.available).length, icon: ShoppingBasket, color: C.purple }, { label: "تقييم المحل", value: myStore.rating || "جديد", icon: Star, color: C.ochre }].map(({ label, value, icon: Icon, color }) => (
+          <div key={label} className="rounded-2xl p-3" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="flex items-center justify-between"><span className="flex h-8 w-8 items-center justify-center rounded-xl" style={{ background: `${color}18`, color }}><Icon size={15} /></span><span className="text-lg font-black" style={{ color: C.ink }}>{value}</span></div><div className="mt-2 text-[11px] font-bold" style={{ color: C.inkSoft }}>{label}</div></div>
+        ))}
+      </div>
+
       <div className="dashboard-tabs flex gap-2 flex-wrap">
         <button onClick={() => setTab("products")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "products" ? C.teal : "transparent", color: tab === "products" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "products" ? C.teal : C.line}` }}>المنتجات</button>
         <button onClick={() => setTab("orders")} className="px-4 py-1.5 rounded-full text-sm font-bold" style={{ background: tab === "orders" ? C.teal : "transparent", color: tab === "orders" ? "#fff" : C.inkSoft, border: `1px solid ${tab === "orders" ? C.teal : C.line}` }}>الطلبات الواردة {newMerchantOrders.length > 0 && `(${newMerchantOrders.length})`}</button>
@@ -2184,6 +2208,11 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
           <button onClick={onLogout} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "#8B3A2A20", color: "#8B3A2A" }}><LogOut size={12} /> خروج</button>
           </div>
           <CourierQrCard courier={courier} notify={notify} />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+            {[{ label: "طلبات جديدة", value: newAvailableOrdersCount, icon: Bell, color: C.teal }, { label: "طلبات نشطة", value: myActiveOrders.length, icon: Navigation, color: C.purple }, { label: "تسليمات مكتملة", value: completedOrders.length, icon: CheckCircle2, color: C.sage }, { label: "الحالة", value: courier.status === "approved" ? "متاح" : courier.status, icon: Bike, color: C.ochre }].map(({ label, value, icon: Icon, color }) => (
+              <div key={label} className="rounded-2xl p-3" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="flex items-center justify-between"><span className="flex h-8 w-8 items-center justify-center rounded-xl" style={{ background: `${color}18`, color }}><Icon size={15} /></span><span className="text-lg font-black" style={{ color: C.ink }}>{value}</span></div><div className="mt-2 text-[11px] font-bold" style={{ color: C.inkSoft }}>{label}</div></div>
+            ))}
+          </div>
           <button data-testid="courier-new-orders-counter" onClick={() => selectCourierOrderFilter("ready")} className="w-full mb-2 p-3 rounded-xl flex items-center justify-between gap-3 text-right" aria-label={`${newAvailableOrdersCount} طلبات جديدة متاحة`} style={{ background: newAvailableOrdersCount ? C.teal + "10" : "rgba(255,255,255,.42)", border: `1px solid ${newAvailableOrdersCount ? C.teal + "38" : C.line}`, color: C.ink }}><span className="flex items-center gap-2 text-xs font-black"><span className="flex items-center justify-center rounded-lg" style={{ width: 28, height: 28, background: newAvailableOrdersCount ? C.teal : C.sage, color: "#fff" }}><Bell size={14} /></span>طلبات جديدة ضمن نطاقك</span><span className="text-sm font-black px-2.5 py-1 rounded-full" style={{ background: newAvailableOrdersCount ? C.teal : C.sage, color: "#fff" }}>{newAvailableOrdersCount}</span></button>
         <div className="flex items-center justify-between gap-2 mb-3 flex-wrap"><button data-testid="courier-new-orders-link" onClick={() => selectCourierOrderFilter("ready")} className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full" style={{ color: C.teal, border: `1px solid ${C.teal}55` }}><ArrowLeft size={12} /> عرض الطلبات الجديدة</button><label className="flex items-center gap-2 text-xs font-bold" style={{ color: C.inkSoft }}>فلتر الحالة<select data-testid="courier-order-status-filter" value={orderStatusFilter} onChange={(event) => selectCourierOrderFilter(event.target.value)} className="px-2 py-1 rounded-lg bg-white outline-none" style={{ border: `1px solid ${C.line}`, color: C.ink }}><option value="all">كل الحالات</option><option value="ready">طلبات جديدة متاحة</option><option value="assigned">بانتظار الاستلام من المحل</option><option value="picked_up">تم الاستلام</option><option value="out_for_delivery">في الطريق</option><option value="customer_confirmed">بانتظار تحويل المستحقات</option><option value="settled">مكتمل التسوية</option></select></label></div>
         <div className="flex gap-2 flex-wrap">
