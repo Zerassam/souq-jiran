@@ -2225,7 +2225,8 @@ function CourierDashboard({ courierId, stores, orders, messages, couriers, setCo
               <div key={o.id} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
                 <div className="flex items-center justify-between mb-2"><span className="font-bold text-sm" style={{ color: C.ink }}>{o.storeName}</span><StatusPill status={o.status} /></div>
                 <div className="text-xs mb-1" style={{ color: C.inkSoft }}>{o.items.map((i) => `${i.name} ×${i.qty}`).join(" · ")}</div>
-                {store && <div className="text-xs mb-3 flex items-center gap-1" style={{ color: C.teal }}><MapPin size={12} /> {store.wilaya} · {store.commune}{store.phone ? ` · هاتف المحل: ${store.phone}` : ""}</div>}
+                {store && <div className="text-xs mb-2 flex items-center gap-1" style={{ color: C.teal }}><MapPin size={12} /> {store.wilaya} · {store.commune}{store.phone ? ` · هاتف المحل: ${store.phone}` : ""}</div>}
+                <div className="text-xs mb-3 flex items-center gap-1" style={{ color: C.inkSoft }}><User size={12} /> الزبون: {o.customer || "غير متوفر"}{o.customerPhone ? ` · هاتف الزبون: ${o.customerPhone}` : " · لم يُحفظ رقم هاتف الزبون"}</div>
                 <OrderTracker status={o.status} />
                 <div className="flex gap-2 mt-3 pt-3 flex-wrap" style={{ borderTop: `1px solid ${C.line}` }}>
                   {o.status === "assigned" && <button onClick={() => advanceOrder(o.id, "picked_up")} className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: C.teal, color: "#fff" }}><PackageCheck size={12} /> تأكيد استلام الطلب من المحل</button>}
@@ -2690,6 +2691,7 @@ export default function App() {
   const cartHydratedRef = useRef(false);
   const cartStorageEpochRef = useRef(0);
   const cartStorageQueueRef = useRef(Promise.resolve());
+  const orderSubmissionRef = useRef(null);
 
   const focusedOrder = useMemo(() => orders.find((order) => order.id === focusedOrderId) || null, [orders, focusedOrderId]);
 
@@ -3133,6 +3135,24 @@ export default function App() {
   function persistentSetMyStoreId(id) { setMyStoreId(id); saveKey(STORAGE.myStoreId, id); }
 
   async function placeOrder(store, items, _promo, _discountAmount = 0, address = null, deliveryType = "pickup", deliveryFee = 0, rewardCouponCode = null) {
+    const submissionKey = JSON.stringify({
+      merchantId: store?.id,
+      items: (items || []).map((item) => ({ id: item.id, qty: item.qty })).sort((a, b) => String(a.id).localeCompare(String(b.id))),
+      deliveryType,
+      address: deliveryType === "pickup" ? null : address,
+    });
+    if (orderSubmissionRef.current === submissionKey) {
+      notify("جارٍ إرسال هذا الطلب، انتظر تأكيده قليلاً.");
+      return false;
+    }
+    orderSubmissionRef.current = submissionKey;
+    try {
+      return await placeOrderInternal(store, items, _promo, _discountAmount, address, deliveryType, deliveryFee, rewardCouponCode);
+    } finally {
+      orderSubmissionRef.current = null;
+    }
+  }
+  async function placeOrderInternal(store, items, _promo, _discountAmount = 0, address = null, deliveryType = "pickup", deliveryFee = 0, rewardCouponCode = null) {
     if (!auth || auth.type !== "customer") { notify("سجّل الدخول كعميل لإرسال طلبك."); return false; }
     if (!store || !Array.isArray(items) || items.length === 0) return false;
 
