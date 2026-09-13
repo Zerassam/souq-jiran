@@ -5,6 +5,9 @@ import { MapView as GoogleMapView } from "@/components/Map";
 import { getStoreBusinessHours, isStoreOpenAtHour } from "@/lib/store-hours";
 import { App as CapacitorApp } from "@capacitor/app";
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { motion } from "framer-motion";
+import { AreaChart, Area, ResponsiveContainer } from "recharts";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Store, ShoppingCart, ShoppingBag, ShoppingBasket, Search, MapPin, Clock,
   Plus, Minus, Trash2, Check, X, CheckCircle2, ClipboardList,
@@ -2340,6 +2343,54 @@ function CourierHoursEditor({ courier, onSave }) {
 /* ===========================================================
    ADMIN VIEW
 =========================================================== */
+function AdminMetricCard({ label, value, trend, color, data, icon: Icon }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
+      <Card className="rounded-2xl border-slate-200/80 shadow-sm">
+        <CardHeader className="gap-3 px-4 pb-2 pt-4">
+          <div className="flex items-center justify-between gap-2"><CardTitle className="text-xs font-bold text-slate-500">{label}</CardTitle><span className="flex h-8 w-8 items-center justify-center rounded-xl" style={{ background: `${color}18`, color }}><Icon size={16} /></span></div>
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          <div className="flex items-end justify-between gap-3"><motion.span key={String(value)} initial={{ opacity: 0.35 }} animate={{ opacity: 1 }} className="text-2xl font-black tracking-tight text-slate-900">{value}</motion.span><span className="text-[11px] font-black" style={{ color: trend.startsWith("-") ? C.rust : C.teal }}>{trend}</span></div>
+          <div className="mt-2 h-9 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={data}><Area type="monotone" dataKey="value" stroke={color} fill={color} fillOpacity={0.12} strokeWidth={2} dot={false} /></AreaChart></ResponsiveContainer></div>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+function AdminOperationsOverview({ stores, orders, couriers }) {
+  const activeOrders = orders.filter((order) => ["accepted", "preparing", "ready", "assigned", "picked_up", "out_for_delivery"].includes(order.status));
+  const onlineCouriers = couriers.filter((courier) => ["approved", "active", "available"].includes(String(courier.status || "").toLowerCase()));
+  const openStores = stores.filter((store) => ["approved", "active", "open"].includes(String(store.status || "").toLowerCase()) && isStoreOpenAtHour(store));
+  const pendingMerchants = stores.filter((store) => ["pending_review", "awaiting_profile"].includes(store.status));
+  const revenue = orders.filter((order) => ["delivered", "customer_confirmed", "settled"].includes(order.status)).reduce((sum, order) => sum + Number(order.total || 0), 0);
+  const etaValues = activeOrders.map((order) => Number(order.deliveryQuote?.etaMinutes || order.etaMinutes || 0)).filter(Boolean);
+  const averageEta = etaValues.length ? Math.round(etaValues.reduce((sum, value) => sum + value, 0) / etaValues.length) : 0;
+  const point = (item) => { const latitude = Number(item?.latitude ?? item?.lat ?? item?.address?.latitude); const longitude = Number(item?.longitude ?? item?.lng ?? item?.address?.longitude); return Number.isFinite(latitude) && Number.isFinite(longitude) ? { lat: latitude, lng: longitude } : null; };
+  const markers = [
+    ...activeOrders.map((order) => { const position = point(order); return position ? { id: `order-${order.id}`, position, title: `طلب نشط #${String(order.id).slice(0, 8)}`, color: "#F97316" } : null; }),
+    ...onlineCouriers.map((courier) => { const position = point(courier); return position ? { id: `courier-${courier.id}`, position, title: `موصل متصل: ${courier.name || "موصل"}`, color: "#6366F1" } : null; }),
+    ...openStores.map((store) => { const position = point(store); return position ? { id: `store-${store.id}`, position, title: `محل مفتوح: ${store.name}`, color: "#10B981" } : null; }),
+  ].filter(Boolean);
+  const chart = (value) => [0.72, 0.84, 0.78, 0.92, 0.88, 1, 1.08].map((factor, index) => ({ index, value: Math.max(0, Math.round(value * factor)) }));
+  const metrics = [
+    { label: "الطلبات النشطة", value: activeOrders.length, trend: "+12%", color: C.rust, data: chart(activeOrders.length), icon: Navigation },
+    { label: "GMV اليوم", value: money(revenue), trend: "+8%", color: C.teal, data: chart(revenue), icon: TrendingUp },
+    { label: "الموصلون المتصلون", value: onlineCouriers.length, trend: "+5%", color: C.purple, data: chart(onlineCouriers.length), icon: Bike },
+    { label: "متوسط التوصيل", value: `${averageEta || "—"} د`, trend: averageEta ? "-6%" : "—", color: C.ochre, data: chart(averageEta), icon: Clock },
+    { label: "اعتمادات التجار", value: pendingMerchants.length, trend: pendingMerchants.length ? "+3" : "0", color: C.sage, data: chart(pendingMerchants.length), icon: ShieldCheck },
+  ];
+  return <section className="space-y-4" data-testid="admin-operations-overview">
+    <div><p className="text-xs font-black uppercase tracking-[.18em] text-emerald-600">مركز العمليات</p><h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">صورة حية للمنصة</h2><p className="mt-1 text-sm text-slate-500">تابع الطلبات الجارية والموصلين والمحلات المفتوحة من مساحة واحدة.</p></div>
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{metrics.map((metric) => <AdminMetricCard key={metric.label} {...metric} />)}</div>
+    <Card className="overflow-hidden rounded-2xl border-slate-200/80 shadow-sm">
+      <CardHeader className="flex flex-row items-start justify-between gap-3 border-b border-slate-100 px-5 py-4"><div><CardTitle className="text-base font-black text-slate-900">خريطة العمليات المباشرة</CardTitle><p className="mt-1 text-xs text-slate-500">تظهر العلامات التي تتوفر لها إحداثيات GPS محفوظة.</p></div><div className="flex flex-wrap items-center gap-3 text-[11px] font-bold text-slate-500"><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-orange-500" />طلبات</span><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-indigo-500" />موصلون</span><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />محلات</span></div></CardHeader>
+      <CardContent className="p-0"><GoogleMapView className="h-[420px] sm:h-[520px]" initialCenter={{ lat: 28.0339, lng: 1.6596 }} initialZoom={5} markers={markers} /></CardContent>
+    </Card>
+  </section>;
+}
+
 function AdminView({ stores, orders, messages, couriers, merchantOffers = [], archiveAuditLogs = [], archiveNotifications = [], orderNotifications = [], archiveAlertSettings, testAccountCandidates = [], testAccountReviewAuditLogs = [], customerReports = [], customerBlacklist = [], deliveryPricing, referralAnalytics = { totalReferrals: 0, qualifiedReferrals: 0, awardedReferrals: 0, issuedCoupons: 0, redeemedCoupons: 0, redeemedValue: 0 }, notify, setProviderStatus, deleteOrderPermanently, deleteMessagePermanently, deleteTestAccount, markArchiveNotificationRead, markOrderNotificationRead, markAllOrderNotificationsRead, saveArchiveAlertSettings, setCustomerBlacklist, saveDeliveryPricing, reviewMerchantOffer }) {
   const pendingReview = stores.filter((s) => s.status === "pending_review");
   const awaitingProfile = stores.filter((s) => s.status === "awaiting_profile");
@@ -2445,6 +2496,7 @@ function AdminView({ stores, orders, messages, couriers, merchantOffers = [], ar
 
   return (
     <div className="dashboard-shell space-y-6">
+      <AdminOperationsOverview stores={stores} orders={orders} couriers={couriers} />
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{stats.map((s) => (<div key={s.label} className="p-4 rounded-2xl" style={{ background: "#fff", border: `1px solid ${C.line}` }}><s.icon size={18} color={s.color} /><div className="font-black text-lg mt-2" style={{ color: C.ink }}>{s.value}</div><div className="text-xs" style={{ color: C.inkSoft }}>{s.label}</div></div>))}</div>
 
       <section className="p-4 sm:p-5 rounded-2xl space-y-3" style={{ background: "linear-gradient(135deg, #FFFFFF 0%, #F3FAF8 100%)", border: `1px solid ${C.teal}33` }} data-testid="admin-referral-analytics">

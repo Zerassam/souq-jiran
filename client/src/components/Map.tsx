@@ -9,6 +9,7 @@ export type MapMarker = {
   id: string;
   position: MapPosition;
   title: string;
+  color?: string;
   onClick?: () => void;
 };
 
@@ -83,7 +84,7 @@ export function MapView({
         title: item.title,
         icon: L.divIcon({
           className: "souq-jiran-map-marker",
-          html: '<span style="display:block;width:28px;height:28px;border-radius:999px;background:#147b78;border:3px solid #ffffff;box-shadow:0 3px 9px rgba(20,123,120,.38)"></span>',
+          html: `<span style="display:block;width:28px;height:28px;border-radius:999px;background:${item.color || "#147b78"};border:3px solid #ffffff;box-shadow:0 3px 9px rgba(15,23,42,.22)"></span>`,
           iconSize: [28, 28],
           iconAnchor: [14, 14],
         }),
