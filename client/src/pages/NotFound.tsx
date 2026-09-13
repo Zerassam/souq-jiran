@@ -7,7 +7,10 @@ export default function NotFound() {
   const [, setLocation] = useLocation();
 
   const handleGoHome = () => {
-    setLocation("/");
+    // GitHub Pages serves this app below /souq-jiran/. A leading slash would
+    // escape the repository path and send users to https://zerassam.github.io/.
+    const basePath = import.meta.env.BASE_URL || "/";
+    setLocation(basePath);
   };
 
   return (
