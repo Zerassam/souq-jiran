@@ -2383,11 +2383,13 @@ function AdminOperationsOverview({ stores, orders, couriers }) {
   ];
   return <section className="space-y-4" data-testid="admin-operations-overview">
     <div><p className="text-xs font-black uppercase tracking-[.18em] text-emerald-600">مركز العمليات</p><h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">صورة حية للمنصة</h2><p className="mt-1 text-sm text-slate-500">تابع الطلبات الجارية والموصلين والمحلات المفتوحة من مساحة واحدة.</p></div>
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{metrics.map((metric) => <AdminMetricCard key={metric.label} {...metric} />)}</div>
-    <Card className="overflow-hidden rounded-2xl border-slate-200/80 shadow-sm">
-      <CardHeader className="flex flex-row items-start justify-between gap-3 border-b border-slate-100 px-5 py-4"><div><CardTitle className="text-base font-black text-slate-900">خريطة العمليات المباشرة</CardTitle><p className="mt-1 text-xs text-slate-500">تظهر العلامات التي تتوفر لها إحداثيات GPS محفوظة.</p></div><div className="flex flex-wrap items-center gap-3 text-[11px] font-bold text-slate-500"><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-orange-500" />طلبات</span><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-indigo-500" />موصلون</span><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />محلات</span></div></CardHeader>
-      <CardContent className="p-0"><GoogleMapView className="h-[420px] sm:h-[520px]" initialCenter={{ lat: 28.0339, lng: 1.6596 }} initialZoom={5} markers={markers} /></CardContent>
-    </Card>
+    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)]">
+      <Card className="overflow-hidden rounded-2xl border-slate-200/80 shadow-sm">
+        <CardHeader className="flex flex-row items-start justify-between gap-3 border-b border-slate-100 px-5 py-4"><div><CardTitle className="text-base font-black text-slate-900">خريطة العمليات المباشرة</CardTitle><p className="mt-1 text-xs text-slate-500">تظهر العلامات التي تتوفر لها إحداثيات GPS محفوظة.</p></div><div className="flex flex-wrap items-center gap-3 text-[11px] font-bold text-slate-500"><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-orange-500" />طلبات</span><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-indigo-500" />موصلون</span><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />محلات</span></div></CardHeader>
+        <CardContent className="p-0"><GoogleMapView className="h-[420px] sm:h-[520px]" initialCenter={{ lat: 28.0339, lng: 1.6596 }} initialZoom={5} markers={markers} /></CardContent>
+      </Card>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">{metrics.map((metric) => <AdminMetricCard key={metric.label} {...metric} />)}</div>
+    </div>
   </section>;
 }
 
