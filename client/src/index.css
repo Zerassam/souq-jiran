@@ -62,39 +62,39 @@
 :root {
   --font-arabic: "Sakkal Majalla Local", "Sakkal Majalla", Tahoma, serif;
   --font-french: Inter, Arial, sans-serif;
-  --primary: oklch(0.54 0.22 285);
-  --primary-foreground: oklch(0.99 0.01 285);
-  --sidebar-primary: oklch(0.54 0.22 285);
-  --sidebar-primary-foreground: oklch(0.99 0.01 285);
-  --chart-1: oklch(0.54 0.22 285);
-  --chart-2: oklch(0.67 0.17 332);
-  --chart-3: oklch(0.77 0.16 75);
-  --chart-4: oklch(0.7 0.16 160);
-  --chart-5: oklch(0.62 0.19 310);
+  --primary: oklch(0.696 0.17 162.48);
+  --primary-foreground: oklch(0.985 0.02 162);
+  --sidebar-primary: oklch(0.696 0.17 162.48);
+  --sidebar-primary-foreground: oklch(0.985 0.02 162);
+  --chart-1: oklch(0.696 0.17 162.48);
+  --chart-2: oklch(0.623 0.214 259.815);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.194 149.214);
+  --chart-5: oklch(0.585 0.233 277.117);
   --radius: 1rem;
-  --background: oklch(0.975 0.006 285);
-  --foreground: oklch(0.22 0.02 270);
+  --background: oklch(0.98 0.004 247.858);
+  --foreground: oklch(0.208 0.042 265.755);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.22 0.02 270);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.22 0.02 270);
-  --secondary: oklch(0.95 0.025 285);
-  --secondary-foreground: oklch(0.36 0.03 270);
-  --muted: oklch(0.95 0.015 285);
-  --muted-foreground: oklch(0.52 0.025 270);
-  --accent: oklch(0.67 0.17 332);
-  --accent-foreground: oklch(0.99 0.01 285);
+  --secondary: oklch(0.968 0.007 247.896);
+  --secondary-foreground: oklch(0.279 0.041 260.031);
+  --muted: oklch(0.968 0.007 247.896);
+  --muted-foreground: oklch(0.446 0.043 257.281);
+  --accent: oklch(0.95 0.05 162);
+  --accent-foreground: oklch(0.279 0.041 260.031);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.9 0.015 280);
-  --input: oklch(0.9 0.015 280);
-  --ring: oklch(0.54 0.22 285);
-  --sidebar: oklch(0.975 0.006 285);
-  --sidebar-foreground: oklch(0.22 0.02 270);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.623 0.214 259.815);
+  --border: oklch(0.929 0.013 255.508);
+  --input: oklch(0.929 0.013 255.508);
+  --ring: oklch(0.696 0.17 162.48);
+  --sidebar: oklch(0.985 0.002 247.839);
+  --sidebar-foreground: oklch(0.208 0.042 265.755);
+  --sidebar-accent: oklch(0.95 0.05 162);
+  --sidebar-accent-foreground: oklch(0.279 0.041 260.031);
+  --sidebar-border: oklch(0.929 0.013 255.508);
+  --sidebar-ring: oklch(0.696 0.17 162.48);
 }
 
 .dark {
@@ -140,7 +140,7 @@
     @apply bg-background text-foreground;
     min-height: 100vh;
     font-family: var(--font-arabic);
-    background-image: radial-gradient(circle at 0 0, oklch(0.54 0.22 285 / 0.08), transparent 30rem), radial-gradient(circle at 100% 10%, oklch(0.67 0.17 332 / 0.06), transparent 26rem);
+    background-image: radial-gradient(circle at 0 0, oklch(0.696 0.17 162.48 / 0.08), transparent 30rem), radial-gradient(circle at 100% 10%, oklch(0.623 0.214 259.815 / 0.05), transparent 26rem);
     background-attachment: fixed;
   }
   button:not(:disabled),
@@ -173,12 +173,12 @@ html[dir="ltr"] .merchant-offer-marquee__item { text-align: left; }
 
 button { transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), opacity 160ms cubic-bezier(0.23, 1, 0.32, 1); }
 button:active { transform: scale(0.97); }
-button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid oklch(0.54 0.22 285 / 0.28); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid oklch(0.696 0.17 162.48 / 0.32); outline-offset: 2px; }
 #root { min-height: 100vh; }
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
-.app-signal-line { box-shadow: 0 0 18px oklch(0.54 0.22 285 / 0.22); }
+.app-signal-line { box-shadow: 0 0 18px oklch(0.696 0.17 162.48 / 0.24); }
 
 /* عروض المتاجر المعتمدة: شريط واحد مستقل عن الآراء والمكافآت. */
 .merchant-offer-marquee {

@@ -22,9 +22,9 @@ import {
    Design tokens
 --------------------------------------------------------- */
 const C = {
-  paper: "#F7F8FC", paperDark: "#EEF0FF", ink: "#172033", inkSoft: "#697386",
-  teal: "#5B5BF7", tealDark: "#3730A3", rust: "#F45B7A", ochre: "#F59E0B",
-  sage: "#10B981", line: "#E5E7F0", purple: "#8B5CF6",
+  paper: "#F8FAFC", paperDark: "#F1F5F9", ink: "#0F172A", inkSoft: "#64748B",
+  teal: "#10B981", tealDark: "#047857", rust: "#F97316", ochre: "#F59E0B",
+  sage: "#22C55E", line: "#E2E8F0", purple: "#6366F1",
 };
 // أدوات التصدير والرموز لا تُحتاج عند فتح السوق؛ تُحمّل فقط عند استعمالها.
 const loadCsvParser = () => import("papaparse").then(({ default: parser }) => parser);
@@ -3113,7 +3113,16 @@ export default function App() {
     if (loading) return;
     if (prevOrdersRef.current === null) { prevOrdersRef.current = orders; return; }
     const prevMap = Object.fromEntries(prevOrdersRef.current.map((o) => [o.id, o.status]));
-    orders.forEach((o) => { if (prevMap[o.id] && prevMap[o.id] !== o.status) pushNotification(`تم تحديث طلبك من ${o.storeName} إلى «${STATUS_MAP[o.status]?.label || o.status}»`); });
+    const spokenStatus = { accepted: "تم القبول", out_for_delivery: "في الطريق", delivered: "وصل الطلب" };
+    orders.forEach((o) => {
+      if (!prevMap[o.id] || prevMap[o.id] === o.status) return;
+      pushNotification(`تم تحديث طلبك من ${o.storeName} إلى «${STATUS_MAP[o.status]?.label || o.status}»`);
+      const phrase = spokenStatus[o.status];
+      if (phrase && typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(new SpeechSynthesisUtterance(phrase));
+      }
+    });
     prevOrdersRef.current = orders;
   }, [orders, loading]);
 
