@@ -10,7 +10,7 @@ export default function NotFound() {
     // GitHub Pages serves this app below /souq-jiran/. A leading slash would
     // escape the repository path and send users to https://zerassam.github.io/.
     const basePath = import.meta.env.BASE_URL || "/";
-    setLocation(basePath);
+    window.location.assign(basePath);
   };
 
   return (
